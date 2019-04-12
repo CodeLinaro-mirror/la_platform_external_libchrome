@@ -35,6 +35,7 @@ var (
 			"${mojomBindingsGenerator}",
 		},
 		Description: "Mojo pickles generation $in => $out",
+		Restat:      true,
 	}, "package", "flags", "outDir")
 
 	generateMojomSrcsRule = pctx.StaticRule("generateMojomSrcsRule", blueprint.RuleParams{
@@ -45,14 +46,15 @@ var (
 		-d ${package}
 		${flags}
 		--bytecode_path=${templateDir}
-		--generators=${generator}
+		--generators=${mojomGenerator}
 		--use_new_wrapper_types
 		${in}`,
 		CommandDeps: []string{
 			"${mojomBindingsGenerator}",
 		},
 		Description: "Mojo sources generation $in => $out",
-	}, "generator", "package", "flags", "outDir", "templateDir")
+		Restat:      true,
+	}, "mojomGenerator", "package", "flags", "outDir", "templateDir")
 
 	mergeSrcjarsRule = pctx.StaticRule("mergeSrcjarsRule", blueprint.RuleParams{
 		Command: "${mergeZips} ${out} ${in}",
@@ -232,7 +234,7 @@ type mojomSrcsRuleDescription struct {
 // current module.
 func (p *mojomGenerationProperties) generateBuildActions(
 	ctx android.ModuleContext,
-	generator string,
+	mojomGenerator string,
 	descriptions []mojomSrcsRuleDescription,
 ) android.Paths {
 	packageName := android.PathForModuleSrc(ctx, "").Rel()
@@ -261,11 +263,11 @@ func (p *mojomGenerationProperties) generateBuildActions(
 				Implicits: implicitDeps,
 				Outputs:   outs,
 				Args: map[string]string{
-					"generator":   generator,
-					"package":     packageName,
-					"flags":       fmt.Sprintf("%s %s", p.flags(ctx), description.extraFlags),
-					"outDir":      outDir.String(),
-					"templateDir": templateDir,
+					"mojomGenerator": mojomGenerator,
+					"package":        packageName,
+					"flags":          fmt.Sprintf("%s %s", p.flags(ctx), description.extraFlags),
+					"outDir":         outDir.String(),
+					"templateDir":    templateDir,
 				},
 			})
 		}
