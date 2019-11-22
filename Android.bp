@@ -340,6 +340,43 @@ cc_library {
     },
 }
 
+cc_library_shared {
+    name: "libchrome_vendor",
+    vendor_available: true,
+    vndk: {
+        enabled: false,
+    },
+
+    defaults: ["libchrome-defaults"],
+    srcs: libchromeCommonSrc,
+
+    export_shared_lib_headers: ["libbase"],
+    export_static_lib_headers: ["libgtest_prod"],
+    shared_libs: [
+        "libbase",
+        "libevent",
+    ],
+    static_libs: [
+        "libgtest_prod",
+        "libmodpb64",
+    ],
+    target: {
+        linux: {
+            srcs: libchromeLinuxSrc,
+        },
+        linux_glibc: {
+            srcs: libchromeLinuxGlibcSrc,
+        },
+        android: {
+            srcs: libchromeAndroidSrc,
+            shared_libs: [
+                "libcutils",
+                "liblog",
+            ],
+        },
+    },
+}
+
 // libchrome-crypto shared library for device
 // ========================================================
 cc_library_shared {
