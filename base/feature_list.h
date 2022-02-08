@@ -169,8 +169,9 @@ class BASE_EXPORT FeatureList {
   static void ClearInstanceForTesting();
 
  private:
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(FeatureListTest, CheckFeatureIdentity);
-
+#endif
   struct OverrideEntry {
     // The overridden enable (on/off) state of the feature.
     const OverrideState overridden_state;

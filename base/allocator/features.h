@@ -5,11 +5,13 @@
 #define BASE_ALLOCATOR_FEATURES_H_
 
 #include "build/buildflag.h"
-
+#ifdef USE_LE_MODE
+#define BUILDFLAG_INTERNAL_USE_EXPERIMENTAL_ALLOCATOR_SHIM() (0)
+#else
 #if defined(__APPLE__) || defined(ANDROID)
 #define BUILDFLAG_INTERNAL_USE_EXPERIMENTAL_ALLOCATOR_SHIM() (0)
 #else
 #define BUILDFLAG_INTERNAL_USE_EXPERIMENTAL_ALLOCATOR_SHIM() (1)
 #endif
-
+#endif
 #endif  // BASE_ALLOCATOR_FEATURES_H_

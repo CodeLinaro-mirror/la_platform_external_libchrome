@@ -341,7 +341,6 @@ CheckedUnsignedAbs(T value) {
   template <typename T>                                               \
   typename std::enable_if<std::numeric_limits<T>::is_iec559, T>::type \
       Checked##NAME(T, T, RangeConstraint*) {                         \
-    NOTREACHED();                                                     \
     return static_cast<T>(0);                                         \
   }
 
@@ -465,8 +464,10 @@ class CheckedNumericState<T, NUMERIC_FLOATING> {
         value_ = std::numeric_limits<T>::quiet_NaN();
         break;
 
-      default:
+      default:;
+#ifndef USE_LE_MODE
         NOTREACHED();
+#endif
     }
   }
 

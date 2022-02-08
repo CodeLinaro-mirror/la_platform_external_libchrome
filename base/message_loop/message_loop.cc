@@ -212,10 +212,14 @@ bool MessageLoop::InitMessagePumpForUIFactory(MessagePumpFactory* factory) {
 // static
 std::unique_ptr<MessagePump> MessageLoop::CreateMessagePumpForType(Type type) {
 // TODO(rvargas): Get rid of the OS guards.
+#ifdef USE_LE_MODE
+  typedef MessagePumpLibevent MessagePumpForUI;
+#else
 #if defined(USE_GLIB) && !defined(OS_NACL)
   typedef MessagePumpGlib MessagePumpForUI;
 #elif defined(OS_LINUX) && !defined(OS_NACL)
   typedef MessagePumpLibevent MessagePumpForUI;
+#endif
 #endif
 
 #if defined(OS_IOS) || defined(OS_MACOSX)

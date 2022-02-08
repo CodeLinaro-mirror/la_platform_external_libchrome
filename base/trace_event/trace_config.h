@@ -211,6 +211,7 @@ class BASE_EXPORT TraceConfig {
   }
 
  private:
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(TraceConfigTest, TraceConfigFromValidLegacyFormat);
   FRIEND_TEST_ALL_PREFIXES(TraceConfigTest,
                            TraceConfigFromInvalidLegacyStrings);
@@ -223,7 +224,7 @@ class BASE_EXPORT TraceConfig {
   FRIEND_TEST_ALL_PREFIXES(TraceConfigTest, EmptyMemoryDumpConfigTest);
   FRIEND_TEST_ALL_PREFIXES(TraceConfigTest,
                            EmptyAndAsteriskCategoryFilterString);
-
+#endif
   // The default trace config, used when none is provided.
   // Allows all non-disabled-by-default categories through, except if they end
   // in the suffix 'Debug' or 'Test'.

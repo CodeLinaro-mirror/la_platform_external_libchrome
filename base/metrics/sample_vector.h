@@ -53,9 +53,10 @@ class BASE_EXPORT SampleVector : public HistogramSamples {
   virtual size_t GetBucketIndex(HistogramBase::Sample value) const;
 
  private:
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(HistogramTest, CorruptSampleCounts);
   FRIEND_TEST_ALL_PREFIXES(SharedHistogramTest, CorruptSampleCounts);
-
+#endif
   // In the case where this class manages the memory, here it is.
   std::vector<HistogramBase::AtomicCount> local_counts_;
 

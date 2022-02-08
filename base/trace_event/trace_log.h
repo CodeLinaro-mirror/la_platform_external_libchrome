@@ -349,7 +349,7 @@ class BASE_EXPORT TraceLog : public MemoryDumpProvider {
 
  private:
   typedef unsigned int InternalTraceOptions;
-
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(TraceEventTestFixture,
                            TraceBufferRingBufferGetReturnChunk);
   FRIEND_TEST_ALL_PREFIXES(TraceEventTestFixture,
@@ -361,7 +361,7 @@ class BASE_EXPORT TraceLog : public MemoryDumpProvider {
                            ConvertTraceConfigToInternalOptions);
   FRIEND_TEST_ALL_PREFIXES(TraceEventTestFixture,
                            TraceRecordAsMuchAsPossibleMode);
-
+ #endif
   // This allows constructor and destructor to be private and usable only
   // by the Singleton class.
   friend struct DefaultSingletonTraits<TraceLog>;

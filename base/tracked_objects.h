@@ -392,8 +392,9 @@ class BASE_EXPORT DeathData {
   // any.  DeathData owns the whole list starting with this pointer.
   // Can be accessed only on the snapshot thread.
   const DeathDataPhaseSnapshot* last_phase_snapshot_;
-
+#ifndef USE_LE_MODE
   DISALLOW_ASSIGN(DeathData);
+#endif
 };
 
 //------------------------------------------------------------------------------
@@ -549,9 +550,10 @@ class BASE_EXPORT ThreadData {
   // better change of optimizing (inlining? etc.) private methods (knowing that
   // there will be no need for an external entry point).
   friend class TrackedObjectsTest;
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(TrackedObjectsTest, MinimalStartupShutdown);
   FRIEND_TEST_ALL_PREFIXES(TrackedObjectsTest, TinyStartupShutdown);
-
+#endif
   // Type for an alternate timer function (testing only).
   typedef unsigned int NowFunction();
 

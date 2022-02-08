@@ -194,6 +194,7 @@ class BASE_EXPORT FieldTrial : public RefCounted<FieldTrial> {
 
  private:
   // Allow tests to access our innards for testing purposes.
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(FieldTrialTest, Registration);
   FRIEND_TEST_ALL_PREFIXES(FieldTrialTest, AbsoluteProbabilities);
   FRIEND_TEST_ALL_PREFIXES(FieldTrialTest, RemainingProbability);
@@ -213,7 +214,7 @@ class BASE_EXPORT FieldTrial : public RefCounted<FieldTrial> {
   FRIEND_TEST_ALL_PREFIXES(FieldTrialTest, SetForcedChangeDefault_NonDefault);
   FRIEND_TEST_ALL_PREFIXES(FieldTrialTest, FloatBoundariesGiveEqualGroupSizes);
   FRIEND_TEST_ALL_PREFIXES(FieldTrialTest, DoesNotSurpassTotalProbability);
-
+#endif
   friend class base::FieldTrialList;
 
   friend class RefCounted<FieldTrial>;

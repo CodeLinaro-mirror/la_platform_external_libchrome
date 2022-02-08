@@ -3,8 +3,9 @@
 // found in the LICENSE file.
 
 #ifndef BASE_GTEST_PROD_UTIL_H_
+#ifndef USE_LE_MODE
 #define BASE_GTEST_PROD_UTIL_H_
-
+#endif
 #include "testing/gtest/include/gtest/gtest_prod.h"
 
 // This is a wrapper for gtest's FRIEND_TEST macro that friends
@@ -18,11 +19,12 @@
 //   void MyMethod();
 //   FRIEND_TEST_ALL_PREFIXES(MyClassTest, MyMethod);
 // };
+#ifndef USE_LE_MODE
 #define FRIEND_TEST_ALL_PREFIXES(test_case_name, test_name) \
   FRIEND_TEST(test_case_name, test_name); \
   FRIEND_TEST(test_case_name, DISABLED_##test_name); \
   FRIEND_TEST(test_case_name, FLAKY_##test_name)
-
+#endif
 // C++ compilers will refuse to compile the following code:
 //
 // namespace foo {

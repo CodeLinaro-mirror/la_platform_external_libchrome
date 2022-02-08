@@ -337,10 +337,11 @@ class BASE_EXPORT PersistentMemoryAllocator {
 
   HistogramBase* allocs_histogram_;  // Histogram recording allocs.
   HistogramBase* used_histogram_;    // Histogram recording used space.
-
+#ifndef USE_LE_MODE
   friend class PersistentMemoryAllocatorTest;
   FRIEND_TEST_ALL_PREFIXES(PersistentMemoryAllocatorTest, AllocateAndIterate);
   DISALLOW_COPY_AND_ASSIGN(PersistentMemoryAllocator);
+#endif
 };
 
 

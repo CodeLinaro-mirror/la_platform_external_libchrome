@@ -161,7 +161,9 @@ template <class ObserverType>
 void ObserverListBase<ObserverType>::AddObserver(ObserverType* obs) {
   DCHECK(obs);
   if (ContainsValue(observers_, obs)) {
+#ifndef USE_LE_MODE
     NOTREACHED() << "Observers can only be added once!";
+#endif
     return;
   }
   observers_.push_back(obs);

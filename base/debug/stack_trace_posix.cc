@@ -564,7 +564,7 @@ class SandboxSymbolizeHelper {
         //   first entry.
         base_address = (is_first ? 0U : start_address) - region.offset;
         if (file_path && file_path_size > 0) {
-          strncpy(file_path, region.path.c_str(), file_path_size);
+          strlcpy(file_path, region.path.c_str(), file_path_size);
           // Ensure null termination.
           file_path[file_path_size - 1] = '\0';
         }

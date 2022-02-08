@@ -12,7 +12,9 @@
 #include "base/base_export.h"
 #include "base/callback_forward.h"
 #include "base/debug/task_annotator.h"
+#ifndef USE_LE_MODE
 #include "base/gtest_prod_util.h"
+#endif
 #include "base/location.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
@@ -421,8 +423,9 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
   friend class internal::IncomingTaskQueue;
   friend class ScheduleWorkTest;
   friend class Thread;
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(MessageLoopTest, DeleteUnboundLoop);
-
+#endif
   // Creates a MessageLoop without binding to a thread.
   // If |type| is TYPE_CUSTOM non-null |pump_factory| must be also given
   // to create a message pump for this message loop.  Otherwise a default

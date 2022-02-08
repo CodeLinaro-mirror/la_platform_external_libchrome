@@ -50,7 +50,7 @@ static void POSSIBLY_UNUSED wrap_posix_strerror_r(
     // glibc did not use buf and returned a static string instead. Copy it
     // into buf.
     buf[0] = '\0';
-    strncat(buf, rc, len - 1);
+    snprintf(buf, len - 1, "%s", rc);
   }
   // The GNU version never fails. Unknown errors get an "unknown error" message.
   // The result is always null terminated.

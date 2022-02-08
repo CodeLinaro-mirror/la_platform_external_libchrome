@@ -104,8 +104,9 @@ class BASE_EXPORT PickleIterator {
   const char* payload_;  // Start of our pickle's payload.
   size_t read_index_;  // Offset of the next readable byte in payload.
   size_t end_index_;  // Payload size.
-
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(PickleTest, GetReadPointerAndAdvance);
+#endif
 };
 
 // This class provides an interface analogous to base::Pickle's WriteFoo()
@@ -370,7 +371,7 @@ class BASE_EXPORT Pickle {
 
   inline void* ClaimUninitializedBytesInternal(size_t num_bytes);
   inline void WriteBytesCommon(const void* data, size_t length);
-
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(PickleTest, DeepCopyResize);
   FRIEND_TEST_ALL_PREFIXES(PickleTest, Resize);
   FRIEND_TEST_ALL_PREFIXES(PickleTest, PeekNext);
@@ -378,6 +379,7 @@ class BASE_EXPORT Pickle {
   FRIEND_TEST_ALL_PREFIXES(PickleTest, FindNext);
   FRIEND_TEST_ALL_PREFIXES(PickleTest, FindNextWithIncompleteHeader);
   FRIEND_TEST_ALL_PREFIXES(PickleTest, FindNextOverflow);
+#endif
 };
 
 }  // namespace base

@@ -526,12 +526,16 @@ class BASE_EXPORT Time : public time_internal::TimeBase<Time> {
   // all the callers stop using these ones.
   static Time FromUTCExploded(const Exploded& exploded) {
     base::Time time;
+#ifndef USE_LE_MODE
     ignore_result(FromUTCExploded(exploded, &time));
+#endif
     return time;
   }
   static Time FromLocalExploded(const Exploded& exploded) {
     base::Time time;
+#ifndef USE_LE_MODE
     ignore_result(FromLocalExploded(exploded, &time));
+#endif
     return time;
   }
 
@@ -668,11 +672,13 @@ constexpr TimeDelta TimeDelta::FromDouble(double value) {
 constexpr TimeDelta TimeDelta::FromProduct(int64_t value,
                                            int64_t positive_value) {
   return (
+#ifndef USE_LE_MODE
 #if !defined(_PREFAST_) || !defined(OS_WIN)
           // Avoid internal compiler errors in /analyze builds with VS 2015
           // update 3.
           // https://connect.microsoft.com/VisualStudio/feedback/details/2870865
           DCHECK(positive_value > 0),
+#endif
 #endif
           value > std::numeric_limits<int64_t>::max() / positive_value
               ? Max()

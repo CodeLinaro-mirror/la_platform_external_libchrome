@@ -81,7 +81,7 @@ constexpr Dst saturated_cast_impl(const Src value,
                            ? std::numeric_limits<Dst>::max()
                            : (constraint == RANGE_INVALID
                                   ? NaNHandler::template HandleNaN<Dst>()
-                                  : (NOTREACHED(), static_cast<Dst>(value)))));
+                                  : (false, static_cast<Dst>(value)))));
 }
 }  // namespace internal
 

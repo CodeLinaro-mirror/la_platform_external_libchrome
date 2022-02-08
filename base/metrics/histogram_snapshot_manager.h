@@ -59,8 +59,9 @@ class BASE_EXPORT HistogramSnapshotManager {
   void PrepareFinalDelta(const HistogramBase* histogram);
 
  private:
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(HistogramSnapshotManagerTest, CheckMerge);
-
+#endif
   // During a snapshot, samples are acquired and aggregated. This structure
   // contains all the information for a given histogram that persists between
   // collections.

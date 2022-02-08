@@ -14,7 +14,9 @@
 
 #ifndef BUILD_BUILD_CONFIG_H_
 #define BUILD_BUILD_CONFIG_H_
-
+#ifdef USE_LE_MODE
+#define __ANDROID__
+#endif
 // A brief primer on #defines:
 //
 // - __ANDROID__ is automatically defined by the Android toolchain (see

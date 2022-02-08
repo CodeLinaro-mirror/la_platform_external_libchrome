@@ -642,13 +642,15 @@ DEFINE_CHECK_OP_IMPL(GT, > )
 #else
 #define ENABLE_DLOG 1
 #endif
-
+#ifdef USE_LE_MODE
+#define DCHECK_IS_ON() 0
+#else
 #if defined(NDEBUG) && !defined(DCHECK_ALWAYS_ON)
 #define DCHECK_IS_ON() 0
 #else
 #define DCHECK_IS_ON() 1
 #endif
-
+#endif
 // Definitions for DLOG et al.
 
 #if ENABLE_DLOG

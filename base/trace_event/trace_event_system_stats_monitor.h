@@ -44,9 +44,10 @@ class BASE_EXPORT TraceEventSystemStatsMonitor
   void DumpSystemStats();
 
  private:
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(TraceSystemStatsMonitorTest,
                            TraceEventSystemStatsMonitor);
-
+#endif
   bool IsTimerRunningForTest() const;
 
   void StartProfiling();

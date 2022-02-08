@@ -180,8 +180,9 @@ class BASE_EXPORT ProcessMemoryDump {
   const MemoryDumpArgs& dump_args() const { return dump_args_; }
 
  private:
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(ProcessMemoryDumpTest, BackgroundModeTest);
-
+#endif
   MemoryAllocatorDump* AddAllocatorDumpInternal(
       std::unique_ptr<MemoryAllocatorDump> mad);
 

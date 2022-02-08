@@ -251,6 +251,7 @@ class BASE_EXPORT JSONParser {
   int error_column_;
 
   friend class JSONParserTest;
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(JSONParserTest, NextChar);
   FRIEND_TEST_ALL_PREFIXES(JSONParserTest, ConsumeDictionary);
   FRIEND_TEST_ALL_PREFIXES(JSONParserTest, ConsumeList);
@@ -258,7 +259,7 @@ class BASE_EXPORT JSONParser {
   FRIEND_TEST_ALL_PREFIXES(JSONParserTest, ConsumeLiterals);
   FRIEND_TEST_ALL_PREFIXES(JSONParserTest, ConsumeNumbers);
   FRIEND_TEST_ALL_PREFIXES(JSONParserTest, ErrorMessages);
-
+#endif
   DISALLOW_COPY_AND_ASSIGN(JSONParser);
 };
 

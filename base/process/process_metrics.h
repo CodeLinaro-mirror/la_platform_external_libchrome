@@ -415,8 +415,9 @@ class SystemMetrics {
   std::unique_ptr<Value> ToValue() const;
 
  private:
+#ifndef USE_LE_MODE
   FRIEND_TEST_ALL_PREFIXES(SystemMetricsTest, SystemMetrics);
-
+#endif
   size_t committed_memory_;
 #if defined(OS_LINUX) || defined(OS_ANDROID)
   SystemMemoryInfoKB memory_info_;

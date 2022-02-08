@@ -22,7 +22,9 @@ Time GetBuildTime() {
   // __TIME__ is exactly "hh:mm:ss".
 #if defined(__ANDROID__)
   char kDateTime[PROPERTY_VALUE_MAX];
+#ifndef USE_LE_MODE
   property_get("ro.build.date", kDateTime, "Sep 02 2008 08:00:00 PST");
+#endif
 #elif defined(DONT_EMBED_BUILD_METADATA) && !defined(OFFICIAL_BUILD)
   const char kDateTime[] = "Sep 02 2008 08:00:00 PST";
 #else
