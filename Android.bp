@@ -1205,6 +1205,11 @@ python_binary_host {
         "base/android/jni_generator/jni_generator.py",
         "build/**/*.py",
     ],
+    version: {
+        py3: {
+            embedded_launcher: true,
+        },
+    },
 }
 
 python_binary_host {
