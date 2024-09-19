@@ -893,6 +893,7 @@ cc_library {
         "//frameworks/base/services/core/jni",
         "//frameworks/native/libs/vr/libpdx_default_transport",
         "//frameworks/native/services/inputflinger:__subpackages__",
+        "//hardware/libhardware/modules/camera/3_4",
         "//hardware/interfaces/keymaster/4.0/vts/performance",
         "//hardware/interfaces/security/keymint/aidl/vts/performance",
         "//hardware/nxp/secure_element/snxxx:__subpackages__",
