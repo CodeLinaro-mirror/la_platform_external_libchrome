@@ -683,6 +683,7 @@ libchromeCommonSrc = [
     "base/strings/nullable_string16.cc",
     "base/strings/pattern.cc",
     "base/strings/safe_sprintf.cc",
+    "base/strings/strcat.cc",
     "base/strings/string16.cc",
     "base/strings/string_number_conversions.cc",
     "base/strings/string_piece.cc",
