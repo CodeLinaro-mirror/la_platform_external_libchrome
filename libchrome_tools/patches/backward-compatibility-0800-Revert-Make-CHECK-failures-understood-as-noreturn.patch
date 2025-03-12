@@ -1,4 +1,4 @@
-From af90d7e2821d99dbb8c86b9c6070c8dfd2e9926c Mon Sep 17 00:00:00 2001
+From 17e379b1d4d26cceee5c088873edcdd39f0ce71d Mon Sep 17 00:00:00 2001
 From: Cici Ruan <cuicuiruan@google.com>
 Date: Thu, 19 Dec 2024 17:02:50 -0800
 Subject: [PATCH] Revert "Make CHECK() failures understood as [[noreturn]]"
@@ -9,17 +9,17 @@ Change-Id: I68c3088d4fbfa40dbcc2d91f22ad97fd45a0c276
 ---
  base/check.cc          | 36 +++++++++++++++++++++++++++---------
  base/check.h           | 26 ++++++++++++++++++--------
- base/check_op.h        |  5 ++---
+ base/check_op.h        |  4 ++--
  base/check_unittest.cc | 41 +++++------------------------------------
  base/notreached.h      |  2 +-
- 5 files changed, 53 insertions(+), 57 deletions(-)
+ 5 files changed, 53 insertions(+), 56 deletions(-)
 
 diff --git a/base/check.cc b/base/check.cc
-index 4c30de5cb3..87fcaf4132 100644
+index 337282a375..61dc7581fe 100644
 --- a/base/check.cc
 +++ b/base/check.cc
-@@ -291,6 +291,24 @@ CheckError CheckError::DumpWillBeCheckOp(char* log_message_str,
-   return CheckError(log_message);
+@@ -297,6 +297,24 @@ LogMessage* CheckError::DumpWillBeCheckOp(char* log_message_str,
+   return log_message;
  }
  
 +CheckError CheckError::PCheck(const char* condition,
@@ -43,7 +43,7 @@ index 4c30de5cb3..87fcaf4132 100644
  CheckError CheckError::DPCheck(const char* condition,
                                 const base::Location& location) {
    SystemErrorCode err_code = logging::GetLastSystemErrorCode();
-@@ -303,6 +321,15 @@ CheckError CheckError::DPCheck(const char* condition,
+@@ -309,6 +327,15 @@ CheckError CheckError::DPCheck(const char* condition,
    return CheckError(log_message);
  }
  
@@ -59,7 +59,7 @@ index 4c30de5cb3..87fcaf4132 100644
  CheckError CheckError::NotImplemented(const char* function,
                                        const base::Location& location) {
    auto* const log_message = new LogMessage(
-@@ -398,15 +425,6 @@ NotReachedError NotReachedError::NotReached(base::NotFatalUntil fatal_milestone,
+@@ -402,15 +429,6 @@ NotReachedError NotReachedError::NotReached(base::NotFatalUntil fatal_milestone,
    return NotReachedError(log_message);
  }
  
@@ -76,12 +76,12 @@ index 4c30de5cb3..87fcaf4132 100644
  
  NotReachedNoreturnError::NotReachedNoreturnError(const base::Location& location)
 diff --git a/base/check.h b/base/check.h
-index 1311bb7169..231b42bb6b 100644
+index 96f17b9847..51df4bc730 100644
 --- a/base/check.h
 +++ b/base/check.h
-@@ -85,13 +85,15 @@ class BASE_EXPORT CheckError {
-   // logs.
- 
+@@ -90,13 +90,15 @@ class BASE_EXPORT CheckError {
+   // TODO(pbos): Make all static methods that currently return some version of
+   // CheckError return LogMessage*.
    static CheckError Check(const char* condition,
 -                          base::NotFatalUntil fatal_milestone,
 +                          base::NotFatalUntil fatal_milestone =
@@ -90,14 +90,14 @@ index 1311bb7169..231b42bb6b 100644
                                base::Location::CurrentWithoutFunctionName());
    // Takes ownership over (free()s after using) `log_message_str`, for use with
    // CHECK_op macros.
-   static CheckError CheckOp(char* log_message_str,
--                            base::NotFatalUntil fatal_milestone,
-+                            base::NotFatalUntil fatal_milestone  =
-+                            base::NotFatalUntil::NoSpecifiedMilestoneInternal,
-                             const base::Location& location =
-                                 base::Location::CurrentWithoutFunctionName());
+   static LogMessage* CheckOp(char* log_message_str,
+-                             base::NotFatalUntil fatal_milestone,
++                             base::NotFatalUntil fatal_milestone  =
++                                 base::NotFatalUntil::NoSpecifiedMilestoneInternal,
+                              const base::Location& location =
+                                  base::Location::CurrentWithoutFunctionName());
  
-@@ -115,10 +117,19 @@ class BASE_EXPORT CheckError {
+@@ -120,10 +122,19 @@ class BASE_EXPORT CheckError {
        const base::Location& location =
            base::Location::CurrentWithoutFunctionName());
  
@@ -117,7 +117,7 @@ index 1311bb7169..231b42bb6b 100644
    static CheckError NotImplemented(
        const char* function,
        const base::Location& location =
-@@ -265,7 +276,7 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
+@@ -270,7 +281,7 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
  #define CHECK_WILL_STREAM() true
  
  #define CHECK_INTERNAL_IMPL(cond) \
@@ -126,7 +126,7 @@ index 1311bb7169..231b42bb6b 100644
  
  #endif
  
-@@ -275,11 +286,10 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
+@@ -280,11 +291,10 @@ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
                logging::CheckError::Check(#cond, __VA_ARGS__), cond))
  
  // Strip the conditional string based on CHECK_WILL_STREAM()
@@ -143,26 +143,25 @@ index 1311bb7169..231b42bb6b 100644
  
  #if DCHECK_IS_ON()
 diff --git a/base/check_op.h b/base/check_op.h
-index 76c3d7f12b..5c934ab1fa 100644
+index f49470aeb0..1bb33aaca8 100644
 --- a/base/check_op.h
 +++ b/base/check_op.h
-@@ -184,9 +184,8 @@ BASE_EXPORT char* CreateCheckOpLogMessageString(const char* expr_str,
- 
+@@ -192,8 +192,8 @@ BASE_EXPORT char* CreateCheckOpLogMessageString(const char* expr_str,
  #else
  
--#define CHECK_OP_INTERNAL_IMPL(name, op, val1, val2)                       \
--  CHECK_OP_FUNCTION_IMPL(::logging::CheckNoreturnError::CheckOp, name, op, \
--                         val1, val2)
-+#define CHECK_OP_INTERNAL_IMPL(name, op, val1, val2) \
-+  CHECK_OP_FUNCTION_IMPL(::logging::CheckError::CheckOp, name, op, val1, val2)
+ #define CHECK_OP_INTERNAL_IMPL(name, op, val1, val2)                       \
+-  CHECK_OP_FUNCTION_IMPL(::logging::CheckNoreturnError,                    \
+-                         ::logging::CheckNoreturnError::CheckOp, name, op, \
++  CHECK_OP_FUNCTION_IMPL(::logging::CheckError,                    \
++                         ::logging::CheckError::CheckOp, name, op, \
+                          val1, val2)
  
  #endif
- 
 diff --git a/base/check_unittest.cc b/base/check_unittest.cc
-index bb23f5dfe7..deda7d49d0 100644
+index fd5287a7b8..67de7b77ae 100644
 --- a/base/check_unittest.cc
 +++ b/base/check_unittest.cc
-@@ -542,51 +542,20 @@ TEST(CheckDeathTest, OstreamVsToString) {
+@@ -547,51 +547,20 @@ TEST(CheckDeathTest, OstreamVsToString) {
                 CHECK_EQ(g, h));
  }
  
@@ -233,5 +232,5 @@ index d8f5b9d211..1fef9ab3d7 100644
  }  // namespace logging
  
 -- 
-2.47.1.613.gc27f4b7a9f-goog
+2.49.0.395.g12beb8f557-goog
 
