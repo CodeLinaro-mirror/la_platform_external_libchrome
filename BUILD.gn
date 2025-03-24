@@ -250,6 +250,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "IS_ANDROID=false",
     "USE_PARTITION_COOKIE=false",
     "IS_DEBUG=false",
+    "IS_HWASAN=false",
   ]
 }
 
@@ -308,6 +309,7 @@ buildflag_header("compiler_buildflags") {
   flags = [
     "CLANG_PGO=0",
     "SYMBOL_LEVEL=1",
+    "HAS_SYMBOLS=0",
   ]
 }
 

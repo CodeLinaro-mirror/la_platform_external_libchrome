@@ -1,9 +1,13 @@
-From 70de898167bca3e78105f937b732ad92372e16df Mon Sep 17 00:00:00 2001
-From: Georg Neis <neis@chromium.org>
-Date: Fri, 14 Feb 2025 05:15:20 +0000
-Subject: [PATCH 2/2] Revert "[base] Use wrapper type for PlatformThreadId"
+From 7f825f226910b0d1d8690e487fa3c6774972c91b Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@chromium.org>
+Date: Mon, 24 Mar 2025 22:55:51 -0700
+Subject: [PATCH] Revert "[base] Use wrapper type for PlatformThreadId"
+ (refreshed)
 
 This reverts commit 3498f5440cb6504429ff48613c04650537188f58.
+
+Change-Id: I4e24f0c7f19a48617cd72556b67912a2f352d702
+patch-name: backward-compatibility-1610-Revert-base-Use-wrapper-type-for-PlatformThreadId.patch
 ---
  base/android/early_trace_event_binding.cc     | 16 ++--
  base/debug/stack_trace.cc                     |  5 +-
@@ -16,26 +20,26 @@ This reverts commit 3498f5440cb6504429ff48613c04650537188f58.
  .../stack_sampling_profiler_test_util.h       |  2 +-
  .../thread_delegate_posix_unittest.cc         |  4 +-
  .../sampling_heap_profiler.cc                 |  2 +-
- .../sequence_manager/thread_controller.cc     |  3 +-
- base/test/launcher/test_launcher_tracer.cc    | 15 +--
- base/test/launcher/test_results_tracker.cc    | 18 +---
+ .../sequence_manager/thread_controller.cc     |  2 +-
+ base/test/launcher/test_launcher_tracer.cc    | 14 +--
+ base/test/launcher/test_results_tracker.cc    | 16 +---
  .../launcher/test_results_tracker_unittest.cc |  2 +-
- base/threading/hang_watcher.cc                |  4 +-
+ base/threading/hang_watcher.cc                |  2 +-
  base/threading/hang_watcher.h                 |  2 +-
  base/threading/hang_watcher_unittest.cc       |  2 +-
  base/threading/platform_thread.cc             |  5 -
  base/threading/platform_thread.h              | 94 +++----------------
- base/threading/platform_thread_android.cc     |  9 +-
+ base/threading/platform_thread_android.cc     |  6 +-
  base/threading/platform_thread_cros.cc        | 22 ++---
- base/threading/platform_thread_linux.cc       | 13 ++-
- base/threading/platform_thread_posix.cc       | 18 ++--
+ base/threading/platform_thread_linux.cc       | 12 +--
+ base/threading/platform_thread_posix.cc       | 20 ++--
  base/threading/platform_thread_unittest.cc    |  2 +-
  base/threading/thread_collision_warner.h      |  2 +-
  base/trace_event/trace_event_impl.cc          | 23 +----
  base/trace_event/trace_event_impl.h           |  2 +-
- base/trace_event/trace_log.cc                 | 20 ++--
+ base/trace_event/trace_log.cc                 | 15 ++-
  base/tracing/perfetto_platform.cc             |  3 +-
- 30 files changed, 88 insertions(+), 218 deletions(-)
+ 30 files changed, 85 insertions(+), 208 deletions(-)
 
 diff --git a/base/android/early_trace_event_binding.cc b/base/android/early_trace_event_binding.cc
 index 66fce41a80..47673de66c 100644
@@ -86,7 +90,7 @@ index 66fce41a80..47673de66c 100644
        TRACE_EVENT_FLAG_JAVA_STRING_LITERALS | TRACE_EVENT_FLAG_COPY);
  #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 diff --git a/base/debug/stack_trace.cc b/base/debug/stack_trace.cc
-index fe2c83a0ad..3cea43f04f 100644
+index 2825e8a6ba..6f1572f10e 100644
 --- a/base/debug/stack_trace.cc
 +++ b/base/debug/stack_trace.cc
 @@ -206,7 +206,7 @@ uintptr_t GetStackEnd() {
@@ -167,10 +171,10 @@ index b638952395..edd8c78fb1 100644
    if (main_argv) {
      setproctitle_init(main_argv);
 diff --git a/base/profiler/stack_base_address_posix.cc b/base/profiler/stack_base_address_posix.cc
-index 1a0e00098e..0ac9ba6324 100644
+index d043d6660d..9f2fbe5081 100644
 --- a/base/profiler/stack_base_address_posix.cc
 +++ b/base/profiler/stack_base_address_posix.cc
-@@ -82,7 +82,7 @@ std::optional<uintptr_t> GetThreadStackBaseAddress(PlatformThreadId id,
+@@ -84,7 +84,7 @@ std::optional<uintptr_t> GetThreadStackBaseAddress(PlatformThreadId id,
    // trying to work around the problem.
    return std::nullopt;
  #else
@@ -223,41 +227,39 @@ index d6971674ba..b2b7b4e6fc 100644
    uintptr_t base = delegate->GetStackBaseAddress();
    EXPECT_GT(base, 0u);
 diff --git a/base/sampling_heap_profiler/sampling_heap_profiler.cc b/base/sampling_heap_profiler/sampling_heap_profiler.cc
-index 0928e1a28a..e82f6dc315 100644
+index 81bf984b8c..a90d923318 100644
 --- a/base/sampling_heap_profiler/sampling_heap_profiler.cc
 +++ b/base/sampling_heap_profiler/sampling_heap_profiler.cc
-@@ -98,7 +98,7 @@ const char* GetAndLeakThreadName() {
- 
+@@ -94,7 +94,7 @@ const char* GetAndLeakThreadName() {
    // Use tid if we don't have a thread name.
-   snprintf(name, sizeof(name), "Thread %lu",
--           static_cast<unsigned long>(base::PlatformThread::CurrentId().raw()));
-+           static_cast<unsigned long>(base::PlatformThread::CurrentId()));
-   return strdup(name);
+   UNSAFE_TODO(snprintf(
+       name, sizeof(name), "Thread %lu",
+-      static_cast<unsigned long>(base::PlatformThread::CurrentId().raw())));
++      static_cast<unsigned long>(base::PlatformThread::CurrentId())));
+   return UNSAFE_TODO(strdup(name));
  }
  
 diff --git a/base/task/sequence_manager/thread_controller.cc b/base/task/sequence_manager/thread_controller.cc
-index f82e2ab448..b91f2077ae 100644
+index f82e2ab448..73c45d0938 100644
 --- a/base/task/sequence_manager/thread_controller.cc
 +++ b/base/task/sequence_manager/thread_controller.cc
-@@ -154,8 +154,7 @@ void ThreadController::RunLevelTracker::TimeKeeper::EnableRecording(
-       // In the non-SDK version, ThreadTrack::Current() returns a different
+@@ -155,7 +155,7 @@ void ThreadController::RunLevelTracker::TimeKeeper::EnableRecording(
        // track id on some platforms (for example Mac OS), which results in
        // async tracks not being associated with their thread.
--      perfetto::ThreadTrack::ForThread(
+       perfetto::ThreadTrack::ForThread(
 -          base::PlatformThread::CurrentId().raw()));
-+      perfetto::ThreadTrack::ForThread(base::PlatformThread::CurrentId()));
++          base::PlatformThread::CurrentId()));
    // TODO(crbug.com/42050015): Use Perfetto library to name this Track.
    // auto desc = perfetto_track_->Serialize();
    // desc.set_name(JoinString({"MessagePumpPhases", thread_name}, " "));
 diff --git a/base/test/launcher/test_launcher_tracer.cc b/base/test/launcher/test_launcher_tracer.cc
-index a9bfcb096f..0804ad925e 100644
+index a9bfcb096f..ca4553ae32 100644
 --- a/base/test/launcher/test_launcher_tracer.cc
 +++ b/base/test/launcher/test_launcher_tracer.cc
-@@ -42,20 +42,7 @@ bool TestLauncherTracer::Dump(const FilePath& path) {
-                    checked_cast<int>(
+@@ -43,19 +43,7 @@ bool TestLauncherTracer::Dump(const FilePath& path) {
                         (event.timestamp - trace_start_time_).InMicroseconds()));
      json_event.Set("dur", checked_cast<int>(event.duration.InMicroseconds()));
--
+ 
 -    // The TID might be an int64, however int64 values are not representable in
 -    // JS and JSON (cf. crbug.com/40228085) since JS numbers are float64. Since
 -    // thread IDs are likely to be allocated sequentially, truncation of the
@@ -276,39 +278,37 @@ index a9bfcb096f..0804ad925e 100644
      // Add fake values required by the trace viewer.
      json_event.Set("pid", 0);
 diff --git a/base/test/launcher/test_results_tracker.cc b/base/test/launcher/test_results_tracker.cc
-index 1bf546b57f..9b9e170d73 100644
+index 5352815be2..40b1f37873 100644
 --- a/base/test/launcher/test_results_tracker.cc
 +++ b/base/test/launcher/test_results_tracker.cc
-@@ -453,22 +453,8 @@ bool TestResultsTracker::SaveSummaryAsJSON(
+@@ -128,21 +128,7 @@ Value::Dict CreateTestResultValue(const TestResult& test_result) {
              static_cast<int>(test_result.elapsed_time.InMilliseconds()));
  
-         if (test_result.thread_id) {
--          // The thread id might be an int64, however int64 values are not
--          // representable in JS and JSON (cf. crbug.com/40228085) since JS
--          // numbers are float64. Since thread IDs are likely to be allocated
--          // sequentially, truncation of the high bits is preferable to loss of
--          // precision in the low bits, as threads are more likely to differ in
--          // their low bit values, so we truncate the value to int32. Since this
--          // is only used for dumping test runner state, the loss of information
--          // is not catastrophic and won't happen in normal browser execution.
--          // Additionally, the test launcher tid is also truncated, so the
--          // truncated values should match.
--          //
--          // LINT.IfChange(TestLauncherTidTruncation)
--          test_result_value.Set(
--              "thread_id",
+   if (test_result.thread_id) {
+-    // The thread id might be an int64, however int64 values are not
+-    // representable in JS and JSON (cf. crbug.com/40228085) since JS
+-    // numbers are float64. Since thread IDs are likely to be allocated
+-    // sequentially, truncation of the high bits is preferable to loss of
+-    // precision in the low bits, as threads are more likely to differ in
+-    // their low bit values, so we truncate the value to int32. Since this
+-    // is only used for dumping test runner state, the loss of information
+-    // is not catastrophic and won't happen in normal browser execution.
+-    // Additionally, the test launcher tid is also truncated, so the
+-    // truncated values should match.
+-    //
+-    // LINT.IfChange(TestLauncherTidTruncation)
+-    value.Set("thread_id",
 -              test_result.thread_id->truncate_to_int32_for_display_only());
--          // LINT.ThenChange(test_launcher_tracer.cc:TestLauncherTidTruncation)
-+          test_result_value.Set("thread_id",
-+                                static_cast<int>(*test_result.thread_id));
-         }
-         if (test_result.process_num) {
-           test_result_value.Set("process_num", *test_result.process_num);
+-    // LINT.ThenChange(test_launcher_tracer.cc:TestLauncherTidTruncation)
++    value.Set("thread_id", static_cast<int>(*test_result.thread_id));
+   }
+   if (test_result.process_num) {
+     value.Set("process_num", *test_result.process_num);
 diff --git a/base/test/launcher/test_results_tracker_unittest.cc b/base/test/launcher/test_results_tracker_unittest.cc
-index 5f914768b0..ce49de8d5b 100644
+index 225047a255..8787fac190 100644
 --- a/base/test/launcher/test_results_tracker_unittest.cc
 +++ b/base/test/launcher/test_results_tracker_unittest.cc
-@@ -138,7 +138,7 @@ TEST(TestResultsTrackerTest, SaveSummaryAsJSONWithTimestampInResult) {
+@@ -139,7 +139,7 @@ TEST(TestResultsTrackerTest, SaveSummaryAsJSONWithTimestampInResult) {
    TestResultsTracker tracker;
    TestResult result;
    result.full_name = "A.B";
@@ -318,7 +318,7 @@ index 5f914768b0..ce49de8d5b 100644
    result.timestamp = Time::Now();
  
 diff --git a/base/threading/hang_watcher.cc b/base/threading/hang_watcher.cc
-index 11fec1abbd..c456ac5ad1 100644
+index 11fec1abbd..14ba071ef3 100644
 --- a/base/threading/hang_watcher.cc
 +++ b/base/threading/hang_watcher.cc
 @@ -797,7 +797,7 @@ void HangWatcher::WatchStateSnapShot::Init(
@@ -330,17 +330,8 @@ index 11fec1abbd..c456ac5ad1 100644
          TRACE_EVENT_BEGIN("latency", "HangWatcher::ThreadHung", track,
                            now - monitoring_period);
          TRACE_EVENT_END("latency", track, now);
-@@ -1333,7 +1333,7 @@ uint64_t HangWatchState::GetSystemWideThreadID() const {
- #if BUILDFLAG(IS_MAC)
-   return system_wide_thread_id_;
- #else
--  CHECK_NE(thread_id_, kInvalidThreadId);
-+  CHECK(thread_id_ > 0);
-   return static_cast<uint64_t>(thread_id_);
- #endif
- }
 diff --git a/base/threading/hang_watcher.h b/base/threading/hang_watcher.h
-index 3ee0fc89ec..a98022505a 100644
+index 3ee0fc89ec..7962db37e1 100644
 --- a/base/threading/hang_watcher.h
 +++ b/base/threading/hang_watcher.h
 @@ -664,7 +664,7 @@ class BASE_EXPORT HangWatchState {
@@ -348,7 +339,7 @@ index 3ee0fc89ec..a98022505a 100644
    // A unique ID of the thread under watch. Used for logging in crash reports
    // only.
 -  PlatformThreadId thread_id_ = kInvalidThreadId;
-+  PlatformThreadId thread_id_;
++  PlatformThreadId thread_id_ = 0;
  
  #if BUILDFLAG(IS_MAC)
    // TODO(crbug.com/40187449): Remove this once macOS uses system-wide ids.
@@ -389,7 +380,7 @@ index abe6453165..e457a04dc2 100644
  void PlatformThreadBase::SetCurrentThreadType(ThreadType thread_type) {
    MessagePumpType message_pump_type = MessagePumpType::DEFAULT;
 diff --git a/base/threading/platform_thread.h b/base/threading/platform_thread.h
-index 06a667f3da..e88245e1ad 100644
+index 06a667f3da..d6a7cc206d 100644
 --- a/base/threading/platform_thread.h
 +++ b/base/threading/platform_thread.h
 @@ -12,7 +12,6 @@
@@ -424,17 +415,17 @@ index 06a667f3da..e88245e1ad 100644
 +// Used for logging. Always an integer value.
  #if BUILDFLAG(IS_WIN)
 -  using UnderlyingType = DWORD;
-+typedef DWORD PlatformThreadId;
++  typedef DWORD PlatformThreadId;
  #elif BUILDFLAG(IS_FUCHSIA)
 -  using UnderlyingType = zx_koid_t;
-+typedef zx_koid_t PlatformThreadId;
++  typedef zx_koid_t PlatformThreadId;
  #elif BUILDFLAG(IS_APPLE)
 -  // TODO(crbug.com/40187449): Use uint64_t ids from pthread_threadid_np.
 -  using UnderlyingType = mach_port_t;
-+typedef mach_port_t PlatformThreadId;
++  typedef mach_port_t PlatformThreadId;
  #elif BUILDFLAG(IS_POSIX)
 -  using UnderlyingType = pid_t;
-+typedef pid_t PlatformThreadId;
++  typedef pid_t PlatformThreadId;
  #endif
 -  static_assert(std::is_integral_v<UnderlyingType>, "Always an integer value.");
 -
@@ -546,31 +537,28 @@ index 06a667f3da..e88245e1ad 100644
                             ThreadType thread_type,
                             IsViaIPC via_ipc);
 diff --git a/base/threading/platform_thread_android.cc b/base/threading/platform_thread_android.cc
-index 4ffb477b32..9802dc7cda 100644
+index 4ffb477b32..b162aa8ef4 100644
 --- a/base/threading/platform_thread_android.cc
 +++ b/base/threading/platform_thread_android.cc
-@@ -68,8 +68,7 @@ bool SetCurrentThreadTypeForPlatform(ThreadType thread_type,
-       base::android::BuildInfo::GetInstance()->sdk_int() <
+@@ -69,7 +69,7 @@ bool SetCurrentThreadTypeForPlatform(ThreadType thread_type,
            base::android::SDK_VERSION_T) {
      JNIEnv* env = base::android::AttachCurrentThread();
--    Java_ThreadUtils_setThreadPriorityAudio(env,
+     Java_ThreadUtils_setThreadPriorityAudio(env,
 -                                            PlatformThread::CurrentId().raw());
-+    Java_ThreadUtils_setThreadPriorityAudio(env, PlatformThread::CurrentId());
++                                            PlatformThread::CurrentId());
      return true;
    }
    // Recent versions of Android (O+) up the priority of the UI thread
-@@ -86,8 +85,8 @@ bool SetCurrentThreadTypeForPlatform(ThreadType thread_type,
- std::optional<ThreadPriorityForTest>
+@@ -87,7 +87,7 @@ std::optional<ThreadPriorityForTest>
  GetCurrentThreadPriorityForPlatformForTest() {
    JNIEnv* env = base::android::AttachCurrentThread();
--  if (Java_ThreadUtils_isThreadPriorityAudio(
+   if (Java_ThreadUtils_isThreadPriorityAudio(
 -          env, PlatformThread::CurrentId().raw())) {
-+  if (Java_ThreadUtils_isThreadPriorityAudio(env,
-+                                             PlatformThread::CurrentId())) {
++          env, PlatformThread::CurrentId())) {
      return std::make_optional(ThreadPriorityForTest::kRealtimeAudio);
    }
    return std::nullopt;
-@@ -102,7 +101,7 @@ void PlatformThread::SetName(const std::string& name) {
+@@ -102,7 +102,7 @@ void PlatformThread::SetName(const std::string& name) {
    // debugger by setting the process name for the LWP.
    // We don't want to do this for the main thread because that would rename
    // the process, causing tools like killall to stop working.
@@ -648,7 +636,7 @@ index a39e31e872..af8a4ac709 100644
    if (setpriority(PRIO_PROCESS, static_cast<id_t>(syscall_tid), nice_setting)) {
      DVPLOG(1) << "Failed to set nice value of thread " << thread_id << " to "
 diff --git a/base/threading/platform_thread_linux.cc b/base/threading/platform_thread_linux.cc
-index a91ebbdabc..e624ed7a4d 100644
+index a91ebbdabc..8a07c474ca 100644
 --- a/base/threading/platform_thread_linux.cc
 +++ b/base/threading/platform_thread_linux.cc
 @@ -66,7 +66,7 @@ FilePath ThreadTypeToCgroupDirectory(const FilePath& cgroup_filepath,
@@ -692,30 +680,31 @@ index a91ebbdabc..e624ed7a4d 100644
                             &PlatformThreadLinux::kRealTimeAudioPrio) == 0) {
        return;
      }
-@@ -280,8 +280,7 @@ void SetThreadTypeLinux(ProcessId process_id,
+@@ -280,7 +280,7 @@ void SetThreadTypeLinux(ProcessId process_id,
    }
  
    const int nice_setting = ThreadTypeToNiceValue(thread_type);
 -  if (setpriority(PRIO_PROCESS, static_cast<id_t>(syscall_tid.raw()),
--                  nice_setting)) {
-+  if (setpriority(PRIO_PROCESS, static_cast<id_t>(syscall_tid), nice_setting)) {
++  if (setpriority(PRIO_PROCESS, static_cast<id_t>(syscall_tid),
+                   nice_setting)) {
      DVPLOG(1) << "Failed to set nice value of thread (" << thread_id << ") to "
                << nice_setting;
-   }
 diff --git a/base/threading/platform_thread_posix.cc b/base/threading/platform_thread_posix.cc
-index f5ea6363d0..b7a69e55da 100644
+index f5ea6363d0..e749d5cb28 100644
 --- a/base/threading/platform_thread_posix.cc
 +++ b/base/threading/platform_thread_posix.cc
-@@ -218,7 +218,7 @@ PlatformThreadId PlatformThreadBase::CurrentId() {
+@@ -218,7 +218,9 @@ PlatformThreadId PlatformThreadBase::CurrentId() {
    // Pthreads doesn't have the concept of a thread ID, so we have to reach down
    // into the kernel.
  #if BUILDFLAG(IS_APPLE)
 -  return PlatformThreadId(pthread_mach_thread_np(pthread_self()));
-+  return pthread_mach_thread_np(pthread_self());
++  uint64_t tid;
++  CHECK_EQ(pthread_threadid_np(nullptr, &tid), 0);
++  return tid;
  #elif BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
    // Workaround false-positive MSAN use-of-uninitialized-value on
    // thread_local storage for loaded libraries:
-@@ -249,29 +249,29 @@ PlatformThreadId PlatformThreadBase::CurrentId() {
+@@ -249,29 +251,29 @@ PlatformThreadId PlatformThreadBase::CurrentId() {
      }
  #endif
    }
@@ -754,7 +743,7 @@ index f5ea6363d0..b7a69e55da 100644
  }
  
 diff --git a/base/threading/platform_thread_unittest.cc b/base/threading/platform_thread_unittest.cc
-index b0c53a7efa..828b2017f1 100644
+index 076fa2f6f6..ca20b4c808 100644
 --- a/base/threading/platform_thread_unittest.cc
 +++ b/base/threading/platform_thread_unittest.cc
 @@ -629,7 +629,7 @@ INSTANTIATE_TEST_SUITE_P(
@@ -767,10 +756,10 @@ index b0c53a7efa..828b2017f1 100644
  
  void* CheckTidCacheCorrectWrapper(void*) {
 diff --git a/base/threading/thread_collision_warner.h b/base/threading/thread_collision_warner.h
-index f073fe3d3e..ee3f53cf07 100644
+index a00923a237..4df63e934c 100644
 --- a/base/threading/thread_collision_warner.h
 +++ b/base/threading/thread_collision_warner.h
-@@ -147,7 +147,7 @@ class BASE_EXPORT ThreadCollisionWarner {
+@@ -145,7 +145,7 @@ class BASE_EXPORT ThreadCollisionWarner {
   public:
    // The parameter asserter is there only for test purpose
    explicit ThreadCollisionWarner(AsserterBase* asserter = new DCheckAsserter())
@@ -849,10 +838,10 @@ index 64d705906d..892847d58f 100644
    };
    unsigned int flags_ = 0;
 diff --git a/base/trace_event/trace_log.cc b/base/trace_event/trace_log.cc
-index faff6ee791..82cc36dcf0 100644
+index be77932a48..b74b559025 100644
 --- a/base/trace_event/trace_log.cc
 +++ b/base/trace_event/trace_log.cc
-@@ -198,12 +198,12 @@ void OnAddLegacyTraceEvent(TraceEvent* trace_event) {
+@@ -198,11 +198,11 @@ void OnAddLegacyTraceEvent(TraceEvent* trace_event) {
          break;
      }
    }
@@ -862,28 +851,25 @@ index faff6ee791..82cc36dcf0 100644
      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(
          phase, category, trace_event->name(),
 -        perfetto::ThreadTrack::ForThread(trace_event->thread_id().raw()),
--        timestamp, write_args);
-+        perfetto::ThreadTrack::ForThread(trace_event->thread_id()), timestamp,
-+        write_args);
++        perfetto::ThreadTrack::ForThread(trace_event->thread_id()),
+         timestamp, write_args);
      return;
    }
-   PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(
-@@ -224,11 +224,10 @@ void OnUpdateLegacyTraceEventDuration(
+@@ -224,11 +224,11 @@ void OnUpdateLegacyTraceEventDuration(
    auto phase = TRACE_EVENT_PHASE_END;
    base::TimeTicks timestamp =
        explicit_timestamps ? now : TRACE_TIME_TICKS_NOW();
 -  if (thread_id != kInvalidThreadId &&
--      thread_id != base::PlatformThread::CurrentId()) {
-+  if (thread_id && thread_id != base::PlatformThread::CurrentId()) {
++  if (thread_id &&
+       thread_id != base::PlatformThread::CurrentId()) {
      PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(
--        phase, category, name,
+         phase, category, name,
 -        perfetto::ThreadTrack::ForThread(thread_id.raw()), timestamp);
-+        phase, category, name, perfetto::ThreadTrack::ForThread(thread_id),
-+        timestamp);
++        perfetto::ThreadTrack::ForThread(thread_id), timestamp);
      return;
    }
    PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(
-@@ -883,15 +882,12 @@ base::trace_event::TraceEventHandle AddTraceEventWithProcessId(
+@@ -863,15 +863,12 @@ base::trace_event::TraceEventHandle AddTraceEventWithProcessId(
      base::ProcessId process_id,
      base::trace_event::TraceArguments* args,
      unsigned int flags) {
@@ -902,7 +888,7 @@ index faff6ee791..82cc36dcf0 100644
  
  base::trace_event::TraceEventHandle AddTraceEventWithThreadIdAndTimestamp(
 diff --git a/base/tracing/perfetto_platform.cc b/base/tracing/perfetto_platform.cc
-index 98290340bc..513edb7e01 100644
+index 92ed57c975..ddfc152831 100644
 --- a/base/tracing/perfetto_platform.cc
 +++ b/base/tracing/perfetto_platform.cc
 @@ -90,8 +90,7 @@ std::string PerfettoPlatform::GetCurrentProcessName() {
@@ -916,5 +902,5 @@ index 98290340bc..513edb7e01 100644
  
  }  // namespace base::tracing
 -- 
-2.48.1.601.g30ceb7b040-goog
+2.49.0.395.g12beb8f557-goog
 

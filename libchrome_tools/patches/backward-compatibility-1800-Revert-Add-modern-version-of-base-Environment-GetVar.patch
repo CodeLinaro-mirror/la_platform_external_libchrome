@@ -1,19 +1,25 @@
-From 60b50e7917c6316fc3dec038fc1d01ce5a3ec317 Mon Sep 17 00:00:00 2001
+From 0cb5b5047aca570e67525390a042d7560b5362d2 Mon Sep 17 00:00:00 2001
 From: Brett Brotherton <bbrotherton@google.com>
 Date: Fri, 14 Mar 2025 13:20:24 -0600
 Subject: [PATCH] Revert "Add modern version of base::Environment::GetVar()
  that returns optional"
 
 This reverts commit e14c9461066b9f71bba1a50aeb17198cf71a0f21.
+
+Also, adds a local patch.
+
+Change-Id: Ib3acfdeb43fa5c2a09024dbab262ad380841e3a5
+patch-name: backward-compatibility-1800-Revert-Add-modern-version-of-base-Environment-GetVar.patch
 ---
- base/environment.cc           |  46 +++----
- base/environment.h            |  13 +-
- base/nix/xdg_util.cc          |  28 ++---
+ base/environment.cc           |  53 ++++----
+ base/environment.h            |  14 +--
+ base/files/file_util_posix.cc |   5 +-
+ base/nix/xdg_util.cc          |  51 ++++----
  base/nix/xdg_util_unittest.cc | 229 ++++++++++++++++++----------------
- 4 files changed, 154 insertions(+), 162 deletions(-)
+ 5 files changed, 180 insertions(+), 172 deletions(-)
 
 diff --git a/base/environment.cc b/base/environment.cc
-index 6ff58022cb..c172b59796 100644
+index 6ff58022cb..e6251378e6 100644
 --- a/base/environment.cc
 +++ b/base/environment.cc
 @@ -6,16 +6,14 @@
@@ -90,17 +96,17 @@ index 6ff58022cb..c172b59796 100644
      if (!env_value) {
 -      return std::nullopt;
 +      return false;
-     }
--    return std::string(env_value);
++    }
 +    // Note that the variable may be defined but empty.
 +    if (result) {
 +      *result = env_value;
-+    }
+     }
+-    return std::string(env_value);
 +    return true;
  #endif
    }
  
-@@ -123,18 +127,8 @@ std::unique_ptr<Environment> Environment::Create() {
+@@ -123,18 +127,17 @@ std::unique_ptr<Environment> Environment::Create() {
    return std::make_unique<EnvironmentImpl>();
  }
  
@@ -112,16 +118,24 @@ index 6ff58022cb..c172b59796 100644
 -
 -  *result = std::move(actual_result.value());
 -  return true;
--}
--
- bool Environment::HasVar(std::string_view variable_name) {
--  return GetVar(variable_name).has_value();
++bool Environment::HasVar(std::string_view variable_name) {
 +  return GetVar(variable_name, nullptr);
  }
  
+-bool Environment::HasVar(std::string_view variable_name) {
+-  return GetVar(variable_name).has_value();
++std::optional<std::string> Environment::GetVar(std::string_view variable_name) {
++  std::string result;
++  if (!GetVar(variable_name, &result)) {
++    return std::nullopt;
++  }
++  return result;
+ }
+ 
++
  }  // namespace base
 diff --git a/base/environment.h b/base/environment.h
-index d911b3346e..14fdf2e9d9 100644
+index d911b3346e..cc2f35b729 100644
 --- a/base/environment.h
 +++ b/base/environment.h
 @@ -7,7 +7,6 @@
@@ -132,7 +146,7 @@ index d911b3346e..14fdf2e9d9 100644
  #include <string>
  #include <string_view>
  
-@@ -31,18 +30,12 @@ class BASE_EXPORT Environment {
+@@ -31,18 +30,13 @@ class BASE_EXPORT Environment {
    // Returns the appropriate platform-specific instance.
    static std::unique_ptr<Environment> Create();
  
@@ -146,6 +160,7 @@ index d911b3346e..14fdf2e9d9 100644
    // Returns false if the key is unset.
 -  bool GetVar(std::string_view variable_name, std::string* result);
 +  virtual bool GetVar(std::string_view variable_name, std::string* result) = 0;
++  virtual std::optional<std::string> GetVar(std::string_view variable_name);
  
 -  // Syntactic sugar for GetVar(variable_name).has_value();
 -  bool HasVar(std::string_view variable_name);
@@ -154,8 +169,24 @@ index d911b3346e..14fdf2e9d9 100644
  
    // Returns true on success, otherwise returns false. This method should not
    // be called in a multi-threaded process.
+diff --git a/base/files/file_util_posix.cc b/base/files/file_util_posix.cc
+index 7a8fa66d45..9f416f65cc 100644
+--- a/base/files/file_util_posix.cc
++++ b/base/files/file_util_posix.cc
+@@ -781,7 +781,10 @@ bool SetPosixFilePermissions(const FilePath& path, int mode) {
+ 
+ bool ExecutableExistsInPath(Environment* env,
+                             const FilePath::StringType& executable) {
+-  std::string path = env->GetVar("PATH").value_or("");
++  std::string path;
++  if (!env->GetVar("PATH", &path)) {
++    path.clear();
++  }
+   if (path.empty()) {
+     LOG(ERROR) << "No $PATH variable. Assuming no " << executable << ".";
+     return false;
 diff --git a/base/nix/xdg_util.cc b/base/nix/xdg_util.cc
-index fae24e9504..ffddfd1a50 100644
+index b35c3b1185..3087ea2414 100644
 --- a/base/nix/xdg_util.cc
 +++ b/base/nix/xdg_util.cc
 @@ -6,7 +6,6 @@
@@ -199,19 +230,44 @@ index fae24e9504..ffddfd1a50 100644
      // It could have multiple values separated by colon in priority order.
      for (const auto& value : SplitStringPiece(
               xdg_current_desktop, ":", TRIM_WHITESPACE, SPLIT_WANT_NONEMPTY)) {
-@@ -154,9 +153,8 @@ DesktopEnvironment GetDesktopEnvironment(Environment* env) {
+@@ -154,21 +153,23 @@ DesktopEnvironment GetDesktopEnvironment(Environment* env) {
    }
  
    // DESKTOP_SESSION was what everyone used in 2010.
--  if (std::optional<std::string> maybe_desktop_session =
--          env->GetVar("DESKTOP_SESSION")) {
--    const std::string& desktop_session = maybe_desktop_session.value();
+-  std::string desktop_session = env->GetVar("DESKTOP_SESSION").value_or("");
+-  if (desktop_session == "deepin") {
+-    return DESKTOP_ENVIRONMENT_DEEPIN;
+-  }
+-  if (desktop_session == "gnome" || desktop_session == "mate") {
+-    return DESKTOP_ENVIRONMENT_GNOME;
+-  }
+-  if (desktop_session == "kde4" || desktop_session == "kde-plasma") {
+-    return DESKTOP_ENVIRONMENT_KDE4;
+-  }
+-  if (desktop_session == "kde") {
+-    // This may mean KDE4 on newer systems, so we have to check.
+-    if (env->HasVar(kKDESessionEnvVar)) {
 +  std::string desktop_session;
 +  if (env->GetVar("DESKTOP_SESSION", &desktop_session)) {
-     if (desktop_session == "deepin") {
-       return DESKTOP_ENVIRONMENT_DEEPIN;
++    if (desktop_session == "deepin") {
++      return DESKTOP_ENVIRONMENT_DEEPIN;
++    }
++    if (desktop_session == "gnome" || desktop_session == "mate") {
++      return DESKTOP_ENVIRONMENT_GNOME;
++    }
++    if (desktop_session == "kde4" || desktop_session == "kde-plasma") {
+       return DESKTOP_ENVIRONMENT_KDE4;
      }
-@@ -234,13 +232,11 @@ const char* GetDesktopEnvironmentName(Environment* env) {
++    if (desktop_session == "kde") {
++      // This may mean KDE4 on newer systems, so we have to check.
++      if (env->HasVar(kKDESessionEnvVar)) {
++        return DESKTOP_ENVIRONMENT_KDE4;
++      }
++    }
+     return DESKTOP_ENVIRONMENT_KDE3;
+   }
+   if (desktop_session.find("xfce") != std::string::npos ||
+@@ -231,13 +232,11 @@ const char* GetDesktopEnvironmentName(Environment* env) {
  }
  
  SessionType GetSessionType(Environment& env) {
@@ -227,7 +283,7 @@ index fae24e9504..ffddfd1a50 100644
    TrimWhitespaceASCII(ToLowerASCII(xdg_session_type), TrimPositions::TRIM_ALL,
                        &xdg_session_type);
  
-@@ -269,8 +265,8 @@ SessionType GetSessionType(Environment& env) {
+@@ -266,8 +265,8 @@ SessionType GetSessionType(Environment& env) {
  }
  
  std::optional<std::string> ExtractXdgActivationTokenFromEnv(Environment& env) {
@@ -720,5 +776,5 @@ index 156cdc2b14..40c46bc74f 100644
    {
      ScopedXdgActivationTokenInjector scoped_injector(cmd_line, getter);
 -- 
-2.49.0.rc1.451.g8f38331e32-goog
+2.49.0.395.g12beb8f557-goog
 

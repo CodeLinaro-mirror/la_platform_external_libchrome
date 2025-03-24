@@ -15,18 +15,17 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 /**
  * A container for a list of observers.
- * <p/>
- * This container can be modified during iteration without invalidating the iterator.
- * So, it safely handles the case of an observer removing itself or other observers from the list
- * while observers are being notified.
- * <p/>
- * The implementation (and the interface) is heavily influenced by the C++ ObserverList.
- * Notable differences:
- *   - The iterator implements NOTIFY_EXISTING_ONLY.
- *   - The range-based for loop is left to the clients to implement in terms of iterator().
- * <p/>
- * This class is not threadsafe. Observers MUST be added, removed and will be notified on the same
- * thread this is created.
+ *
+ * <p>This container can be modified during iteration without invalidating the iterator. So, it
+ * safely handles the case of an observer removing itself or other observers from the list while
+ * observers are being notified.
+ *
+ * <p>The implementation (and the interface) is heavily influenced by the C++ ObserverList. Notable
+ * differences: - The iterator implements NOTIFY_EXISTING_ONLY. - The range-based for loop is left
+ * to the clients to implement in terms of iterator().
+ *
+ * <p>This class is not threadsafe. Observers MUST be added, removed and will be notified on the
+ * same thread this is created.
  *
  * @param <E> The type of observers that this list should hold.
  */
@@ -65,16 +64,16 @@ public class ObserverList<E> implements Iterable<E> {
 
     /**
      * Add an observer to the list.
-     * <p/>
-     * An observer should not be added to the same list more than once. If an iteration is already
-     * in progress, this observer will be not be visible during that iteration.
+     *
+     * <p>An observer should not be added to the same list more than once. If an iteration is
+     * already in progress, this observer will be not be visible during that iteration.
      *
      * @return true if the observer list changed as a result of the call.
      */
     public boolean addObserver(E obs) {
         if (mEnableThreadAsserts) mThreadChecker.assertOnValidThread();
 
-        // Avoid adding null elements to the list as they may be removed on a compaction.
+        // TODO(agrieve): Remove null check once codebase is fully null-annotated.
         if (obs == null || mObservers.contains(obs)) {
             return false;
         }
@@ -96,6 +95,7 @@ public class ObserverList<E> implements Iterable<E> {
     public boolean removeObserver(E obs) {
         if (mEnableThreadAsserts) mThreadChecker.assertOnValidThread();
 
+        // TODO(agrieve): Remove null check once codebase is fully null-annotated.
         if (obs == null) {
             return false;
         }
