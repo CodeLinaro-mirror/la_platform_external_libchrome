@@ -35,9 +35,6 @@ group("all") {
       ":libmojo",
     ]
   }
-  if (use.test) {
-    deps += [ ":optional_unittests" ]
-  }
 }
 
 group("all_buildflags") {
@@ -1409,25 +1406,6 @@ if (use.mojo) {
       "-I/usr/include/libchrome",
       "-Wno-cast-qual",
       "-Wno-cast-align",
-    ]
-  }
-}
-
-if (use.test) {
-  executable("optional_unittests") {
-    sources = [
-      "base/test/gtest_util.cc",
-      "base/test/values_test_util.cc",
-      "base/types/optional_unittest.cc",
-    ]
-    configs += [
-      "//common-mk:test",
-      ":libchrome_config",
-    ]
-    libs = [ "gtest_main" ]
-    deps = [
-      ":base-core",
-      "//common-mk/testrunner:testrunner",
     ]
   }
 }
