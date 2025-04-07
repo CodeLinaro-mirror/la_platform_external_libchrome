@@ -2659,7 +2659,13 @@ TEST_P(PartitionAllocDeathTest, ImmediateDoubleFree) {
   EXPECT_TRUE(ptr);
   allocator.root()->Free(ptr);
   EXPECT_DEATH(allocator.root()->Free(ptr), "");
-  EXPECT_DEATH(allocator.root()->CheckMetadataIntegrity(ptr), "");
+  if (
+#if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+      allocator.root()->brp_enabled() ||
+#endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+      allocator.root()->settings.use_cookie) {
+    EXPECT_DEATH(allocator.root()->CheckMetadataIntegrity(ptr), "");
+  }
 }
 
 // As above, but when this isn't the only slot in the span.
@@ -2670,7 +2676,13 @@ TEST_P(PartitionAllocDeathTest, ImmediateDoubleFree2ndSlot) {
   EXPECT_TRUE(ptr);
   allocator.root()->Free(ptr);
   EXPECT_DEATH(allocator.root()->Free(ptr), "");
-  EXPECT_DEATH(allocator.root()->CheckMetadataIntegrity(ptr), "");
+  if (
+#if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+      allocator.root()->brp_enabled() ||
+#endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+      allocator.root()->settings.use_cookie) {
+    EXPECT_DEATH(allocator.root()->CheckMetadataIntegrity(ptr), "");
+  }
   allocator.root()->Free(ptr0);
 }
 

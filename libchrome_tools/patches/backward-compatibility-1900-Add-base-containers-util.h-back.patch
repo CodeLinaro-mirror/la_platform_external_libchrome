@@ -1,0 +1,43 @@
+From 531a59d01f541317d51dbbd6d262c623d1ff2a25 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Sat, 5 Apr 2025 01:38:00 +0000
+Subject: [PATCH] Add base/containers/util.h back
+
+BUG=b:408542820
+
+Change-Id: Id359a049d438e3d5767ae9fa371b2c7ab0adf16b
+---
+ base/containers/util.h | 21 +++++++++++++++++++++
+ 1 file changed, 21 insertions(+)
+ create mode 100644 base/containers/util.h
+
+diff --git a/base/containers/util.h b/base/containers/util.h
+new file mode 100644
+index 0000000000..529b341ef1
+--- /dev/null
++++ b/base/containers/util.h
+@@ -0,0 +1,21 @@
++// Copyright 2018 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_CONTAINERS_UTIL_H_
++#define BASE_CONTAINERS_UTIL_H_
++
++#include <stdint.h>
++
++namespace base {
++
++// TODO(crbug.com/40565371): What we really need is for checked_math.h to be
++// able to do checked arithmetic on pointers.
++template <typename T>
++inline uintptr_t get_uintptr(const T* t) {
++  return reinterpret_cast<uintptr_t>(t);
++}
++
++}  // namespace base
++
++#endif  // BASE_CONTAINERS_UTIL_H_
+-- 
+2.49.0.504.g3bcea36a83-goog
+

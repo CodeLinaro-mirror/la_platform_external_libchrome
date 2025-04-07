@@ -2056,7 +2056,7 @@ void PartitionRoot::CheckMetadataIntegrity(const void* ptr) {
   if (root->brp_enabled()) {
     auto* in_slot_metadata = InSlotMetadataPointerFromSlotStartAndSize(
         untagged_slot_start, slot_span->bucket->slot_size);
-    in_slot_metadata->EnsureAlive();
+    in_slot_metadata->EnsureAlive(untagged_slot_start, slot_span);
   }
 #endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
