@@ -4,10 +4,12 @@
 
 package org.chromium.base.test.transit;
 
-import androidx.annotation.Nullable;
+import static org.chromium.build.NullUtil.assumeNonNull;
 
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.test.transit.ConditionStatus.Status;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.util.concurrent.Callable;
 import java.util.function.Function;
@@ -18,9 +20,9 @@ import java.util.function.Function;
  *
  * <p>The logical expression is passed in as a |checkFunction|.
  *
- * <p>LogicalElements should be declared by calling {@link
- * Elements.Builder#declareLogicalElement(LogicalElement)} passing in an instance created by one of
- * the factory methods here such as {@link #uiThreadLogicalElement(String, Function, Supplier)}.
+ * <p>LogicalElements should be declared by calling {@link Elements.Builder#declareElement(Element)}
+ * passing in an instance created by one of the factory methods here such as {@link
+ * #uiThreadLogicalElement(String, Function, Supplier)}.
  *
  * <p>Generates ENTER and EXIT Conditions for the ConditionalState to ensure the LogicalElement is
  * in the right state.
@@ -30,6 +32,7 @@ import java.util.function.Function;
  *
  * @param <ParamT> type of parameter the |checkFunction| requires.
  */
+@NullMarked
 public class LogicalElement<ParamT> extends Element<Void> {
 
     private static final ConditionWithResult<Void> CONDITION_WITH_NULL_RESULT =
@@ -46,7 +49,7 @@ public class LogicalElement<ParamT> extends Element<Void> {
 
                 @Override
                 protected ConditionStatusWithResult<Void> resolveWithSuppliers() {
-                    return fulfilled().withResult(null);
+                    return fulfilled().withResult(assumeNonNull(null));
                 }
             };
     private final boolean mIsRunOnUiThread;

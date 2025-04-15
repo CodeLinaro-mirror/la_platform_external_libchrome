@@ -8,6 +8,10 @@ import static org.junit.Assert.fail;
 
 import androidx.annotation.IntDef;
 
+import org.chromium.build.annotations.EnsuresNonNull;
+import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
+
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.ArrayList;
@@ -16,7 +20,7 @@ import java.util.List;
 /**
  * Base class representing a state with conditions for entering and exiting.
  *
- * <p>Conditions include the existence of {@link Elements}, e.g. Views.
+ * <p>Conditions include the existence of {@link Element}s, e.g. Views.
  *
  * <pre>ConditionalStates can be in the following phases:
  * - NEW: Inactive, just created. No transition has started.
@@ -36,9 +40,10 @@ import java.util.List;
  *
  * <p>This is the base class for {@link Station} and {@link Facility}.
  */
+@NullMarked
 public abstract class ConditionalState {
     @Phase private int mLifecyclePhase = Phase.NEW;
-    private Elements mElements;
+    private @Nullable Elements mElements;
 
     /** Lifecycle phases of ConditionalState. */
     @IntDef({
@@ -58,7 +63,7 @@ public abstract class ConditionalState {
     }
 
     /**
-     * Declare the {@link Elements} that define this ConditionalState, such as Views.
+     * Declare the {@link BaseElements} that define this ConditionalState, such as Views.
      *
      * <p>Transit-layer {@link Station}s and {@link Facility}s should override this and use the
      * |elements| param to declare what elements need to be waited for for the state to be
@@ -73,9 +78,10 @@ public abstract class ConditionalState {
         return mElements;
     }
 
+    @EnsuresNonNull("mElements")
     private void initElements() {
         if (mElements == null) {
-            mElements = new Elements();
+            mElements = new Elements(this);
             Elements.Builder builder = mElements.newBuilder();
             declareElements(builder);
             builder.consolidate();

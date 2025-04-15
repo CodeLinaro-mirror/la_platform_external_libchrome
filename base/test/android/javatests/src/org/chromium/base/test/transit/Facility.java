@@ -5,6 +5,8 @@
 package org.chromium.base.test.transit;
 
 import org.chromium.base.test.transit.Transition.Trigger;
+import org.chromium.build.annotations.MonotonicNonNull;
+import org.chromium.build.annotations.NullMarked;
 
 /**
  * Facility is a {@link ConditionalState} scoped to a single host {@link Station} instance.
@@ -13,7 +15,7 @@ import org.chromium.base.test.transit.Transition.Trigger;
  * class should be derived from it and instantiated. It should expose facility-specific methods for
  * the test-layer to use.
  *
- * <p>As a {@link ConditionalState}, it has a defined lifecycle and must declare {@link Elements}
+ * <p>As a {@link ConditionalState}, it has a defined lifecycle and must declare {@link Element}s
  * that determine its enter and exit {@link Condition}s.
  *
  * <p>Leaving the host {@link Station} causes this state to be left as well, and exit {@link
@@ -25,15 +27,26 @@ import org.chromium.base.test.transit.Transition.Trigger;
  *
  * @param <HostStationT> the type of host {@link Station} this is scoped to.
  */
+@NullMarked
 public abstract class Facility<HostStationT extends Station<?>> extends ConditionalState {
     private static int sLastFacilityId = 1000;
     private final int mId = ++sLastFacilityId;
-    protected HostStationT mHostStation;
+
+    // Use getHostStation() instead and make this private.
+    @Deprecated protected @MonotonicNonNull HostStationT mHostStation;
 
     void setHostStation(Station station) {
         assert mHostStation == null
                 : "Facility " + this + " already added to a station. Tried to add it to " + station;
         mHostStation = (HostStationT) station;
+    }
+
+    /**
+     * @return the host {@link Station} this facility is scoped to.
+     */
+    public HostStationT getHostStation() {
+        assert mHostStation != null : "setHostStation was not called for " + this;
+        return mHostStation;
     }
 
     @Override
