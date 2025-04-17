@@ -65,13 +65,14 @@ public class Elements extends BaseElements {
         }
 
         /** Declare as an element a View that matches |viewMatcher|. */
-        public ViewElement declareView(ViewSpec viewSpec) {
+        public <ViewT extends View> ViewElement<ViewT> declareView(ViewSpec<ViewT> viewSpec) {
             return declareView(viewSpec, ViewElement.Options.DEFAULT);
         }
 
         /** Declare as an element a View that matches |viewMatcher| with extra Options. */
-        public ViewElement declareView(ViewSpec viewSpec, ViewElement.Options options) {
-            ViewElement element = new ViewElement(viewSpec, options);
+        public <ViewT extends View> ViewElement<ViewT> declareView(
+                ViewSpec<ViewT> viewSpec, ViewElement.Options options) {
+            ViewElement<ViewT> element = new ViewElement<>(viewSpec, options);
             return declareElement(element);
         }
 
@@ -105,8 +106,7 @@ public class Elements extends BaseElements {
 
         /** Declare as a Condition that a View is not displayed. */
         public void declareNoView(Matcher<View> viewMatcher) {
-            assertNotBuilt();
-            mOtherEnterConditions.add(new ViewConditions.NotDisplayedAnymoreCondition(viewMatcher));
+            declareEnterCondition(new ViewConditions.NotDisplayedAnymoreCondition(viewMatcher));
         }
 
         /**
@@ -119,10 +119,39 @@ public class Elements extends BaseElements {
          * <p>Further, no promises are made that the Condition is false after exiting the State. Use
          * a scoped {@link LogicalElement} in this case.
          */
-        public <T extends Condition> T declareEnterCondition(T condition) {
+        public <T extends Condition> void declareEnterCondition(T condition) {
             assertNotBuilt();
+            condition.bindToState(mOwner.mOwnerState);
             mOtherEnterConditions.add(condition);
-            return condition;
+        }
+
+        /**
+         * Declare as an element a generic enter Condition. It must be true for a transition into
+         * this ConditionalState to be complete.
+         *
+         * <p>No promises are made that the Condition is true as long as the ConditionalState is
+         * ACTIVE. For these cases, use {@link LogicalElement}.
+         *
+         * <p>Further, no promises are made that the Condition is false after exiting the State. Use
+         * a scoped {@link LogicalElement} in this case.
+         */
+        public <ProductT, T extends ConditionWithResult<ProductT>>
+                Element<ProductT> declareEnterConditionAsElement(T condition) {
+            assertNotBuilt();
+            Element<ProductT> element =
+                    new Element<>("CE/" + condition.getDescription()) {
+                        @Override
+                        public ConditionWithResult<ProductT> createEnterCondition() {
+                            return condition;
+                        }
+
+                        @Override
+                        public @Nullable Condition createExitCondition() {
+                            return null;
+                        }
+                    };
+            declareElement(element);
+            return element;
         }
 
         /**
@@ -134,6 +163,7 @@ public class Elements extends BaseElements {
          */
         public <T extends Condition> T declareExitCondition(T condition) {
             assertNotBuilt();
+            condition.bindToState(mOwner.mOwnerState);
             mOtherExitConditions.add(condition);
             return condition;
         }

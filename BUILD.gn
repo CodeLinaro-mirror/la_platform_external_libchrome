@@ -248,6 +248,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "USE_PARTITION_COOKIE=false",
     "IS_DEBUG=false",
     "IS_HWASAN=false",
+    "ENABLE_PARTITION_LOCK_REENTRANCY_CHECK=false",
   ]
 }
 

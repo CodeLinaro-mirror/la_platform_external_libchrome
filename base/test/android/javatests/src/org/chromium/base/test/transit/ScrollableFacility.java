@@ -342,9 +342,9 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
                 onView(mOnScreenViewMatcher)
                         .withFailureHandler(RawFailureHandler.getInstance())
                         .check(matches(isCompletelyDisplayed()));
-                return getHostStation().enterFacilitySync(focusedItem, /* trigger= */ null);
+                return mHostStation.enterFacilitySync(focusedItem, /* trigger= */ null);
             } catch (AssertionError | NoMatchingViewException e) {
-                return getHostStation().enterFacilitySync(focusedItem, this::triggerScrollTo);
+                return mHostStation.enterFacilitySync(focusedItem, this::triggerScrollTo);
             }
         }
 
@@ -358,7 +358,7 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
             return mPresence;
         }
 
-        public ViewSpec getViewSpec() {
+        public ViewSpec<View> getViewSpec() {
             assert mViewSpec != null : "Trying to get a ViewSpec for an item not present.";
             return mViewSpec;
         }
@@ -414,11 +414,8 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
             throw new RuntimeException(e);
         }
 
-        return getHostStation()
-                .swapFacilitySync(
-                        List.of(this, itemOnScreenFacility),
-                        destination,
-                        item.getViewSpec()::click);
+        return mHostStation.swapFacilitySync(
+                List.of(this, itemOnScreenFacility), destination, item.getViewSpec()::click);
     }
 
     private <DestinationStationT extends Station<?>> DestinationStationT travelToStation(
@@ -432,7 +429,7 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
             throw new RuntimeException(e);
         }
 
-        return getHostStation().travelToSync(destination, item.getViewSpec()::click);
+        return mHostStation.travelToSync(destination, item.getViewSpec()::click);
     }
 
     /** Get all {@link Item}s declared in this {@link ScrollableFacility}. */
@@ -449,7 +446,7 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
     public class ItemOnScreenFacility<SelectReturnT> extends Facility<HostStationT> {
 
         protected final Item<SelectReturnT> mItem;
-        private @MonotonicNonNull ViewElement mViewElement;
+        private @MonotonicNonNull ViewElement<View> mViewElement;
 
         protected ItemOnScreenFacility(Item<SelectReturnT> item) {
             mItem = item;
@@ -491,7 +488,7 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
         /** Returns the item rendered to an Android View. */
         public View getView() {
             assumeNonNull(mViewElement);
-            return mViewElement.getChecked();
+            return mViewElement.get();
         }
     }
 
