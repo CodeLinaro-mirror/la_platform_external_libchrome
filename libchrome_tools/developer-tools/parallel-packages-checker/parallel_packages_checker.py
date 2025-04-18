@@ -200,7 +200,7 @@ class CheckOneBoard:
         Ignore any failing messsage since the package might not be used on all
         the boards.
         """
-        self.state.update(self.board, 'cros_workon start', packages)
+        self.state.update(self.board, 'cros workon start', packages)
         for package in packages.split():
             self._cros_workon('start', package, fail_silent=True)
 
@@ -365,16 +365,17 @@ class CheckOneBoard:
         Returns True on sucess, False otherwise.
         """
         assert action in ['start', 'stop']
-        self.state.update(self.board, 'cros_workon_' + action,
-                          'cros_workon ' + action + ' ' + package)
-        proc = subprocess.run(['cros_workon-' + self.board, action, package],
+        self.state.update(self.board, 'cros workon ' + action,
+                          'cros workon ' + action + ' ' + package)
+        proc = subprocess.run(['cros', 'workon', '--board=' + self.board,
+                               action, package],
                               stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL)
         if proc.returncode != 0 and not fail_silent:
             self.state.update(
                 self.board, 'failed',
-                'cros_workon-$BOARD %s %s failed. further steps skipped.' %
-                (action, package))
+                'cros workon --board=$BOARD %s %s failed. ' %
+                (action, package) + 'further steps skipped.')
             return False
         return True
 
