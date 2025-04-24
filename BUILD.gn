@@ -250,6 +250,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "IS_HWASAN=false",
     "ENABLE_PARTITION_LOCK_REENTRANCY_CHECK=false",
     "ENABLE_PARTITION_LOCK_PRIORITY_INHERITANCE=false",
+    "SHIM_SUPPORTS_SIZED_DEALLOC=false",
   ]
 }
 
