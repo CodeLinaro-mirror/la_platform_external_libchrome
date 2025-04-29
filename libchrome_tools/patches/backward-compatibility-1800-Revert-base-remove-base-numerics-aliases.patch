@@ -1,0 +1,91 @@
+From 50b40665dcd408dfbc2c0bddcb4d22e19971a0d0 Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Wed, 30 Apr 2025 03:14:05 +0000
+Subject: [PATCH] Revert "base: remove base::numerics aliases"
+
+This reverts commit 7a2902059dab84b6d368aeeb83bcd0b84ee180e7.
+---
+ base/numerics/byte_conversions.h | 67 ++++++++++++++++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+
+diff --git a/base/numerics/byte_conversions.h b/base/numerics/byte_conversions.h
+index cc8d6f8b35..c014fa79cd 100644
+--- a/base/numerics/byte_conversions.h
++++ b/base/numerics/byte_conversions.h
+@@ -708,6 +708,73 @@ inline constexpr std::array<uint8_t, 8u> DoubleToBigEndian(double val) {
+   return internal::ToLittleEndian(ByteSwap(std::bit_cast<uint64_t>(val)));
+ }
+ 
++// Deprecated: Prefer the shorter, less-namespaced names.
++// TODO(crbug.com/409350835): Remove these when callers have been migrated to
++// the shorter name.
++namespace numerics {
++using ::base::ByteSwap;
++using ::base::DoubleFromBigEndian;
++using ::base::DoubleFromLittleEndian;
++using ::base::DoubleFromNativeEndian;
++using ::base::DoubleToBigEndian;
++using ::base::DoubleToLittleEndian;
++using ::base::DoubleToNativeEndian;
++using ::base::FloatFromBigEndian;
++using ::base::FloatFromLittleEndian;
++using ::base::FloatFromNativeEndian;
++using ::base::FloatToBigEndian;
++using ::base::FloatToLittleEndian;
++using ::base::FloatToNativeEndian;
++using ::base::I16FromBigEndian;
++using ::base::I16FromLittleEndian;
++using ::base::I16FromNativeEndian;
++using ::base::I16ToBigEndian;
++using ::base::I16ToLittleEndian;
++using ::base::I16ToNativeEndian;
++using ::base::I32FromBigEndian;
++using ::base::I32FromLittleEndian;
++using ::base::I32FromNativeEndian;
++using ::base::I32ToBigEndian;
++using ::base::I32ToLittleEndian;
++using ::base::I32ToNativeEndian;
++using ::base::I64FromBigEndian;
++using ::base::I64FromLittleEndian;
++using ::base::I64FromNativeEndian;
++using ::base::I64ToBigEndian;
++using ::base::I64ToLittleEndian;
++using ::base::I64ToNativeEndian;
++using ::base::I8FromBigEndian;
++using ::base::I8FromLittleEndian;
++using ::base::I8FromNativeEndian;
++using ::base::I8ToBigEndian;
++using ::base::I8ToLittleEndian;
++using ::base::I8ToNativeEndian;
++using ::base::U16FromBigEndian;
++using ::base::U16FromLittleEndian;
++using ::base::U16FromNativeEndian;
++using ::base::U16ToBigEndian;
++using ::base::U16ToLittleEndian;
++using ::base::U16ToNativeEndian;
++using ::base::U32FromBigEndian;
++using ::base::U32FromLittleEndian;
++using ::base::U32FromNativeEndian;
++using ::base::U32ToBigEndian;
++using ::base::U32ToLittleEndian;
++using ::base::U32ToNativeEndian;
++using ::base::U64FromBigEndian;
++using ::base::U64FromLittleEndian;
++using ::base::U64FromNativeEndian;
++using ::base::U64ToBigEndian;
++using ::base::U64ToLittleEndian;
++using ::base::U64ToNativeEndian;
++using ::base::U8FromBigEndian;
++using ::base::U8FromLittleEndian;
++using ::base::U8FromNativeEndian;
++using ::base::U8ToBigEndian;
++using ::base::U8ToLittleEndian;
++using ::base::U8ToNativeEndian;
++}  // namespace numerics
++
+ }  // namespace base
+ 
+ #endif  // BASE_NUMERICS_BYTE_CONVERSIONS_H_
+-- 
+2.49.0.967.g6a0df3ecc3-goog
+
