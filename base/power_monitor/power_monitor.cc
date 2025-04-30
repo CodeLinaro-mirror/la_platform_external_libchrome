@@ -63,6 +63,13 @@ bool PowerMonitor::AddPowerSuspendObserverAndReturnSuspendedState(
   return is_system_suspended_;
 }
 
+// static
+bool PowerMonitor::AddPowerStateObserverAndReturnOnBatteryState(
+    PowerStateObserver* obs) {
+  return AddPowerStateObserverAndReturnBatteryPowerStatus(obs) ==
+         PowerStateObserver::BatteryPowerStatus::kBatteryPower;
+}
+
 PowerStateObserver::BatteryPowerStatus
 PowerMonitor::AddPowerStateObserverAndReturnBatteryPowerStatus(
     PowerStateObserver* obs) {
@@ -133,6 +140,13 @@ void PowerMonitor::SetCurrentThermalState(
   DCHECK(IsInitialized());
   source_->SetCurrentThermalState(state);
 }
+
+#if BUILDFLAG(IS_ANDROID)
+int PowerMonitor::GetRemainingBatteryCapacity() const {
+  DCHECK(IsInitialized());
+  return Source()->GetRemainingBatteryCapacity();
+}
+#endif  // BUILDFLAG(IS_ANDROID)
 
 void PowerMonitor::NotifyPowerStateChange(bool on_battery_power) {
   DCHECK(IsInitialized());

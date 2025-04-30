@@ -66,7 +66,9 @@ class BASE_EXPORT PowerMonitor {
   // Returns true if the system is currently suspended.
   bool AddPowerSuspendObserverAndReturnSuspendedState(
       PowerSuspendObserver* observer);
-  // Returns the battery power status (battery power, external power, unknown).
+  // Returns true if the system is on-battery.
+  bool AddPowerStateObserverAndReturnOnBatteryState(
+      PowerStateObserver* observer);
   PowerStateObserver::BatteryPowerStatus
   AddPowerStateObserverAndReturnBatteryPowerStatus(
       PowerStateObserver* observer);
@@ -95,6 +97,14 @@ class BASE_EXPORT PowerMonitor {
 
   // Update the result of thermal state.
   void SetCurrentThermalState(PowerThermalObserver::DeviceThermalState state);
+
+#if BUILDFLAG(IS_ANDROID)
+  // Read and return the current remaining battery capacity (microampere-hours).
+  // Only supported with a device power source (i.e. not in child processes in
+  // Chrome) and on devices with Android >= Lollipop as well as a power supply
+  // that supports this counter. Returns 0 if unsupported.
+  int GetRemainingBatteryCapacity() const;
+#endif  // BUILDFLAG(IS_ANDROID)
 
   // Uninitializes the PowerMonitor. Should be called at the end of any unit
   // test that mocks out the PowerMonitor, to avoid affecting subsequent tests.

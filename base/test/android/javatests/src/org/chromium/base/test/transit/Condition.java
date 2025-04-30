@@ -20,7 +20,6 @@ import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 
-import java.util.Objects;
 import java.util.function.Function;
 
 /**
@@ -284,18 +283,6 @@ public abstract class Condition {
     /** {@link #checkWithSuppliers()} should return this as a convenience method to compare ints. */
     public static ConditionStatus whetherEquals(int expected, int actual) {
         return whether(expected == actual, "Expected: %d; Actual: %d", expected, actual);
-    }
-
-    /**
-     * {@link #checkWithSuppliers()} should return this as a convenience method to compare Objects
-     * (including Strings).
-     */
-    public static ConditionStatus whetherEquals(Object expected, Object actual) {
-        return whether(
-                Objects.equals(expected, actual),
-                "Expected: \"%s\"; Actual: \"%s\"",
-                expected,
-                actual);
     }
 
     /**

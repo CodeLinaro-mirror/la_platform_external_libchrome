@@ -10,7 +10,9 @@ import org.chromium.build.annotations.NullMarked;
 
 import java.util.List;
 
-/** Java API for recording UMA histograms. */
+/**
+ * Java API for recording UMA histograms.
+ * */
 @NullMarked
 public class RecordHistogram {
     /**

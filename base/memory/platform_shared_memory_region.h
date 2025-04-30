@@ -223,27 +223,7 @@ class BASE_EXPORT PlatformSharedMemoryRegion {
 #endif
   );
 
-  enum class PermissionModeCheckResult {
-    kOk,
-    kExpectedReadOnlyButNot,
-    kExpectedWritableButNot,
-#if BUILDFLAG(IS_ANDROID)
-    kFailedToGetAshmemRegionProtectionMask,
-#endif
-#if BUILDFLAG(IS_APPLE)
-    kVmMapFailed,
-#endif
-#if BUILDFLAG(IS_FUCHSIA)
-    kNotVmo,
-#endif
-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)
-    kFcntlFailed,
-    kReadOnlyFdNotReadOnly,
-    kUnexpectedReadOnlyFd,
-#endif
-  };
-  static PermissionModeCheckResult
-  CheckPlatformHandlePermissionsCorrespondToMode(
+  static bool CheckPlatformHandlePermissionsCorrespondToMode(
       PlatformSharedMemoryHandle handle,
       Mode mode,
       size_t size);

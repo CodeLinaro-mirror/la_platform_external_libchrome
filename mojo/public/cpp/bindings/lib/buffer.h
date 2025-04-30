@@ -15,7 +15,6 @@
 
 #include <vector>
 
-#include "base/check_op.h"
 #include "base/component_export.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "mojo/public/cpp/system/handle.h"

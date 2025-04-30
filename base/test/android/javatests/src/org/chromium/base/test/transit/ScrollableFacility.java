@@ -399,7 +399,7 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
         return mHostStation.swapFacilitySync(
                 List.of(this, itemOnScreenFacility),
                 destination,
-                itemOnScreenFacility.viewElement.getClickTrigger());
+                itemOnScreenFacility.viewElement.clickTrigger());
     }
 
     private <DestinationStationT extends Station<?>> DestinationStationT travelToStation(
@@ -414,7 +414,7 @@ public abstract class ScrollableFacility<HostStationT extends Station<?>>
 
         assumeNonNull(itemOnScreenFacility.viewElement);
         return mHostStation.travelToSync(
-                destination, itemOnScreenFacility.viewElement.getClickTrigger());
+                destination, itemOnScreenFacility.viewElement.clickTrigger());
     }
 
     /** Get all {@link Item}s declared in this {@link ScrollableFacility}. */

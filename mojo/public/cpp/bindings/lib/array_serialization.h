@@ -13,10 +13,12 @@
 #include <stddef.h>
 #include <string.h>  // For |memcpy()|.
 
+#include <limits>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
-#include "base/check.h"
+#include "base/logging.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "mojo/public/cpp/bindings/array_data_view.h"
 #include "mojo/public/cpp/bindings/lib/array_internal.h"

@@ -9,6 +9,7 @@
 
 #include "mojo/public/cpp/bindings/sync_event_watcher.h"
 
+#include <algorithm>
 #include <utility>
 
 #include "base/check_op.h"
