@@ -1,0 +1,27 @@
+From aee5ab3c735afd1154db834f61b561716d1b6131 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Wed, 7 May 2025 19:40:50 +0800
+Subject: [PATCH] Correct redundant variable name to avoid unused-parameter
+ warning
+
+Change-Id: I2ba3d7e71c617e38ae79cdc92acf2c961c9e33e2
+---
+ .../src/partition_alloc/partition_alloc_base/check.h            | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/check.h b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/check.h
+index 2358e80046..2a8dff3674 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/check.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/check.h
+@@ -54,7 +54,7 @@ namespace partition_alloc::internal::logging {
+ class VoidifyStream {
+  public:
+   VoidifyStream() = default;
+-  explicit VoidifyStream(bool ignored) {}
++  explicit VoidifyStream(bool) {}
+ 
+   // This operator has lower precedence than << but higher than ?:
+   void operator&(base::strings::CStringBuilder&) {}
+-- 
+2.49.0.967.g6a0df3ecc3-goog
+
