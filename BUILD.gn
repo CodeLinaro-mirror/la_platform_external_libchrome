@@ -1466,6 +1466,7 @@ install_config("install_header") {
     "base/trace_event/common/*.h",
     "base/types/*.h",
     "build/*.h",
+    "chromeos/ash/components/policy/device_local_account/device_local_account_type.h",
     "components/policy/*.h",
     "components/policy/core/common/*.h",
     "testing/gmock/include/gmock/*.h",

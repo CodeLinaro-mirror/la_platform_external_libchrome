@@ -1,0 +1,33 @@
+From e14a722f7ee775ab23efddc42e8b659b608d3e74 Mon Sep 17 00:00:00 2001
+From: Cici <cuicuiruan@google.com>
+Date: Tue, 13 May 2025 04:55:26 +0000
+Subject: [PATCH] Adding [[fallthrough]] for building error
+
+Change-Id: I94f75dee92813aae87edbcaa3b8408d6e15a0a44
+---
+ base/threading/hang_watcher.cc | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/base/threading/hang_watcher.cc b/base/threading/hang_watcher.cc
+index 91a6a667b3..499e83b0dc 100644
+--- a/base/threading/hang_watcher.cc
++++ b/base/threading/hang_watcher.cc
+@@ -117,6 +117,7 @@ void LogStatusHistogram(HangWatcher::ThreadType thread_type,
+           // Therefore, this should not be logged for BrowserProcess.
+           CHECK(false) << "kCompositorThread type should not be logged for "
+                           "BrowserProcess";
++          [[fallthrough]];
+         case HangWatcher::ThreadType::kThreadPoolThread:
+           // Not recorded for now.
+           break;
+@@ -173,6 +174,7 @@ void LogStatusHistogram(HangWatcher::ThreadType thread_type,
+           // processes, as of May 2025.
+           CHECK(false) << "kCompositorThread type should not be logged for "
+                           "UtilityProcess";
++          [[fallthrough]];
+         case HangWatcher::ThreadType::kThreadPoolThread:
+           // Not recorded for now.
+           break;
+-- 
+2.49.0.1045.g170613ef41-goog
+
