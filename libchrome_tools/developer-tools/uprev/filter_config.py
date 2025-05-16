@@ -27,6 +27,9 @@ WANT = [
     re.compile(
         rb'device/bluetooth/bluez/bluetooth_service_attribute_value_bluez.(h|cc)'
     ),
+    re.compile(
+        rb'chromeos/ash/components/policy/device_local_account/device_local_account_type.h'
+    ),
 ]
 
 # WANT_EXCLUDE will be excluded from WANT
