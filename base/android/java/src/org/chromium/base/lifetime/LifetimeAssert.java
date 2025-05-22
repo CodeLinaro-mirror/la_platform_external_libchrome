@@ -2,7 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-package org.chromium.base;
+package org.chromium.base.lifetime;
+
+import static org.chromium.build.NullUtil.assumeNonNull;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -22,14 +24,15 @@ import java.util.Set;
  * Used to assert that clean-up logic has been run before an object is GC'ed.
  *
  * <p>Usage:
+ *
  * <pre>
  * class MyClassWithCleanup {
- *     private final mLifetimeAssert = LifetimeAssert.create(this);
+ *     private final LifetimeAssert mLifetimeAssert = LifetimeAssert.create(this);
  *
  *     public void destroy() {
  *         // If mLifetimeAssert is GC'ed before this is called, it will throw an exception
  *         // with a stack trace showing the stack during LifetimeAssert.create().
- *         LifetimeAssert.setSafeToGc(mLifetimeAssert, true);
+ *         LifetimeAssert.destroy(mLifetimeAssert, true);
  *     }
  * }
  * </pre>
@@ -68,7 +71,7 @@ public class LifetimeAssert {
         final Class<?> mTargetClass;
         final CreationException mCreationException;
 
-        public WrappedReference(
+        private WrappedReference(
                 Object target, CreationException creationException, boolean safeToGc) {
             super(target, sReferenceQueue);
             mCreationException = PostTask.maybeAddTaskOrigin(creationException);
@@ -134,7 +137,8 @@ public class LifetimeAssert {
             return null;
         }
         return new LifetimeAssert(
-                new WrappedReference(target, new CreationException(), false), target);
+                new WrappedReference(target, new CreationException(), /* safeToGc= */ false),
+                target);
     }
 
     public static @Nullable LifetimeAssert create(Object target, boolean safeToGc) {
@@ -145,10 +149,11 @@ public class LifetimeAssert {
                 new WrappedReference(target, new CreationException(), safeToGc), target);
     }
 
+    /** Most clients should probably use destroy() to ensure exactly 1 call. */
     public static void setSafeToGc(@Nullable LifetimeAssert asserter, boolean value) {
         if (BuildConfig.ENABLE_ASSERTS) {
             assert asserter != null;
-            // This guaratees that the target object is reachable until after mSafeToGc value
+            // This guarantees that the target object is reachable until after mSafeToGc value
             // is updated here. See comment on Reference.reachabilityFence and review comments
             // on https://chromium-review.googlesource.com/c/chromium/src/+/1887151 for a
             // problematic example. This synchronized is used instead of calling
@@ -161,12 +166,25 @@ public class LifetimeAssert {
         }
     }
 
+    /** Asserts that mSafeToGc == false. */
+    public static void assertNotDestroyed(@Nullable LifetimeAssert asserter) {
+        if (BuildConfig.ENABLE_ASSERTS) {
+            assert !assumeNonNull(asserter).mWrapper.mSafeToGc;
+        }
+    }
+
+    /** Shorthand for assertNotDestroyed(_) + setSafeToGc(_, true). */
+    public static void destroy(@Nullable LifetimeAssert asserter) {
+        assertNotDestroyed(asserter);
+        setSafeToGc(asserter, true);
+    }
+
     /**
      * Asserts that the remaining objects used with LifetimeAssert do not need to be destroyed and
      * can be garbage collected. Always clears the set of tracked object, so consecutive invocations
      * won't throw with the same cause.
      */
-    public static void assertAllInstancesDestroyedForTesting() throws LifetimeAssertException {
+    public static void assertAllInstancesDestroyedForTesting() {
         if (!BuildConfig.ENABLE_ASSERTS) {
             return;
         }

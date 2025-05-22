@@ -1296,6 +1296,7 @@ if (use.mojo) {
           "mojo/public/cpp/system/buffer.cc",
           "mojo/public/cpp/system/invitation.cc",
           "mojo/public/cpp/system/isolated_connection.cc",
+          "mojo/public/cpp/system/message.cc",
           "mojo/public/cpp/system/platform_handle.cc",
           "mojo/public/cpp/system/simple_watcher.cc",
           "mojo/public/cpp/system/trap.cc",

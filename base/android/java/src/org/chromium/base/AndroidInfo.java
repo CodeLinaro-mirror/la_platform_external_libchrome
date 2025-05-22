@@ -9,6 +9,7 @@ import android.text.TextUtils;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.build.annotations.NullMarked;
@@ -44,7 +45,8 @@ public final class AndroidInfo {
                                 : "",
                         /* supportedAbis= */ TextUtils.join(", ", Build.SUPPORTED_ABIS),
                         /* sdkInt= */ Build.VERSION.SDK_INT,
-                        /* isDebugAndroid= */ isDebugAndroid());
+                        /* isDebugAndroid= */ isDebugAndroid(),
+                        /* securityPatch= */ Build.VERSION.SECURITY_PATCH);
     }
 
     /* Truncated version of Build.FINGERPRINT (for crash reporting). */
@@ -69,20 +71,21 @@ public final class AndroidInfo {
     @NativeMethods
     interface Natives {
         void fillFields(
-                String brand,
-                String device,
-                String buildId,
-                String manufacturer,
-                String model,
-                String type,
-                String board,
-                String androidBuildFingerprint,
-                String versionIncremental,
-                String hardware,
-                String codeName,
-                String socManufacturer,
-                String supportedAbis,
+                @JniType("std::string") String brand,
+                @JniType("std::string") String device,
+                @JniType("std::string") String buildId,
+                @JniType("std::string") String manufacturer,
+                @JniType("std::string") String model,
+                @JniType("std::string") String type,
+                @JniType("std::string") String board,
+                @JniType("std::string") String androidBuildFingerprint,
+                @JniType("std::string") String versionIncremental,
+                @JniType("std::string") String hardware,
+                @JniType("std::string") String codeName,
+                @JniType("std::string") String socManufacturer,
+                @JniType("std::string") String supportedAbis,
                 int sdkInt,
-                boolean isDebugAndroid);
+                boolean isDebugAndroid,
+                @JniType("std::string") String securityPatch);
     }
 }
