@@ -36,8 +36,10 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-using testing::ElementsAre;
-using testing::IsEmpty;
+using ::testing::ElementsAre;
+using ::testing::IsEmpty;
+using ::testing::Pair;
+using ::testing::UnorderedElementsAre;
 
 namespace base {
 namespace {
@@ -118,6 +120,24 @@ class BlockedThread : public DelegateSimpleThread::Delegate {
 
   const HangWatcher::ThreadType thread_type_;
   const base::TimeDelta timeout_;
+};
+
+// Scope object starting a BlockedThread for all thread types monitored by the
+// HangWatcher. Threads are started by the constructor and joined in the
+// destructor.
+class BlockedThreadsForAllTypes {
+ public:
+  explicit BlockedThreadsForAllTypes(base::TimeDelta timeout)
+      : main_(HangWatcher::ThreadType::kMainThread, timeout),
+        compositor_(HangWatcher::ThreadType::kCompositorThread, timeout),
+        io_(HangWatcher::ThreadType::kIOThread, timeout),
+        pool_(HangWatcher::ThreadType::kThreadPoolThread, timeout) {}
+
+ private:
+  BlockedThread main_;
+  BlockedThread compositor_;
+  BlockedThread io_;
+  BlockedThread pool_;
 };
 
 // A hang watcher that only does monitoring when requested via
@@ -394,6 +414,28 @@ TEST_F(HangWatcherTest, NestedScopes) {
   EXPECT_EQ(current_hang_watch_state->GetDeadline(), original_deadline);
 }
 
+// Checks that histograms are recorded on the right threads for the browser
+// process.
+TEST_F(HangWatcherTest, HistogramsLoggedOnBrowserProcessHang) {
+  base::HistogramTester histogram_tester;
+  ManualHangWatcher hang_watcher(HangWatcher::ProcessType::kBrowserProcess);
+
+  // Start blocked threads for all thread types and simulate hangs.
+  BlockedThreadsForAllTypes threads(/*timeout=*/base::Seconds(10));
+  task_environment_.FastForwardBy(base::Seconds(11));
+
+  // Check that histograms are only recorded for the expected threads.
+  hang_watcher.TriggerSynchronousMonitoring();
+  EXPECT_THAT(
+      histogram_tester.GetAllSamplesForPrefix(
+          "HangWatcher.IsThreadHung.BrowserProcess"),
+      UnorderedElementsAre(
+          Pair("HangWatcher.IsThreadHung.BrowserProcess.UIThread.Normal",
+               BucketsAre(Bucket(true, /*count=*/1))),
+          Pair("HangWatcher.IsThreadHung.BrowserProcess.IOThread.Normal",
+               BucketsAre(Bucket(true, /*count=*/1)))));
+}
+
 TEST_F(HangWatcherTest, HistogramsLoggedOnHang) {
   base::HistogramTester histogram_tester;
   ManualHangWatcher hang_watcher(HangWatcher::ProcessType::kBrowserProcess);
@@ -431,11 +473,6 @@ TEST_F(HangWatcherTest, HistogramsLoggedOnHang) {
                                              "AnyCritical"),
               ElementsAre(base::Bucket(true, /*count=*/2)));
 
-  // Thread types that are not monitored should not get any samples.
-  EXPECT_THAT(histogram_tester.GetAllSamples("HangWatcher.IsThreadHung."
-                                             "BrowserProcess.IOThread.Normal"),
-              IsEmpty());
-
   // No shutdown hangs, either.
   EXPECT_THAT(histogram_tester.GetAllSamples(
                   "HangWatcher.IsThreadHung.BrowserProcess.UIThread.Shutdown"),
@@ -445,6 +482,7 @@ TEST_F(HangWatcherTest, HistogramsLoggedOnHang) {
               IsEmpty());
 }
 
+// Checks that histograms with `false` buckets are recorded if there's no hang.
 TEST_F(HangWatcherTest, HistogramsLoggedWithoutHangs) {
   base::HistogramTester histogram_tester;
   ManualHangWatcher hang_watcher(HangWatcher::ProcessType::kBrowserProcess);
@@ -459,22 +497,15 @@ TEST_F(HangWatcherTest, HistogramsLoggedWithoutHangs) {
 
   // A thread of type ThreadForTesting was monitored but didn't hang. This is
   // logged.
-  EXPECT_THAT(histogram_tester.GetAllSamples("HangWatcher.IsThreadHung."
-                                             "BrowserProcess.UIThread.Normal"),
-              ElementsAre(base::Bucket(false, /*count=*/1)));
-
-  // Thread types that are not monitored should not get any samples.
-  EXPECT_THAT(histogram_tester.GetAllSamples("HangWatcher.IsThreadHung."
-                                             "BrowserProcess.IOThread.Normal"),
-              IsEmpty());
-
-  EXPECT_THAT(histogram_tester.GetAllSamples("HangWatcher.IsThreadHung."
-                                             "Any"),
-              ElementsAre(base::Bucket(false, /*count=*/1)));
-
-  EXPECT_THAT(histogram_tester.GetAllSamples("HangWatcher.IsThreadHung."
-                                             "AnyCritical"),
-              ElementsAre(base::Bucket(false, /*count=*/1)));
+  EXPECT_THAT(
+      histogram_tester.GetAllSamplesForPrefix("HangWatcher.IsThreadHung"),
+      UnorderedElementsAre(
+          Pair("HangWatcher.IsThreadHung.BrowserProcess.UIThread.Normal",
+               BucketsAre(Bucket(false, /*count=*/1))),
+          Pair("HangWatcher.IsThreadHung.Any",
+               BucketsAre(Bucket(false, /*count=*/1))),
+          Pair("HangWatcher.IsThreadHung.AnyCritical",
+               BucketsAre(Bucket(false, /*count=*/1)))));
 }
 
 TEST_F(HangWatcherTest, HistogramsLoggedWithShutdownFlag) {
