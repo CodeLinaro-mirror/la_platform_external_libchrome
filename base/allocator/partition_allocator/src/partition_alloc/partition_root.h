@@ -42,7 +42,6 @@
 #include "partition_alloc/build_config.h"
 #include "partition_alloc/buildflags.h"
 #include "partition_alloc/in_slot_metadata.h"
-#include "partition_alloc/lightweight_quarantine.h"
 #include "partition_alloc/page_allocator.h"
 #include "partition_alloc/partition_address_space.h"
 #include "partition_alloc/partition_alloc-inl.h"
@@ -72,6 +71,7 @@
 #include "partition_alloc/partition_page.h"
 #include "partition_alloc/partition_shared_mutex.h"
 #include "partition_alloc/reservation_offset_table.h"
+#include "partition_alloc/scheduler_loop_quarantine.h"
 #include "partition_alloc/tagging.h"
 #include "partition_alloc/thread_cache.h"
 #include "partition_alloc/thread_isolation/thread_isolation.h"
@@ -389,8 +389,8 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   internal::Lock thread_cache_construction_lock;
 
   size_t scheduler_loop_quarantine_branch_capacity_in_bytes = 0;
-  internal::LightweightQuarantineRoot scheduler_loop_quarantine_root;
-  internal::SchedulerLoopQuarantineBranch scheduler_loop_quarantine;
+  internal::SchedulerLoopQuarantineRoot scheduler_loop_quarantine_root;
+  internal::GlobalSchedulerLoopQuarantineBranch scheduler_loop_quarantine;
 
   static constexpr internal::base::TimeDelta kMaxPurgeDuration =
       internal::base::Milliseconds(2);
@@ -572,10 +572,17 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
 
   // Immediately frees the pointer bypassing the quarantine. |slot_start| is the
   // beginning of the slot that contains |object|.
+  template <FreeFlags flags>
   PA_ALWAYS_INLINE void FreeNoHooksImmediate(
       void* object,
       ReadOnlySlotSpanMetadata* slot_span,
       uintptr_t slot_start);
+
+#if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+  // Actual free operation on BRP dequarantine.
+  PA_ALWAYS_INLINE static void FreeAfterBRPQuarantine(uintptr_t slot_start,
+                                                      size_t slot_size);
+#endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
   PA_ALWAYS_INLINE size_t
   GetSlotUsableSize(const ReadOnlySlotSpanMetadata* slot_span) {
@@ -862,11 +869,6 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
     return straighten_larger_slot_span_free_lists_;
   }
 
-  internal::SchedulerLoopQuarantineBranch&
-  GetSchedulerLoopQuarantineBranchForTesting() {
-    return GetSchedulerLoopQuarantineBranch();
-  }
-
   void ReconfigureSchedulerLoopQuarantineForCurrentThread(
       const internal::SchedulerLoopQuarantineConfig& config) {
     ThreadCache* thread_cache = this->EnsureThreadCache();
@@ -1017,9 +1019,7 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   // Must NOT be used inside (de)allocation code path.
   PA_ALWAYS_INLINE ThreadCache* EnsureThreadCache();
 
-  PA_ALWAYS_INLINE internal::SchedulerLoopQuarantineBranch&
-  GetSchedulerLoopQuarantineBranch();
-  PA_ALWAYS_INLINE internal::LightweightQuarantineRoot&
+  PA_ALWAYS_INLINE internal::SchedulerLoopQuarantineRoot&
   GetSchedulerLoopQuarantineRoot();
 
   PA_ALWAYS_INLINE AllocationNotificationData
@@ -1049,6 +1049,7 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
 #if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
   friend class internal::InSlotMetadata;
 #endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+  template <bool>
   friend class internal::SchedulerLoopQuarantineBranch;
 };
 
@@ -1202,43 +1203,6 @@ PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 PtrPosWithinAlloc IsPtrWithinSameAlloc(uintptr_t orig_address,
                                        uintptr_t test_address,
                                        size_t type_size);
-
-PA_ALWAYS_INLINE void PartitionAllocFreeForRefCounting(uintptr_t slot_start) {
-  auto* slot_span =
-      SlotSpanMetadata<MetadataKind::kReadOnly>::FromSlotStart(slot_start);
-  auto* root = PartitionRoot::FromSlotSpanMetadata(slot_span);
-  // Currently, InSlotMetadata is allocated when BRP is used.
-  PA_DCHECK(root->brp_enabled());
-  PA_DCHECK(!PartitionRoot::InSlotMetadataPointerFromSlotStartAndSize(
-                 slot_start, slot_span->bucket->slot_size)
-                 ->IsAlive());
-
-  // Iterating over the entire slot can be really expensive.
-#if PA_BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
-#if !PA_BUILDFLAG(IS_IOS)
-  auto hook = PartitionAllocHooks::GetQuarantineOverrideHook();
-  // If we have a hook the object segment is not necessarily filled
-  // with |kQuarantinedByte|.
-  if (!hook) [[likely]] {
-    unsigned char* object =
-        static_cast<unsigned char*>(root->SlotStartToObject(slot_start));
-    for (size_t i = 0; i < root->GetSlotUsableSize(slot_span); ++i) {
-      PA_DCHECK(object[i] == kQuarantinedByte);
-    }
-  }
-#endif  //  !PA_BUILDFLAG(IS_IOS)
-  DebugMemset(SlotStartAddr2Ptr(slot_start), kFreedByte,
-              slot_span->GetUtilizedSlotSize());
-#endif  // PA_BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
-
-  root->total_size_of_brp_quarantined_bytes.fetch_sub(
-      slot_span->GetSlotSizeForBookkeeping(), std::memory_order_relaxed);
-  root->total_count_of_brp_quarantined_slots.fetch_sub(
-      1, std::memory_order_relaxed);
-
-  root->RawFreeWithThreadCache(slot_start, SlotStartAddr2Ptr(slot_start),
-                               slot_span);
-}
 #endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
 }  // namespace internal
@@ -1481,25 +1445,11 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeInline(void* object) {
   // (or batch fill) will *write* to |slot_span->freelist_head|, leading to
   // cacheline ping-pong.
   PA_PREFETCH(slot_span);
-
-  if constexpr (ContainsFlags(flags, FreeFlags::kSchedulerLoopQuarantine)) {
-    ThreadCache* thread_cache = GetThreadCache();
-    if (ThreadCache::IsValid(thread_cache)) [[likely]] {
-      thread_cache->GetSchedulerLoopQuarantineBranch()
-          .QuarantineWithoutAcquiringLock(object, slot_span,
-                                          slot_start.untagged_slot_start_,
-                                          GetSlotUsableSize(slot_span));
-    } else {
-      scheduler_loop_quarantine.QuarantineWithAcquiringLock(
-          object, slot_span, slot_start.untagged_slot_start_,
-          GetSlotUsableSize(slot_span));
-    }
-    return;
-  }
-
-  FreeNoHooksImmediate(object, slot_span, slot_start.untagged_slot_start_);
+  FreeNoHooksImmediate<flags>(object, slot_span,
+                              slot_start.untagged_slot_start_);
 }
 
+template <FreeFlags flags>
 PA_ALWAYS_INLINE void PartitionRoot::FreeNoHooksImmediate(
     void* object,
     ReadOnlySlotSpanMetadata* slot_span,
@@ -1569,6 +1519,11 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeNoHooksImmediate(
           slot_span->GetSlotSizeForBookkeeping(), std::memory_order_relaxed);
       cumulative_count_of_brp_quarantined_slots.fetch_add(
           1, std::memory_order_relaxed);
+
+      if constexpr (ContainsFlags(flags, FreeFlags::kSchedulerLoopQuarantine)) {
+        // This flag is to be read on `FreeAfterBRPQuarantine()`.
+        ref_count->SetQuarantineRequest();
+      }
       return;
     }
   }
@@ -1579,10 +1534,79 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeNoHooksImmediate(
   internal::DebugMemset(internal::SlotStartAddr2Ptr(slot_start),
                         internal::kFreedByte, slot_span->GetUtilizedSlotSize());
 #endif  // PA_BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
+
+  if constexpr (ContainsFlags(flags, FreeFlags::kSchedulerLoopQuarantine)) {
+    ThreadCache* thread_cache = GetThreadCache();
+    if (ThreadCache::IsValid(thread_cache)) [[likely]] {
+      thread_cache->GetSchedulerLoopQuarantineBranch().Quarantine(
+          object, slot_span, slot_start);
+    } else {
+      scheduler_loop_quarantine.Quarantine(object, slot_span, slot_start);
+    }
+    return;
+  }
+
   // TODO(keishi): Create function to convert |object| to |slot_start_ptr|.
   void* slot_start_ptr = object;
   RawFreeWithThreadCache(slot_start, slot_start_ptr, slot_span);
 }
+
+#if PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+// static
+PA_ALWAYS_INLINE void PartitionRoot::FreeAfterBRPQuarantine(
+    uintptr_t slot_start,
+    size_t slot_size) {
+  auto* slot_span = internal::SlotSpanMetadata<
+      internal::MetadataKind::kReadOnly>::FromSlotStart(slot_start);
+  auto* root = PartitionRoot::FromSlotSpanMetadata(slot_span);
+  // Currently, InSlotMetadata is allocated when BRP is used.
+  PA_DCHECK(root->brp_enabled());
+  PA_DCHECK(!PartitionRoot::InSlotMetadataPointerFromSlotStartAndSize(
+                 slot_start, slot_span->bucket->slot_size)
+                 ->IsAlive());
+
+  // Iterating over the entire slot can be really expensive.
+#if PA_BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
+#if !PA_BUILDFLAG(IS_IOS)
+  auto hook = PartitionAllocHooks::GetQuarantineOverrideHook();
+  // If we have a hook the object segment is not necessarily filled
+  // with |kQuarantinedByte|.
+  if (!hook) [[likely]] {
+    unsigned char* object =
+        static_cast<unsigned char*>(root->SlotStartToObject(slot_start));
+    for (size_t i = 0; i < root->GetSlotUsableSize(slot_span); ++i) {
+      PA_DCHECK(object[i] == internal::kQuarantinedByte);
+    }
+  }
+#endif  //  !PA_BUILDFLAG(IS_IOS)
+  internal::DebugMemset(internal::SlotStartAddr2Ptr(slot_start),
+                        internal::kFreedByte, slot_span->GetUtilizedSlotSize());
+#endif  // PA_BUILDFLAG(EXPENSIVE_DCHECKS_ARE_ON)
+
+  root->total_size_of_brp_quarantined_bytes.fetch_sub(
+      slot_span->GetSlotSizeForBookkeeping(), std::memory_order_relaxed);
+  root->total_count_of_brp_quarantined_slots.fetch_sub(
+      1, std::memory_order_relaxed);
+
+  void* const object = internal::SlotStartAddr2Ptr(slot_start);
+  internal::InSlotMetadata* metadata =
+      internal::InSlotMetadataPointer(slot_start, slot_size);
+
+  // `FreeFlags::kSchedulerLoopQuarantine` was used for the original `Free()`
+  // call. Send the allocation to yet another quarantine.
+  if (metadata->PopQuarantineRequest()) {
+    ThreadCache* thread_cache = root->GetThreadCache();
+    if (ThreadCache::IsValid(thread_cache)) [[likely]] {
+      thread_cache->GetSchedulerLoopQuarantineBranch().Quarantine(
+          object, slot_span, slot_start);
+    } else {
+      root->scheduler_loop_quarantine.Quarantine(object, slot_span, slot_start);
+    }
+  } else {
+    root->RawFreeWithThreadCache(slot_start, object, slot_span);
+  }
+}
+#endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 
 PA_ALWAYS_INLINE void PartitionRoot::FreeInSlotSpan(
     uintptr_t slot_start,
@@ -2478,18 +2502,7 @@ ThreadCache* PartitionRoot::EnsureThreadCache() {
   return thread_cache;
 }
 
-// private.
-internal::SchedulerLoopQuarantineBranch&
-PartitionRoot::GetSchedulerLoopQuarantineBranch() {
-  ThreadCache* thread_cache = GetThreadCache();
-  if (ThreadCache::IsValid(thread_cache)) [[likely]] {
-    return thread_cache->GetSchedulerLoopQuarantineBranch();
-  } else {
-    return scheduler_loop_quarantine;
-  }
-}
-
-internal::LightweightQuarantineRoot&
+internal::SchedulerLoopQuarantineRoot&
 PartitionRoot::GetSchedulerLoopQuarantineRoot() {
   return scheduler_loop_quarantine_root;
 }
