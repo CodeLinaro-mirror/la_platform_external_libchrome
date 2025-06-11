@@ -25,7 +25,6 @@
 #include <span>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "base/check.h"
 #include "base/compiler_specific.h"
@@ -33,7 +32,6 @@
 #include "base/containers/span_forward_internal.h"
 #include "base/numerics/integral_constant_like.h"
 #include "base/numerics/safe_conversions.h"
-#include "base/strings/cstring_view.h"
 #include "base/types/to_address.h"
 
 // A span is a view of contiguous elements that can be accessed like an array,
@@ -263,8 +261,6 @@
 //   (non-range) objects to spans.
 // - For convenience, provides `[byte_]span_[with_nul_]from_cstring()` to
 //   convert `const char[]` literals to spans.
-// - For convenience, provides `[byte_]span_with_nul_from_cstring_view()` to
-//   convert `basic_cstring_view<T>` to spans, preserving the null terminator.
 // - For convenience, provides `as_[writable_]byte_span()` to convert
 //   spanifiable objects directly to byte spans.
 // - For safety, bans types which do not meet
@@ -562,8 +558,33 @@ class GSL_POINTER span {
       // unspecified behavior, which would halt compilation. Instead,
       // unconditionally use a separate buffer in the constexpr context. This
       // would be inefficient at runtime, but that's irrelevant.
-      std::vector<element_type> vec(other.begin(), other.end());
-      std::ranges::copy(vec, begin());
+
+      // operator[] does not exist if extent == 0.
+      if constexpr (extent > 0) {
+        // Hold each value to be copied in a union so `element_type` does not
+        // need to be default constructible.
+        union Holder {
+          constexpr Holder() {}
+          constexpr ~Holder() {}
+          element_type value;
+        };
+        // std::unique_ptr<T[]> isn't constexpr enough prior to C++23; another
+        // alternative is std::vector, but that requires including <vector> just
+        // for this edge case.
+        Holder* buffer = new Holder[extent];
+        for (size_t i = 0; i < extent; ++i) {
+          // SAFETY: `buffers` is allocated with `extent` elements, and the loop
+          // body only executes if `i < extent`.
+          UNSAFE_BUFFERS(buffer[i]).value = other[i];
+        }
+        for (size_t i = 0; i < extent; ++i) {
+          // SAFETY: `buffers` is allocated with `extent` elements, and the loop
+          // body only executes if `i < extent`.
+          (*this)[i] = UNSAFE_BUFFERS(buffer[i]).value;
+          UNSAFE_BUFFERS(buffer[i]).value.~element_type();
+        }
+        delete[] buffer;
+      }
     } else {
       // Using `<=` to compare pointers to different allocations is UB, but
       // using `std::less_equal` is well-defined ([comparisons.general]).
@@ -716,8 +737,8 @@ class GSL_POINTER span {
   }
   constexpr auto subspan(StrictNumeric<size_type> offset,
                          StrictNumeric<size_type> count) const {
-    DCHECK(size_type{count} != dynamic_extent)
-        << "base does not allow dynamic_extent in two-arg subspan()";
+    // base does not allow dynamic_extent in two-arg subspan().
+    DCHECK(size_type{count} != dynamic_extent);
     // Deliberately combine tests to minimize code size.
     CHECK(size_type{offset} <= size() &&
           size_type{count} <= size() - size_type{offset});
@@ -1051,8 +1072,30 @@ class GSL_POINTER span<ElementType, dynamic_extent, InternalPtrType> {
       // unspecified behavior, which would halt compilation. Instead,
       // unconditionally use a separate buffer in the constexpr context. This
       // would be inefficient at runtime, but that's irrelevant.
-      std::vector<element_type> vec(other.begin(), other.end());
-      std::ranges::copy(vec, begin());
+
+      // Hold each value to be copied in a union so `element_type` does not
+      // need to be default constructible.
+      union Holder {
+        constexpr Holder() {}
+        constexpr ~Holder() {}
+        element_type value;
+      };
+      // std::unique_ptr<T[]> isn't constexpr enough prior to C++23; another
+      // alternative is std::vector, but that requires including <vector> just
+      // for this edge case.
+      Holder* buffer = new Holder[other.size()];
+      for (size_t i = 0; i < other.size(); ++i) {
+        // SAFETY: `buffers` is allocated with `other.size()` elements, and the
+        // loop body only executes if `i < other.size()`.
+        UNSAFE_BUFFERS(buffer[i]).value = other[i];
+      }
+      for (size_t i = 0; i < other.size(); ++i) {
+        // SAFETY: `buffers` is allocated with `other.size()` elements, and the
+        // loop body only executes if `i < other.size()`.
+        (*this)[i] = UNSAFE_BUFFERS(buffer[i]).value;
+        UNSAFE_BUFFERS(buffer[i]).value.~element_type();
+      }
+      delete[] buffer;
     } else {
       // Using `<=` to compare pointers to different allocations is UB, but
       // using `std::less_equal` is well-defined ([comparisons.general]).
@@ -1161,8 +1204,8 @@ class GSL_POINTER span<ElementType, dynamic_extent, InternalPtrType> {
   }
   constexpr auto subspan(StrictNumeric<size_type> offset,
                          StrictNumeric<size_type> count) const {
-    DCHECK(size_type{count} != dynamic_extent)
-        << "base does not allow dynamic_extent in two-arg subspan()";
+    // base does not allow dynamic_extent in two-arg subspan().
+    DCHECK(size_type{count} != dynamic_extent);
     // Deliberately combine tests to minimize code size.
     CHECK(size_type{offset} <= size() &&
           size_type{count} <= size() - size_type{offset});
@@ -1528,17 +1571,6 @@ constexpr auto span_with_nul_from_cstring(
   return span(str);
 }
 
-// Converts a `basic_cstring_view` instance to a `span<const CharT>`, preserving
-// the trailing '\0'.
-//
-// (Not in `std::`; explicitly includes the trailing nul, which would be omitted
-// by calling the range constructor.)
-template <typename CharT>
-constexpr auto span_with_nul_from_cstring_view(basic_cstring_view<CharT> str) {
-  // SAFETY: It is safe to read the guaranteed null-terminator in `str`.
-  return UNSAFE_BUFFERS(span(str.data(), str.size() + 1));
-}
-
 // Like `span_from_cstring()`, but returns a byte span.
 //
 // (Not in `std::`.)
@@ -1564,15 +1596,6 @@ constexpr auto byte_span_with_nul_from_cstring(
   // do not carry through the function call, so the `ENABLE_IF_ATTR` will not be
   // satisfied.
   return as_bytes(span(str));
-}
-
-// Like `span_with_nul_from_cstring_view()`, but returns a byte span.
-//
-// (Not in `std::`.)
-template <typename CharT>
-constexpr auto byte_span_with_nul_from_cstring_view(
-    basic_cstring_view<CharT> str) {
-  return as_bytes(span_with_nul_from_cstring_view(str));
 }
 
 // Converts an object which can already explicitly convert to some kind of span

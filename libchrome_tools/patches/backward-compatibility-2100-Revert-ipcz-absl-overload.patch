@@ -1,0 +1,94 @@
+diff --git a/third_party/ipcz/src/ipcz/box.cc b/third_party/ipcz/src/ipcz/box.cc
+index 0d936aae09..de051ab293 100644
+--- a/third_party/ipcz/src/ipcz/box.cc
++++ b/third_party/ipcz/src/ipcz/box.cc
+@@ -9,7 +9,6 @@
+ 
+ #include "ipcz/ipcz.h"
+ #include "third_party/abseil-cpp/absl/base/macros.h"
+-#include "third_party/abseil-cpp/absl/functional/overload.h"
+ 
+ namespace ipcz {
+ 
+@@ -36,7 +35,7 @@ IpczResult Box::Close() {
+ 
+ bool Box::CanSendFrom(Router& sender) {
+   return std::visit(
+-      absl::Overload{
++      Overloaded{
+           [](const Empty&) { return false; },
+           [](const DriverObject& object) {
+             return object.is_valid() && object.IsSerializable();
+@@ -57,7 +56,7 @@ bool Box::CanSendFrom(Router& sender) {
+ IpczResult Box::ExtractContents(ExtractMode mode, IpczBoxContents& contents) {
+   const bool peek = (mode == kPeek);
+   const IpczResult result = std::visit(
+-      absl::Overload{
++      Overloaded{
+           [](const Empty& empty) { return IPCZ_RESULT_INVALID_ARGUMENT; },
+           [&contents, peek](DriverObject& object) {
+             contents.type = IPCZ_BOX_TYPE_DRIVER_OBJECT;
+diff --git a/third_party/ipcz/src/ipcz/box.h b/third_party/ipcz/src/ipcz/box.h
+index 69a9ce627e..0332f61876 100644
+--- a/third_party/ipcz/src/ipcz/box.h
++++ b/third_party/ipcz/src/ipcz/box.h
+@@ -11,7 +11,7 @@
+ #include "ipcz/application_object.h"
+ #include "ipcz/driver_object.h"
+ #include "ipcz/parcel_wrapper.h"
+-#include "third_party/abseil-cpp/absl/functional/overload.h"
++#include "util/overloaded.h"
+ 
+ namespace ipcz {
+ 
+@@ -41,7 +41,7 @@ class Box : public APIObjectImpl<Box, APIObject::kBox> {
+ 
+   Type type() const {
+     return std::visit(
+-        absl::Overload{
++        Overloaded{
+             [](const Empty&) { return Type::kEmpty; },
+             [](const DriverObject&) { return Type::kDriverObject; },
+             [](const ApplicationObject&) { return Type::kApplicationObject; },
+diff --git a/third_party/ipcz/src/util/overloaded.h b/third_party/ipcz/src/util/overloaded.h
+new file mode 100644
+index 0000000000..4287983601
+--- /dev/null
++++ b/third_party/ipcz/src/util/overloaded.h
+@@ -0,0 +1,36 @@
++// Copyright 2022 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef IPCZ_SRC_UTIL_OVERLOADED_H_
++#define IPCZ_SRC_UTIL_OVERLOADED_H_
++
++namespace ipcz {
++
++// Overloaded is a template helper for more succint evaluation of std::variant
++// values. This allows visitation to be expressed with anonymous lambdas as
++// follows:
++//
++//     std::variant<A, B, C> v = MakeSomeVariant();
++//     std::visit(
++//         Overloaded{
++//             [](const A& v) { return "A"; },
++//             [](const B& v) { return "B"; },
++//             [](const C& v) { return "C"; },
++//         }, v);
++//
++// Usage requires an expicit case for every possible alternative held by the
++// variant.
++template <typename... Callables>
++struct Overloaded : Callables... {
++  using Callables::operator()...;
++};
++
++// A deduction guide which allows anonymous lambda types to be deduced from
++// constructor arguments.
++template <typename... Callables>
++Overloaded(Callables...) -> Overloaded<Callables...>;
++
++}  // namespace ipcz
++
++#endif  // IPCZ_SRC_UTIL_OVERLOADED_H_
