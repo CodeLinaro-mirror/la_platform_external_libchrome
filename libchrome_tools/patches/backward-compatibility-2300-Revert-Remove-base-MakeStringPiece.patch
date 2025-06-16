@@ -1,0 +1,116 @@
+From 5cd1523688a75458504f3f4ce4accaaa6b491d9c Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@chromium.org>
+Date: Tue, 17 Jun 2025 15:09:40 +0800
+Subject: [PATCH] Revert "Remove base::MakeStringPiece()"
+
+This reverts commit ed22dbac770a4ec9ebadbc51124151dd73a93fa1.
+---
+ base/strings/string_tokenizer.h      |  2 +-
+ base/strings/string_util.h           | 25 +++++++++++++++++
+ base/strings/string_util_unittest.cc | 41 ++++++++++++++++++++++++++++
+ 3 files changed, 67 insertions(+), 1 deletion(-)
+
+diff --git a/base/strings/string_tokenizer.h b/base/strings/string_tokenizer.h
+index 3e6b20d50b..b37c80c109 100644
+--- a/base/strings/string_tokenizer.h
++++ b/base/strings/string_tokenizer.h
+@@ -210,7 +210,7 @@ class StringTokenizerT {
+   const_iterator token_end() const { return token_end_; }
+   str token() const { return str(token_begin_, token_end_); }
+   std::basic_string_view<char_type> token_piece() const {
+-    return std::basic_string_view(token_begin_, token_end_);
++    return MakeBasicStringPiece<char_type>(token_begin_, token_end_);
+   }
+ 
+  private:
+diff --git a/base/strings/string_util.h b/base/strings/string_util.h
+index 1525d0fd2e..a5917d32df 100644
+--- a/base/strings/string_util.h
++++ b/base/strings/string_util.h
+@@ -108,6 +108,31 @@ BASE_EXPORT size_t wcslcpy(wchar_t* dst, const wchar_t* src, size_t dst_size);
+ // This function is intended to be called from base::vswprintf.
+ BASE_EXPORT bool IsWprintfFormatPortable(const wchar_t* format);
+ 
++// Simplified implementation of C++20's std::basic_string_view(It, End).
++// Reference: https://wg21.link/string.view.cons
++template <typename CharT, typename Iter>
++constexpr std::basic_string_view<CharT> MakeBasicStringPiece(Iter begin,
++                                                             Iter end) {
++  DCHECK_GE(end - begin, 0);
++  return {base::to_address(begin), static_cast<size_t>(end - begin)};
++}
++
++// Explicit instantiations of MakeBasicStringPiece.
++template <typename Iter>
++constexpr std::string_view MakeStringPiece(Iter begin, Iter end) {
++  return MakeBasicStringPiece<char>(begin, end);
++}
++
++template <typename Iter>
++constexpr std::u16string_view MakeStringPiece16(Iter begin, Iter end) {
++  return MakeBasicStringPiece<char16_t>(begin, end);
++}
++
++template <typename Iter>
++constexpr std::wstring_view MakeWStringView(Iter begin, Iter end) {
++  return MakeBasicStringPiece<wchar_t>(begin, end);
++}
++
+ // ASCII-specific tolower.  The standard library's tolower is locale sensitive,
+ // so we don't want to use it here.
+ template <typename CharT>
+diff --git a/base/strings/string_util_unittest.cc b/base/strings/string_util_unittest.cc
+index 2bfa190f50..e994ee87bc 100644
+--- a/base/strings/string_util_unittest.cc
++++ b/base/strings/string_util_unittest.cc
+@@ -1606,6 +1606,47 @@ TEST(StringUtilTest, WprintfFormatPortabilityTest) {
+   }
+ }
+ 
++TEST(StringUtilTest, MakeBasicStringPieceTest) {
++  constexpr char kFoo[] = "Foo";
++  static_assert(MakeStringPiece(kFoo, kFoo + 3) == kFoo, "");
++  static_assert(MakeStringPiece(kFoo, kFoo + 3).data() == kFoo, "");
++  static_assert(MakeStringPiece(kFoo, kFoo + 3).size() == 3, "");
++  static_assert(MakeStringPiece(kFoo + 3, kFoo + 3).empty(), "");
++  static_assert(MakeStringPiece(kFoo + 4, kFoo + 4).empty(), "");
++
++  std::string foo = kFoo;
++  EXPECT_EQ(MakeStringPiece(foo.begin(), foo.end()), foo);
++  EXPECT_EQ(MakeStringPiece(foo.begin(), foo.end()).data(), foo.data());
++  EXPECT_EQ(MakeStringPiece(foo.begin(), foo.end()).size(), foo.size());
++  EXPECT_TRUE(MakeStringPiece(foo.end(), foo.end()).empty());
++
++  constexpr char16_t kBar[] = u"Bar";
++  static_assert(MakeStringPiece16(kBar, kBar + 3) == kBar, "");
++  static_assert(MakeStringPiece16(kBar, kBar + 3).data() == kBar, "");
++  static_assert(MakeStringPiece16(kBar, kBar + 3).size() == 3, "");
++  static_assert(MakeStringPiece16(kBar + 3, kBar + 3).empty(), "");
++  static_assert(MakeStringPiece16(kBar + 4, kBar + 4).empty(), "");
++
++  std::u16string bar = kBar;
++  EXPECT_EQ(MakeStringPiece16(bar.begin(), bar.end()), bar);
++  EXPECT_EQ(MakeStringPiece16(bar.begin(), bar.end()).data(), bar.data());
++  EXPECT_EQ(MakeStringPiece16(bar.begin(), bar.end()).size(), bar.size());
++  EXPECT_TRUE(MakeStringPiece16(bar.end(), bar.end()).empty());
++
++  constexpr wchar_t kBaz[] = L"Baz";
++  static_assert(MakeWStringView(kBaz, kBaz + 3) == kBaz, "");
++  static_assert(MakeWStringView(kBaz, kBaz + 3).data() == kBaz, "");
++  static_assert(MakeWStringView(kBaz, kBaz + 3).size() == 3, "");
++  static_assert(MakeWStringView(kBaz + 3, kBaz + 3).empty(), "");
++  static_assert(MakeWStringView(kBaz + 4, kBaz + 4).empty(), "");
++
++  std::wstring baz = kBaz;
++  EXPECT_EQ(MakeWStringView(baz.begin(), baz.end()), baz);
++  EXPECT_EQ(MakeWStringView(baz.begin(), baz.end()).data(), baz.data());
++  EXPECT_EQ(MakeWStringView(baz.begin(), baz.end()).size(), baz.size());
++  EXPECT_TRUE(MakeWStringView(baz.end(), baz.end()).empty());
++}
++
+ TEST(StringUtilTest, RemoveChars) {
+   const char kRemoveChars[] = "-/+*";
+   std::string input = "A-+bc/d!*";
+-- 
+2.50.0.rc2.692.g299adb8693-goog
+

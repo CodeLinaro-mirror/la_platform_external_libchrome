@@ -22,10 +22,13 @@
 #include "base/dcheck_is_on.h"
 #include "base/feature_list_buildflags.h"
 #include "base/gtest_prod_util.h"
-#include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/synchronization/lock.h"
 #include "build/build_config.h"
+
+#if BUILDFLAG(ENABLE_BANNED_BASE_FEATURE_PREFIX)
+#include "base/logging.h"
+#endif
 
 namespace base {
 
@@ -366,7 +369,8 @@ class BASE_EXPORT FeatureList {
 
   // Returns true if the state of |feature_name| has been overridden (regardless
   // of whether the overridden value is the same as the default value) for any
-  // reason (e.g. command line or field trial).
+  // reason (e.g. command line or field trial). Note: This will return true even
+  // when a feature is overridden with OVERRIDE_USE_DEFAULT (default group).
   bool IsFeatureOverridden(std::string_view feature_name) const;
 
   // Returns true if the state of |feature_name| has been overridden via

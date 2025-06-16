@@ -1,0 +1,212 @@
+From b2c38c855d778156677284c0327ab93af54cdb86 Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@chromium.org>
+Date: Wed, 18 Jun 2025 11:48:44 +0800
+Subject: [PATCH] Revert "[base] Remove base::Overloaded"
+
+This reverts commit 02192cea709ae3d1ab4ed577d0f9af5669606b2e.
+---
+ base/containers/span_or_size.h          |  8 ++--
+ base/functional/overloaded.h            | 51 +++++++++++++++++++++++++
+ base/functional/overloaded_nocompile.nc | 26 +++++++++++++
+ base/functional/overloaded_unittest.cc  | 27 +++++++++++++
+ base/task/thread_pool/test_utils.cc     |  4 +-
+ 5 files changed, 110 insertions(+), 6 deletions(-)
+ create mode 100644 base/functional/overloaded.h
+ create mode 100644 base/functional/overloaded_nocompile.nc
+ create mode 100644 base/functional/overloaded_unittest.cc
+
+diff --git a/base/containers/span_or_size.h b/base/containers/span_or_size.h
+index 898b56d98c..47de2f86de 100644
+--- a/base/containers/span_or_size.h
++++ b/base/containers/span_or_size.h
+@@ -10,8 +10,8 @@
+ #include <variant>
+ 
+ #include "base/containers/span.h"
++#include "base/functional/overloaded.h"
+ #include "base/types/optional_ref.h"
+-#include "third_party/abseil-cpp/absl/functional/overload.h"
+ 
+ namespace base {
+ 
+@@ -33,7 +33,7 @@ class SpanOrSize {
+   SpanOrSize& operator=(SpanOrSize&&) = default;
+ 
+   constexpr T* ptr_or_null_if_no_data() const {
+-    return std::visit(absl::Overload{
++    return std::visit(Overloaded{
+                           [](const base::span<T>& span) { return span.data(); },
+                           [](size_t size) -> T* { return nullptr; },
+                       },
+@@ -41,7 +41,7 @@ class SpanOrSize {
+   }
+ 
+   constexpr size_t size() const {
+-    return std::visit(absl::Overload{
++    return std::visit(Overloaded{
+                           [](const base::span<T>& span) { return span.size(); },
+                           [](size_t size) { return size; },
+                       },
+@@ -50,7 +50,7 @@ class SpanOrSize {
+ 
+   constexpr optional_ref<const base::span<T>> span() const {
+     return std::visit(
+-        absl::Overload{
++        Overloaded{
+             [](const base::span<T>& span) {
+               return optional_ref<const base::span<T>>(span);
+             },
+diff --git a/base/functional/overloaded.h b/base/functional/overloaded.h
+new file mode 100644
+index 0000000000..20168d412f
+--- /dev/null
++++ b/base/functional/overloaded.h
+@@ -0,0 +1,51 @@
++// Copyright 2022 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_FUNCTIONAL_OVERLOADED_H_
++#define BASE_FUNCTIONAL_OVERLOADED_H_
++
++namespace base {
++
++// std::visit() needs to be called with a functor object, such as
++//
++//  struct Visitor {
++//    std::string operator()(const PackageA& source) {
++//      return "PackageA";
++//    }
++//
++//    std::string operator()(const PackageB& source) {
++//      return "PackageB";
++//    }
++//  };
++//
++//  std::variant<PackageA, PackageB> var = PackageA();
++//  return std::visit(Visitor(), var);
++//
++// `Overloaded` enables the above code to be written as:
++//
++//  std::visit(
++//     Overloaded{
++//         [](const PackageA& pack) { return "PackageA"; },
++//         [](const PackageB& pack) { return "PackageB"; },
++//     }, var);
++//
++// Note: Overloads must be implemented for all the variant options. Otherwise,
++// there will be a compilation error.
++//
++// This struct inherits operator() method from all its base classes.
++// Introduces operator() method from all its base classes into its definition.
++template <typename... Callables>
++struct Overloaded : Callables... {
++  using Callables::operator()...;
++};
++
++// Uses template argument deduction so that the `Overloaded` struct can be used
++// without specifying its template argument. This allows anonymous lambdas
++// passed into the `Overloaded` constructor.
++template <typename... Callables>
++Overloaded(Callables...) -> Overloaded<Callables...>;
++
++}  // namespace base
++
++#endif  // BASE_FUNCTIONAL_OVERLOADED_H_
+diff --git a/base/functional/overloaded_nocompile.nc b/base/functional/overloaded_nocompile.nc
+new file mode 100644
+index 0000000000..5d82863478
+--- /dev/null
++++ b/base/functional/overloaded_nocompile.nc
+@@ -0,0 +1,26 @@
++// Copyright 2022 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// This is a "No Compile Test" suite.
++// http://dev.chromium.org/developers/testing/no-compile-tests
++
++#include "base/functional/overloaded.h"
++
++#include <variant>
++
++namespace base {
++
++void LambdaMissingForVariantElement() {
++  // `std::visit()` may only be called on an `Overloaded` that can actually
++  // handle all potential input variant types.
++  struct A {};
++  struct B {};
++  std::variant<A, B> var = A{};
++  std::visit(Overloaded{[](A& pack) { return "A"; }}, var);  // expected-error-re@*:* {{static assertion failed due to requirement {{.*}} `std::visit` requires the visitor to be exhaustive}}
++  // expected-error@*:* {{attempt to use a deleted function}}
++  // expected-error@*:* {{attempt to use a deleted function}}
++  // expected-error@*:* {{cannot deduce return type 'auto' from returned value of type '<overloaded function type>'}}
++}
++
++}  // namespace base
+diff --git a/base/functional/overloaded_unittest.cc b/base/functional/overloaded_unittest.cc
+new file mode 100644
+index 0000000000..e01afe79e0
+--- /dev/null
++++ b/base/functional/overloaded_unittest.cc
+@@ -0,0 +1,27 @@
++// Copyright 2022 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/functional/overloaded.h"
++
++#include <string>
++#include <variant>
++
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace base {
++
++TEST(FunctionalTest, Overloaded) {
++  struct PackageA {};
++  struct PackageB {};
++
++  std::variant<PackageA, PackageB> var = PackageA();
++
++  const std::string output =
++      std::visit(Overloaded{[](const PackageA& pack) { return "PackageA"; },
++                            [](const PackageB& pack) { return "PackageB"; }},
++                 var);
++  EXPECT_EQ(output, "PackageA");
++}
++
++}  // namespace base
+diff --git a/base/task/thread_pool/test_utils.cc b/base/task/thread_pool/test_utils.cc
+index 62d32ddeef..997e5546d9 100644
+--- a/base/task/thread_pool/test_utils.cc
++++ b/base/task/thread_pool/test_utils.cc
+@@ -10,6 +10,7 @@
+ #include "base/check.h"
+ #include "base/debug/leak_annotations.h"
+ #include "base/functional/bind.h"
++#include "base/functional/overloaded.h"
+ #include "base/memory/raw_ptr.h"
+ #include "base/synchronization/condition_variable.h"
+ #include "base/task/thread_pool/pooled_parallel_task_runner.h"
+@@ -18,7 +19,6 @@
+ #include "base/threading/scoped_blocking_call_internal.h"
+ #include "base/threading/thread_restrictions.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+-#include "third_party/abseil-cpp/absl/functional/overload.h"
+ 
+ namespace base::internal::test {
+ 
+@@ -302,7 +302,7 @@ size_t MockJobTask::GetMaxConcurrency(size_t /* worker_count */) const {
+ 
+ void MockJobTask::Run(JobDelegate* delegate) {
+   std::visit(
+-      absl::Overload{
++      base::Overloaded{
+           [](OnceClosure& closure) { std::move(closure).Run(); },
+           [delegate](const RepeatingCallback<void(JobDelegate*)>& callback) {
+             callback.Run(delegate);
+-- 
+2.50.0.rc2.761.g2dc52ea45b-goog
+
