@@ -38,8 +38,6 @@ BAD_KEYWORDS = {
     r'(?:base::){0,1}UmaHistogram[a-zA-Z0-9]*\(': 'Chromium UmaHistogram functions don\'t work on CrOS. See crsrc.org/o/src/platform2/metrics/metrics_library.h if you want to collect metrics on CrOS.',
     # base::SupportsWeakPtr will be deprecated
     r'base::SupportsWeakPtr': 'Deprecated base::SupportsWeakPtr.  See crbug.com/40485134 for details.',
-    # base::WriteFile (3-arg version) is deprecated
-    r'base::WriteFile\(.*,.*,.*\)': '3-arg version of base::WriteFile is deprecated - please use 2-arg version.  See crbug.com/41134632 for details.',
     r'NOTREACHED_IN_MIGRATION\(':
     'CrOS libchrome NOTREACHED migration, do NOT use NOTREACHED_IN_MIGRATION. Use NOTREACHED which is now fatal and [[noreturn]]. See b/356312475',
     r'HistogramBase::Sample[^3]': 'base::HistogramBase::Sample is deprecated. Use base::HistogramBase::Sample32.',
@@ -133,11 +131,6 @@ def main():
 
   if errors:
       print('\n'.join(errors), file=sys.stderr)
-      print('\n**Note the regex checks can sometimes return false positives, ' \
-            'for example the base::WriteFile\(.*,.*,.*\) check fails if the ' \
-            'second arg has a string_view ctor that contains a comma.  If ' \
-            'you are certain you didn\'t use deprecated APIs, --no-verify ' \
-            'may be appropriate.', file=sys.stderr)
       sys.exit(1)
 
 
