@@ -1,14 +1,16 @@
 // Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
+// Changes from Qualcomm Technologies, Inc. are provided under the following license:
+// Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
 #include "base/debug/stack_trace.h"
 
 #include <string.h>
 
 #include <algorithm>
 #include <sstream>
-
+#include <cstdint>
 #include "base/macros.h"
 
 #if HAVE_TRACE_STACK_FRAME_POINTERS && defined(OS_ANDROID)
