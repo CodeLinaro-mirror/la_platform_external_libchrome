@@ -1,22 +1,23 @@
-From 11901a97f7d1a14ce4f39a65a723661ed6f9cd2c Mon Sep 17 00:00:00 2001
-From: Cici Ruan <cuicuiruan@google.com>
-Date: Thu, 19 Dec 2024 17:22:36 -0800
+From eff7628963a5d13632b0775b9d4200678db07bc3 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Tue, 24 Jun 2025 09:24:51 +0000
 Subject: [PATCH] Revert "Remove NOTREACHED_IN_MIGRATION()"
 
 This reverts commit 5e342fc336640bad90e2cecb96415e37bd720e97.
 
-Change-Id: I40d6386d02e106049d1afc0288b742e3951a264b
+Change-Id: I7959016c3ef42ab2910cf98f2969c9c1c7b5f693
 ---
- base/check.cc     |  7 +++++++
- base/check.h      | 14 ++++++++------
- base/notreached.h | 14 ++++++++++++++
- 3 files changed, 29 insertions(+), 6 deletions(-)
+ base/check.cc          |  7 +++++++
+ base/check.h           | 13 +++++++++++--
+ base/check_unittest.cc |  4 ++++
+ base/notreached.h      | 14 ++++++++++++++
+ 4 files changed, 36 insertions(+), 2 deletions(-)
 
 diff --git a/base/check.cc b/base/check.cc
-index 87fcaf4132..04440b3ce9 100644
+index fa5f814ec8..a4e61f72c8 100644
 --- a/base/check.cc
 +++ b/base/check.cc
-@@ -425,6 +425,13 @@ NotReachedError NotReachedError::NotReached(base::NotFatalUntil fatal_milestone,
+@@ -414,6 +414,13 @@ NotReachedError NotReachedError::DumpWillBeNotReached(
    return NotReachedError(log_message);
  }
  
@@ -31,34 +32,59 @@ index 87fcaf4132..04440b3ce9 100644
  
  NotReachedNoreturnError::NotReachedNoreturnError(const base::Location& location)
 diff --git a/base/check.h b/base/check.h
-index 231b42bb6b..729caa0466 100644
+index 96f17b9847..31ac620cb6 100644
 --- a/base/check.h
 +++ b/base/check.h
-@@ -189,14 +189,16 @@ class BASE_EXPORT CheckNoreturnError : public CheckError {
+@@ -180,7 +180,8 @@ class BASE_EXPORT CheckNoreturnError : public CheckError {
  class BASE_EXPORT NotReachedError : public CheckError {
   public:
    static NotReachedError NotReached(
 -      base::NotFatalUntil fatal_milestone,
--      const base::Location& location =
--          base::Location::CurrentWithoutFunctionName());
 +      base::NotFatalUntil fatal_milestone =
 +          base::NotFatalUntil::NoSpecifiedMilestoneInternal,
-+      const base::Location& location = base::Location::Current());
+       const base::Location& location =
+           base::Location::CurrentWithoutFunctionName());
  
--  static NotReachedError DumpWillBeNotReached(
--      const base::Location& location =
--          base::Location::CurrentWithoutFunctionName());
+@@ -188,13 +189,21 @@ class BASE_EXPORT NotReachedError : public CheckError {
+       const base::Location& location =
+           base::Location::CurrentWithoutFunctionName());
+ 
 +  // Used to trigger a NOTREACHED_IN_MIGRATION() without providing file or line
 +  // while also discarding log-stream arguments. See base/notreached.h.
 +  NOMERGE NOINLINE NOT_TAIL_CALLED static void TriggerNotReached();
- 
++
 +  // TODO(crbug.com/40580068): Mark [[noreturn]] once this is CHECK-fatal on all
 +  // builds.
    NOMERGE NOINLINE NOT_TAIL_CALLED ~NotReachedError();
  
   private:
+   using CheckError::CheckError;
+ };
+ 
+-// Used for NOTREACHED(), its destructor is importantly [[noreturn]].
++// TODO(crbug.com/40580068): This should take the name of the above class once
++// all callers of NOTREACHED_IN_MIGRATION() have migrated to the CHECK-fatal
++// version.
+ class BASE_EXPORT NotReachedNoreturnError : public CheckError {
+  public:
+   explicit NotReachedNoreturnError(
+diff --git a/base/check_unittest.cc b/base/check_unittest.cc
+index d6f0e42f3f..ebfea91ccd 100644
+--- a/base/check_unittest.cc
++++ b/base/check_unittest.cc
+@@ -594,6 +594,10 @@ TEST(CheckDeathTest, CheckFailuresAreNoreturn) {
+   // doesn't work in the current developer build.
+ }
+ 
++TEST(CheckDeathTest, NotReachedInMigration) {
++  EXPECT_CHECK_DEATH(NOTREACHED_IN_MIGRATION());
++}
++
+ TEST(CheckDeathTest, DumpWillBeCheck) {
+   DUMP_WILL_BE_CHECK(true);
+ 
 diff --git a/base/notreached.h b/base/notreached.h
-index 1fef9ab3d7..e4c8a34c45 100644
+index d8f5b9d211..eea6168165 100644
 --- a/base/notreached.h
 +++ b/base/notreached.h
 @@ -16,6 +16,20 @@
@@ -83,5 +109,5 @@ index 1fef9ab3d7..e4c8a34c45 100644
  #define NOTREACHED_INTERNAL_IMPL() ::logging::NotReachedNoreturnError()
  #else
 -- 
-2.47.1.613.gc27f4b7a9f-goog
+2.50.0.rc2.761.g2dc52ea45b-goog
 
