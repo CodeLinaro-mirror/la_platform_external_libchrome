@@ -1,35 +1,35 @@
-From 09e1796d4a48de1dfa34c819ace899f41c5da36f Mon Sep 17 00:00:00 2001
-From: Ryo Hashimoto <hashimoto@chromium.org>
-Date: Fri, 18 Oct 2024 12:04:26 +0900
+From e120daa4c7b8fda5a31d56b30ef873c60f383ed2 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Thu, 26 Jun 2025 02:01:41 +0000
 Subject: [PATCH] Disable unneeded Rust logging integration
 
 Change-Id: Ic0bf93a07ed2d3f4422544cc699e17086d096d75
 ---
- base/logging.cc | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
+ base/logging.cc | 4 ----
+ 1 file changed, 4 deletions(-)
 
 diff --git a/base/logging.cc b/base/logging.cc
-index 508ce13513..db39d91f14 100644
+index dd46cccf28..4f0a186200 100644
 --- a/base/logging.cc
 +++ b/base/logging.cc
-@@ -126,7 +126,7 @@ typedef FILE* FileHandle;
- #include "base/fuchsia/scoped_fx_logger.h"
- #endif
- 
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
- #include "base/logging/rust_logger.rs.h"
- #endif
- 
-@@ -526,7 +526,7 @@ bool BaseInitLoggingImpl(const LoggingSettings& settings) {
+@@ -33,7 +33,6 @@
+ #include "base/debug/task_trace.h"
+ #include "base/functional/callback.h"
+ #include "base/immediate_crash.h"
+-#include "base/logging/rust_logger.rs.h"
+ #include "base/no_destructor.h"
+ #include "base/path_service.h"
+ #include "base/pending_task.h"
+@@ -505,9 +504,6 @@ bool BaseInitLoggingImpl(const LoggingSettings& settings) {
    }
  #endif
  
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
-   // Connects Rust logging with the //base logging functionality.
-   internal::init_rust_log_crate();
- #endif
+-  // Connects Rust logging with the //base logging functionality.
+-  internal::init_rust_log_crate();
+-
+   // Ignore file options unless logging to file is set.
+   if ((g_logging_destination & LOG_TO_FILE) == 0) {
+     return true;
 -- 
-2.47.0.105.g07ac214952-goog
+2.50.0.727.gbf7dc18ff4-goog
 

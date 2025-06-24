@@ -1,77 +1,69 @@
-From 64194dc354c3d89aefc5038d375aa39aae0779c0 Mon Sep 17 00:00:00 2001
-From: Jeff Lin <jeffulin@google.com>
-Date: Mon, 1 Jul 2024 15:59:21 +0800
+From 90a2bbb52b1a5092222a29828a9547a5e902d409 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Thu, 26 Jun 2025 03:05:20 +0000
 Subject: [PATCH] disable boringssl in base::RandBytes
 
 Introduced in r1045239 (crrev.com/c/3880863).
 Updated in r1321254 (crrev.com/c/5669584).
+Updated in r1477790 (crrev.com/c/6665689).
 
 Change-Id: I2cdc2fe34a83b8debad12c0143e881a7a52c5bf5
 ---
- base/feature_list.cc    | 2 +-
- base/rand_util.h        | 2 +-
- base/rand_util_posix.cc | 6 +++---
- 3 files changed, 5 insertions(+), 5 deletions(-)
+ base/feature_list.cc    | 1 -
+ base/rand_util.h        | 2 --
+ base/rand_util_posix.cc | 7 -------
+ 3 files changed, 10 deletions(-)
 
 diff --git a/base/feature_list.cc b/base/feature_list.cc
-index 895b710fdf..80b80df74c 100644
+index 439f49d9e3..7b69999add 100644
 --- a/base/feature_list.cc
 +++ b/base/feature_list.cc
-@@ -614,7 +614,7 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
-   // FeatureList instance, as the state of the involved Features might change
+@@ -617,7 +617,6 @@ void FeatureList::SetInstance(std::unique_ptr<FeatureList> instance) {
    // with the final FeatureList for this process.
    if (!g_feature_list_instance->IsEarlyAccessInstance()) {
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
      // Configured first because it takes precedence over the getrandom() trial.
-     internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
- #endif
+-    internal::ConfigureBoringSSLBackedRandBytesFieldTrial();
+   }
+ 
+ #if BUILDFLAG(DCHECK_IS_CONFIGURABLE)
 diff --git a/base/rand_util.h b/base/rand_util.h
-index 746166bf75..5c9c3b1ad0 100644
+index fb2d471828..518ae6addb 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
-@@ -38,7 +38,7 @@ namespace internal {
- void ConfigureRandBytesFieldTrial();
- #endif
+@@ -37,8 +37,6 @@ namespace base {
  
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
- void ConfigureBoringSSLBackedRandBytesFieldTrial();
- #endif
+ namespace internal {
  
+-void ConfigureBoringSSLBackedRandBytesFieldTrial();
+-
+ // Returns a random double in range [0, 1). For use in allocator shim to avoid
+ // infinite recursion. Thread-safe.
+ BASE_EXPORT double RandDoubleAvoidAllocation();
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 00fcb8547e..a388e9f2fc 100644
+index 94f46d1304..6e3695045f 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -36,7 +36,7 @@
- #include <sys/random.h>
- #endif
+@@ -28,7 +28,6 @@
+ #include "base/system/sys_info.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
+-#include "third_party/boringssl/src/include/openssl/rand.h"
  
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
- #include "third_party/boringssl/src/include/openssl/rand.h"
- #endif
- 
-@@ -153,9 +153,9 @@ void ConfigureRandBytesFieldTrial() {
- }
- #endif
- 
-+#if !BUILDFLAG(IS_NACL) && 0
- namespace {
- 
--#if !BUILDFLAG(IS_NACL)
- // The BoringSSl helpers are duplicated in rand_util_fuchsia.cc and
- // rand_util_win.cc.
- std::atomic<bool> g_use_boringssl;
-@@ -181,7 +181,7 @@ bool UseBoringSSLForRandBytes() {
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+ #include "third_party/lss/linux_syscall_support.h"
+@@ -122,12 +121,6 @@ bool UseBoringSSLForRandBytes() {
  namespace {
  
  void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
--#if !BUILDFLAG(IS_NACL)
-+#if !BUILDFLAG(IS_NACL) && 0
-   // The BoringSSL experiment takes priority over everything else.
-   if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
-     // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
+-  // The BoringSSL experiment takes priority over everything else.
+-  if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
+-    // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
+-    (void)RAND_bytes(output.data(), output.size());
+-    return;
+-  }
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+   // On Android it is mandatory to check that the kernel _version_ has the
+   // support for a syscall before calling. The same check is made on Linux and
 -- 
-2.45.2.803.g4e1b14247a-goog
+2.50.0.727.gbf7dc18ff4-goog
 

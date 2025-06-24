@@ -1,6 +1,6 @@
-From 299b149b7b47779f6f183605eb3ae14ba67cd709 Mon Sep 17 00:00:00 2001
-From: Grace Cham <hscham@chromium.org>
-Date: Wed, 5 Oct 2022 15:43:01 +0900
+From cb64ae0f4ff59e41f983bc65526a3416d9f90320 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Thu, 26 Jun 2025 03:06:11 +0000
 Subject: [PATCH] Call `getrandom` from sys/random.h
 
 TODO(b/190018559): third_party/lss/linux_syscall_support.h is not
@@ -13,15 +13,15 @@ patch-name: long-term-0900-Call-getrandom-from-sys-random.h.patch
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 37dd2d32ea..50f7aea8db 100644
+index 6e3695045f..4e5e3606b0 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -28,9 +28,9 @@
+@@ -29,9 +29,9 @@
  #include "base/time/time.h"
  #include "build/build_config.h"
  
--#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && !BUILDFLAG(IS_NACL)
-+#if (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)) && !BUILDFLAG(IS_NACL) && 0
+-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
++#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) && 0
  #include "third_party/lss/linux_syscall_support.h"
 -#elif BUILDFLAG(IS_MAC)
 +#elif BUILDFLAG(IS_MAC) || 1
@@ -29,5 +29,5 @@ index 37dd2d32ea..50f7aea8db 100644
  // (See below.)
  #include <sys/random.h>
 -- 
-2.45.0.rc0.197.gbae5840b3b-goog
+2.50.0.727.gbf7dc18ff4-goog
 

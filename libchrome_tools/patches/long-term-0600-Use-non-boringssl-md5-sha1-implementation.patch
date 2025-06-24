@@ -1,0 +1,742 @@
+From df7eeb851f6a33ce2722405d0c25d0d08e680d0f Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Thu, 26 Jun 2025 02:59:16 +0000
+Subject: [PATCH] Use non-boringssl md5 sha1 implementation.
+
+Libchrome does not support boringssl. Add back the non-boringssl implementation
+in upstream Chromium, the md5_nacl and sha1_nacl, which was removed in
+crrev.com/c/6658300 and crrev.com/c/6655692.
+
+Change-Id: I82e14ea2a001fdb435da9aa813379191aec8d4f4
+patch-name: long-term-0600-Use-non-boringssl-md5-sha1-implementation.patch
+---
+ base/hash/md5.h                |  11 +-
+ base/hash/md5_nacl.cc          | 297 +++++++++++++++++++++++++++++++++
+ base/hash/md5_nacl.h           |  25 +++
+ base/hash/sha1.h               |   6 +-
+ base/hash/sha1_nacl.cc         | 203 ++++++++++++++++++++++
+ base/hash/sha1_nacl.h          |  40 +++++
+ base/metrics/metrics_hashes.cc |  39 +++--
+ 7 files changed, 591 insertions(+), 30 deletions(-)
+ create mode 100644 base/hash/md5_nacl.cc
+ create mode 100644 base/hash/md5_nacl.h
+ create mode 100644 base/hash/sha1_nacl.cc
+ create mode 100644 base/hash/sha1_nacl.h
+
+diff --git a/base/hash/md5.h b/base/hash/md5.h
+index c9050eb9c2..9339421f53 100644
+--- a/base/hash/md5.h
++++ b/base/hash/md5.h
+@@ -13,8 +13,8 @@
+ 
+ #include "base/base_export.h"
+ #include "base/containers/span.h"
++#include "base/hash/md5_nacl.h"
+ #include "build/build_config.h"
+-#include "third_party/boringssl/src/include/openssl/md5.h"
+ 
+ // MD5 stands for Message Digest algorithm 5.
+ //
+@@ -49,15 +49,6 @@
+ 
+ namespace base {
+ 
+-// The output of an MD5 operation.
+-struct MD5Digest {
+-  std::array<uint8_t, MD5_DIGEST_LENGTH> a;
+-};
+-
+-// Used for storing intermediate data during an MD5 computation. Callers
+-// should not access the data.
+-using MD5Context = MD5_CTX;
+-
+ // Initializes the given MD5 context structure for subsequent calls to
+ // MD5Update().
+ BASE_EXPORT void MD5Init(MD5Context* context);
+diff --git a/base/hash/md5_nacl.cc b/base/hash/md5_nacl.cc
+new file mode 100644
+index 0000000000..120f20938a
+--- /dev/null
++++ b/base/hash/md5_nacl.cc
+@@ -0,0 +1,297 @@
++// Copyright 2011 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// The original file was copied from sqlite, and was in the public domain.
++
++/*
++ * This code implements the MD5 message-digest algorithm.
++ * The algorithm is due to Ron Rivest.  This code was
++ * written by Colin Plumb in 1993, no copyright is claimed.
++ * This code is in the public domain; do with it what you wish.
++ *
++ * Equivalent code is available from RSA Data Security, Inc.
++ * This code has been tested against that, and is equivalent,
++ * except that you don't need to include two pages of legalese
++ * with every copy.
++ *
++ * To compute the message digest of a chunk of bytes, declare an
++ * MD5Context structure, pass it to MD5Init, call MD5Update as
++ * needed on buffers full of bytes, and then call MD5Final, which
++ * will fill a supplied 16-byte array with the digest.
++ */
++
++#include "base/hash/md5.h"
++
++#include <stddef.h>
++#include <string.h>
++
++#include <string_view>
++
++#include "base/containers/span.h"
++#include "base/strings/string_number_conversions.h"
++
++namespace {
++
++struct Context {
++  uint32_t buf[4];
++  uint32_t bits[2];
++  uint8_t in[64];
++};
++
++/*
++ * Note: this code is harmless on little-endian machines.
++ */
++void byteReverse(uint8_t* buf, unsigned longs) {
++  do {
++    uint32_t temp =
++        static_cast<uint32_t>(static_cast<unsigned>(buf[3]) << 8 | buf[2])
++            << 16 |
++        (static_cast<unsigned>(buf[1]) << 8 | buf[0]);
++    *reinterpret_cast<uint32_t*>(buf) = temp;
++    buf += 4;
++  } while (--longs);
++}
++
++/* The four core functions - F1 is optimized somewhat */
++
++/* #define F1(x, y, z) (x & y | ~x & z) */
++#define F1(x, y, z) (z ^ (x & (y ^ z)))
++#define F2(x, y, z) F1(z, x, y)
++#define F3(x, y, z) (x ^ y ^ z)
++#define F4(x, y, z) (y ^ (x | ~z))
++
++/* This is the central step in the MD5 algorithm. */
++#define MD5STEP(f, w, x, y, z, data, s) \
++  (w += f(x, y, z) + data, w = w << s | w >> (32 - s), w += x)
++
++/*
++ * The core of the MD5 algorithm, this alters an existing MD5 hash to
++ * reflect the addition of 16 longwords of new data.  MD5Update blocks
++ * the data and converts bytes into longwords for this routine.
++ */
++void MD5Transform(uint32_t buf[4], const uint32_t in[16]) {
++  uint32_t a, b, c, d;
++
++  a = buf[0];
++  b = buf[1];
++  c = buf[2];
++  d = buf[3];
++
++  MD5STEP(F1, a, b, c, d, in[0] + 0xd76aa478, 7);
++  MD5STEP(F1, d, a, b, c, in[1] + 0xe8c7b756, 12);
++  MD5STEP(F1, c, d, a, b, in[2] + 0x242070db, 17);
++  MD5STEP(F1, b, c, d, a, in[3] + 0xc1bdceee, 22);
++  MD5STEP(F1, a, b, c, d, in[4] + 0xf57c0faf, 7);
++  MD5STEP(F1, d, a, b, c, in[5] + 0x4787c62a, 12);
++  MD5STEP(F1, c, d, a, b, in[6] + 0xa8304613, 17);
++  MD5STEP(F1, b, c, d, a, in[7] + 0xfd469501, 22);
++  MD5STEP(F1, a, b, c, d, in[8] + 0x698098d8, 7);
++  MD5STEP(F1, d, a, b, c, in[9] + 0x8b44f7af, 12);
++  MD5STEP(F1, c, d, a, b, in[10] + 0xffff5bb1, 17);
++  MD5STEP(F1, b, c, d, a, in[11] + 0x895cd7be, 22);
++  MD5STEP(F1, a, b, c, d, in[12] + 0x6b901122, 7);
++  MD5STEP(F1, d, a, b, c, in[13] + 0xfd987193, 12);
++  MD5STEP(F1, c, d, a, b, in[14] + 0xa679438e, 17);
++  MD5STEP(F1, b, c, d, a, in[15] + 0x49b40821, 22);
++
++  MD5STEP(F2, a, b, c, d, in[1] + 0xf61e2562, 5);
++  MD5STEP(F2, d, a, b, c, in[6] + 0xc040b340, 9);
++  MD5STEP(F2, c, d, a, b, in[11] + 0x265e5a51, 14);
++  MD5STEP(F2, b, c, d, a, in[0] + 0xe9b6c7aa, 20);
++  MD5STEP(F2, a, b, c, d, in[5] + 0xd62f105d, 5);
++  MD5STEP(F2, d, a, b, c, in[10] + 0x02441453, 9);
++  MD5STEP(F2, c, d, a, b, in[15] + 0xd8a1e681, 14);
++  MD5STEP(F2, b, c, d, a, in[4] + 0xe7d3fbc8, 20);
++  MD5STEP(F2, a, b, c, d, in[9] + 0x21e1cde6, 5);
++  MD5STEP(F2, d, a, b, c, in[14] + 0xc33707d6, 9);
++  MD5STEP(F2, c, d, a, b, in[3] + 0xf4d50d87, 14);
++  MD5STEP(F2, b, c, d, a, in[8] + 0x455a14ed, 20);
++  MD5STEP(F2, a, b, c, d, in[13] + 0xa9e3e905, 5);
++  MD5STEP(F2, d, a, b, c, in[2] + 0xfcefa3f8, 9);
++  MD5STEP(F2, c, d, a, b, in[7] + 0x676f02d9, 14);
++  MD5STEP(F2, b, c, d, a, in[12] + 0x8d2a4c8a, 20);
++
++  MD5STEP(F3, a, b, c, d, in[5] + 0xfffa3942, 4);
++  MD5STEP(F3, d, a, b, c, in[8] + 0x8771f681, 11);
++  MD5STEP(F3, c, d, a, b, in[11] + 0x6d9d6122, 16);
++  MD5STEP(F3, b, c, d, a, in[14] + 0xfde5380c, 23);
++  MD5STEP(F3, a, b, c, d, in[1] + 0xa4beea44, 4);
++  MD5STEP(F3, d, a, b, c, in[4] + 0x4bdecfa9, 11);
++  MD5STEP(F3, c, d, a, b, in[7] + 0xf6bb4b60, 16);
++  MD5STEP(F3, b, c, d, a, in[10] + 0xbebfbc70, 23);
++  MD5STEP(F3, a, b, c, d, in[13] + 0x289b7ec6, 4);
++  MD5STEP(F3, d, a, b, c, in[0] + 0xeaa127fa, 11);
++  MD5STEP(F3, c, d, a, b, in[3] + 0xd4ef3085, 16);
++  MD5STEP(F3, b, c, d, a, in[6] + 0x04881d05, 23);
++  MD5STEP(F3, a, b, c, d, in[9] + 0xd9d4d039, 4);
++  MD5STEP(F3, d, a, b, c, in[12] + 0xe6db99e5, 11);
++  MD5STEP(F3, c, d, a, b, in[15] + 0x1fa27cf8, 16);
++  MD5STEP(F3, b, c, d, a, in[2] + 0xc4ac5665, 23);
++
++  MD5STEP(F4, a, b, c, d, in[0] + 0xf4292244, 6);
++  MD5STEP(F4, d, a, b, c, in[7] + 0x432aff97, 10);
++  MD5STEP(F4, c, d, a, b, in[14] + 0xab9423a7, 15);
++  MD5STEP(F4, b, c, d, a, in[5] + 0xfc93a039, 21);
++  MD5STEP(F4, a, b, c, d, in[12] + 0x655b59c3, 6);
++  MD5STEP(F4, d, a, b, c, in[3] + 0x8f0ccc92, 10);
++  MD5STEP(F4, c, d, a, b, in[10] + 0xffeff47d, 15);
++  MD5STEP(F4, b, c, d, a, in[1] + 0x85845dd1, 21);
++  MD5STEP(F4, a, b, c, d, in[8] + 0x6fa87e4f, 6);
++  MD5STEP(F4, d, a, b, c, in[15] + 0xfe2ce6e0, 10);
++  MD5STEP(F4, c, d, a, b, in[6] + 0xa3014314, 15);
++  MD5STEP(F4, b, c, d, a, in[13] + 0x4e0811a1, 21);
++  MD5STEP(F4, a, b, c, d, in[4] + 0xf7537e82, 6);
++  MD5STEP(F4, d, a, b, c, in[11] + 0xbd3af235, 10);
++  MD5STEP(F4, c, d, a, b, in[2] + 0x2ad7d2bb, 15);
++  MD5STEP(F4, b, c, d, a, in[9] + 0xeb86d391, 21);
++
++  buf[0] += a;
++  buf[1] += b;
++  buf[2] += c;
++  buf[3] += d;
++}
++
++}  // namespace
++
++namespace base {
++
++/*
++ * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
++ * initialization constants.
++ */
++void MD5Init(MD5Context* context) {
++  struct Context* ctx = reinterpret_cast<struct Context*>(context);
++  ctx->buf[0] = 0x67452301;
++  ctx->buf[1] = 0xefcdab89;
++  ctx->buf[2] = 0x98badcfe;
++  ctx->buf[3] = 0x10325476;
++  ctx->bits[0] = 0;
++  ctx->bits[1] = 0;
++}
++
++/*
++ * Update context to reflect the concatenation of another buffer full
++ * of bytes.
++ */
++void MD5Update(MD5Context* context, std::string_view data) {
++  MD5Update(context, base::as_byte_span(data));
++}
++
++void MD5Update(MD5Context* context, base::span<const uint8_t> data) {
++  struct Context* ctx = reinterpret_cast<struct Context*>(context);
++  const uint8_t* buf = data.data();
++  size_t len = data.size();
++
++  /* Update bitcount */
++
++  uint32_t t = ctx->bits[0];
++  if ((ctx->bits[0] = t + (static_cast<uint32_t>(len) << 3)) < t) {
++    ctx->bits[1]++; /* Carry from low to high */
++  }
++  ctx->bits[1] += static_cast<uint32_t>(len >> 29);
++
++  t = (t >> 3) & 0x3f; /* Bytes already in shsInfo->data */
++
++  /* Handle any leading odd-sized chunks */
++
++  if (t) {
++    uint8_t* p = static_cast<uint8_t*>(ctx->in + t);
++
++    t = 64 - t;
++    if (len < t) {
++      memcpy(p, buf, len);
++      return;
++    }
++    memcpy(p, buf, t);
++    byteReverse(ctx->in, 16);
++    MD5Transform(ctx->buf, reinterpret_cast<uint32_t*>(ctx->in));
++    buf += t;
++    len -= t;
++  }
++
++  /* Process data in 64-byte chunks */
++
++  while (len >= 64) {
++    memcpy(ctx->in, buf, 64);
++    byteReverse(ctx->in, 16);
++    MD5Transform(ctx->buf, reinterpret_cast<uint32_t*>(ctx->in));
++    buf += 64;
++    len -= 64;
++  }
++
++  /* Handle any remaining bytes of data. */
++
++  memcpy(ctx->in, buf, len);
++}
++
++/*
++ * Final wrapup - pad to 64-byte boundary with the bit pattern
++ * 1 0* (64-bit count of bits processed, MSB-first)
++ */
++void MD5Final(MD5Digest* digest, MD5Context* context) {
++  struct Context* ctx = reinterpret_cast<struct Context*>(context);
++  unsigned count;
++  uint8_t* p;
++
++  /* Compute number of bytes mod 64 */
++  count = (ctx->bits[0] >> 3) & 0x3F;
++
++  /* Set the first char of padding to 0x80.  This is safe since there is
++     always at least one byte free */
++  p = ctx->in + count;
++  *p++ = 0x80;
++
++  /* Bytes of padding needed to make 64 bytes */
++  count = 64 - 1 - count;
++
++  /* Pad out to 56 mod 64 */
++  if (count < 8) {
++    /* Two lots of padding:  Pad the first block to 64 bytes */
++    memset(p, 0, count);
++    byteReverse(ctx->in, 16);
++    MD5Transform(ctx->buf, reinterpret_cast<uint32_t*>(ctx->in));
++
++    /* Now fill the next block with 56 bytes */
++    memset(ctx->in, 0, 56);
++  } else {
++    /* Pad block to 56 bytes */
++    memset(p, 0, count - 8);
++  }
++  byteReverse(ctx->in, 14);
++
++  /* Append length in bits and transform */
++  memcpy(&ctx->in[14 * sizeof(ctx->bits[0])], &ctx->bits[0],
++         sizeof(ctx->bits[0]));
++  memcpy(&ctx->in[15 * sizeof(ctx->bits[1])], &ctx->bits[1],
++         sizeof(ctx->bits[1]));
++
++  MD5Transform(ctx->buf, reinterpret_cast<uint32_t*>(ctx->in));
++  byteReverse(reinterpret_cast<uint8_t*>(ctx->buf), 4);
++  span(digest->a).copy_from(as_byte_span(ctx->buf));
++  std::ranges::fill(byte_span_from_ref(*ctx), 0u); /* In case it's sensitive */
++}
++
++std::string MD5DigestToBase16(const MD5Digest& digest) {
++  std::string ret;
++  ret.reserve(32);
++  for (uint8_t byte : digest.a) {
++    base::AppendHexEncodedByte(byte, ret, false);
++  }
++  return ret;
++}
++
++void MD5Sum(span<const uint8_t> data, MD5Digest* digest) {
++  MD5Context ctx;
++  MD5Init(&ctx);
++  MD5Update(&ctx, data);
++  MD5Final(digest, &ctx);
++}
++
++std::string MD5String(std::string_view str) {
++  MD5Digest digest;
++  MD5Sum(as_byte_span(str), &digest);
++  return MD5DigestToBase16(digest);
++}
++
++}  // namespace base
+diff --git a/base/hash/md5_nacl.h b/base/hash/md5_nacl.h
+new file mode 100644
+index 0000000000..33d4155446
+--- /dev/null
++++ b/base/hash/md5_nacl.h
+@@ -0,0 +1,25 @@
++// Copyright 2019 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_HASH_MD5_NACL_H_
++#define BASE_HASH_MD5_NACL_H_
++
++#include <stdint.h>
++
++#include <array>
++
++namespace base {
++
++// The output of an MD5 operation.
++struct MD5Digest {
++  std::array<uint8_t, 16> a;
++};
++
++// Used for storing intermediate data during an MD5 computation. Callers
++// should not access the data.
++typedef char MD5Context[88];
++
++}  // namespace base
++
++#endif  // BASE_HASH_MD5_NACL_H_
+diff --git a/base/hash/sha1.h b/base/hash/sha1.h
+index edb521aa60..80e96351e0 100644
+--- a/base/hash/sha1.h
++++ b/base/hash/sha1.h
+@@ -15,15 +15,11 @@
+ #include "base/base_export.h"
+ #include "base/compiler_specific.h"
+ #include "base/containers/span.h"
++#include "base/hash/sha1_nacl.h"
+ #include "build/build_config.h"
+-#include "third_party/boringssl/src/include/openssl/sha.h"
+ 
+ namespace base {
+ 
+-// Used for storing intermediate data during an SHA1 computation. Callers
+-// should not access the data.
+-using SHA1Context = SHA_CTX;
+-
+ enum { kSHA1Length = 20 };  // Length in bytes of a SHA-1 hash.
+ 
+ // The output of an SHA-1 operation.
+diff --git a/base/hash/sha1_nacl.cc b/base/hash/sha1_nacl.cc
+new file mode 100644
+index 0000000000..669f81ac46
+--- /dev/null
++++ b/base/hash/sha1_nacl.cc
+@@ -0,0 +1,203 @@
++// Copyright 2011 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/hash/sha1.h"
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#include <string_view>
++
++#include "base/numerics/byte_conversions.h"
++#include "base/strings/string_view_util.h"
++
++namespace base {
++// Implementation of SHA-1. Only handles data in byte-sized blocks,
++// which simplifies the code a fair bit.
++
++// Identifier names follow notation in FIPS PUB 180-3, where you'll
++// also find a description of the algorithm:
++// http://csrc.nist.gov/publications/fips/fips180-3/fips180-3_final.pdf
++
++// Usage example:
++//
++// SecureHashAlgorithm sha;
++// while(there is data to hash)
++//   sha.Update(moredata, size of data);
++// sha.Final();
++// memcpy(somewhere, sha.Digest(), 20);
++//
++// to reuse the instance of sha, call sha.Init();
++
++static inline uint32_t f(uint32_t t, uint32_t B, uint32_t C, uint32_t D) {
++  if (t < 20) {
++    return (B & C) | ((~B) & D);
++  }
++  if (t < 40) {
++    return B ^ C ^ D;
++  }
++  if (t < 60) {
++    return (B & C) | (B & D) | (C & D);
++  }
++  return B ^ C ^ D;
++}
++
++static inline uint32_t S(uint32_t n, uint32_t X) {
++  return (X << n) | (X >> (32 - n));
++}
++
++static inline uint32_t K(uint32_t t) {
++  if (t < 20) {
++    return 0x5a827999;
++  }
++  if (t < 40) {
++    return 0x6ed9eba1;
++  }
++  if (t < 60) {
++    return 0x8f1bbcdc;
++  }
++  return 0xca62c1d6;
++}
++
++void SHA1Context::Init() {
++  A = 0;
++  B = 0;
++  C = 0;
++  D = 0;
++  E = 0;
++  cursor = 0;
++  l = 0;
++  H[0] = 0x67452301;
++  H[1] = 0xefcdab89;
++  H[2] = 0x98badcfe;
++  H[3] = 0x10325476;
++  H[4] = 0xc3d2e1f0;
++}
++
++void SHA1Context::Update(const void* data, size_t nbytes) {
++  const uint8_t* d = reinterpret_cast<const uint8_t*>(data);
++  while (nbytes--) {
++    M[cursor++] = *d++;
++    if (cursor >= 64) {
++      Process();
++    }
++    l += 8;
++  }
++}
++
++void SHA1Context::Final() {
++  Pad();
++  Process();
++
++  for (auto& t : H) {
++    t = ByteSwap(t);
++  }
++}
++
++const unsigned char* SHA1Context::GetDigest() const {
++  return reinterpret_cast<const unsigned char*>(H);
++}
++
++void SHA1Context::Pad() {
++  M[cursor++] = 0x80;
++
++  if (cursor > 64 - 8) {
++    // pad out to next block
++    while (cursor < 64) {
++      M[cursor++] = 0;
++    }
++
++    Process();
++  }
++
++  while (cursor < 64 - 8) {
++    M[cursor++] = 0;
++  }
++
++  M[cursor++] = (l >> 56) & 0xff;
++  M[cursor++] = (l >> 48) & 0xff;
++  M[cursor++] = (l >> 40) & 0xff;
++  M[cursor++] = (l >> 32) & 0xff;
++  M[cursor++] = (l >> 24) & 0xff;
++  M[cursor++] = (l >> 16) & 0xff;
++  M[cursor++] = (l >> 8) & 0xff;
++  M[cursor++] = l & 0xff;
++}
++
++void SHA1Context::Process() {
++  uint32_t t;
++
++  // Each a...e corresponds to a section in the FIPS 180-3 algorithm.
++
++  // a.
++  //
++  // W and M are in a union, so no need to memcpy.
++  // memcpy(W, M, sizeof(M));
++  for (t = 0; t < 16; ++t) {
++    W[t] = ByteSwap(W[t]);
++  }
++
++  // b.
++  for (t = 16; t < 80; ++t) {
++    W[t] = S(1, W[t - 3] ^ W[t - 8] ^ W[t - 14] ^ W[t - 16]);
++  }
++
++  // c.
++  A = H[0];
++  B = H[1];
++  C = H[2];
++  D = H[3];
++  E = H[4];
++
++  // d.
++  for (t = 0; t < 80; ++t) {
++    uint32_t TEMP = S(5, A) + f(t, B, C, D) + E + W[t] + K(t);
++    E = D;
++    D = C;
++    C = S(30, B);
++    B = A;
++    A = TEMP;
++  }
++
++  // e.
++  H[0] += A;
++  H[1] += B;
++  H[2] += C;
++  H[3] += D;
++  H[4] += E;
++
++  cursor = 0;
++}
++
++// These functions allow streaming SHA-1 operations.
++void SHA1Init(SHA1Context& context) {
++  context.Init();
++}
++
++void SHA1Update(std::string_view data, SHA1Context& context) {
++  context.Update(data.data(), data.size());
++}
++
++void SHA1Final(SHA1Context& context, SHA1Digest& digest) {
++  context.Final();
++  memcpy(digest.data(), context.GetDigest(), kSHA1Length);
++}
++
++SHA1Digest SHA1Hash(span<const uint8_t> data) {
++  SHA1Context context;
++  context.Init();
++  context.Update(data.data(), data.size());
++  context.Final();
++
++  SHA1Digest digest;
++  memcpy(digest.data(), context.GetDigest(), kSHA1Length);
++  return digest;
++}
++
++std::string SHA1HashString(std::string_view str) {
++  return std::string(as_string_view(SHA1Hash(base::as_byte_span(str))));
++}
++
++}  // namespace base
+diff --git a/base/hash/sha1_nacl.h b/base/hash/sha1_nacl.h
+new file mode 100644
+index 0000000000..fcb48457b2
+--- /dev/null
++++ b/base/hash/sha1_nacl.h
+@@ -0,0 +1,40 @@
++// Copyright 2021 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_HASH_SHA1_NACL_H_
++#define BASE_HASH_SHA1_NACL_H_
++
++#include <stdint.h>
++
++namespace base {
++
++// Used for storing intermediate data during an SHA1 computation. Callers
++// should not access the data.
++class SHA1Context {
++ public:
++  void Init();
++  void Update(const void* data, size_t nbytes);
++  void Final();
++  const unsigned char* GetDigest() const;
++
++ private:
++  void Pad();
++  void Process();
++
++  uint32_t A, B, C, D, E;
++
++  uint32_t H[5];
++
++  union {
++    uint32_t W[80];
++    uint8_t M[64];
++  };
++
++  uint32_t cursor;
++  uint64_t l;
++};
++
++}  // namespace base
++
++#endif  // BASE_HASH_SHA1_NACL_H_
+diff --git a/base/metrics/metrics_hashes.cc b/base/metrics/metrics_hashes.cc
+index d4bd2b98f4..e0fef601a7 100644
+--- a/base/metrics/metrics_hashes.cc
++++ b/base/metrics/metrics_hashes.cc
+@@ -6,16 +6,29 @@
+ 
+ #include <string.h>
+ 
+-#include <array>
+ #include <string_view>
+ 
+ #include "base/check_op.h"
+ #include "base/containers/span.h"
++#include "base/hash/md5.h"
++#include "base/hash/sha1.h"
+ #include "base/numerics/byte_conversions.h"
+-#include "third_party/boringssl/src/include/openssl/md5.h"
+-#include "third_party/boringssl/src/include/openssl/sha.h"
+ 
+ namespace base {
++namespace {
++
++// Converts the 8-byte prefix of an MD5 hash into a uint64_t value.
++inline uint64_t DigestToUInt64(const MD5Digest& digest) {
++  return U64FromBigEndian(span(digest.a).first<8u>());
++}
++
++// Converts the 4-byte prefix of an MD5 hash into a uint32_t value.
++inline uint32_t DigestToUInt32(const MD5Digest& digest) {
++  return U32FromBigEndian(span(digest.a).first<4u>());
++}
++
++}  // namespace
++
+ uint64_t HashMetricName(std::string_view name) {
+   // Corresponding Python code for quick look up:
+   //
+@@ -23,17 +36,15 @@ uint64_t HashMetricName(std::string_view name) {
+   //   import hashlib
+   //   struct.unpack('>Q', hashlib.md5(name.encode('utf-8')).digest()[:8])[0]
+   //
+-  std::array<uint8_t, MD5_DIGEST_LENGTH> hash;
+-  ::MD5(reinterpret_cast<const uint8_t*>(name.data()), name.size(),
+-        hash.data());
+-  return U64FromBigEndian(base::span(hash).first<8>());
++  MD5Digest digest;
++  MD5Sum(as_byte_span(name), &digest);
++  return DigestToUInt64(digest);
+ }
+ 
+ uint32_t HashMetricNameAs32Bits(std::string_view name) {
+-  std::array<uint8_t, MD5_DIGEST_LENGTH> hash;
+-  ::MD5(reinterpret_cast<const uint8_t*>(name.data()), name.size(),
+-        hash.data());
+-  return U32FromBigEndian(base::span(hash).first<4>());
++  MD5Digest digest;
++  MD5Sum(as_byte_span(name), &digest);
++  return DigestToUInt32(digest);
+ }
+ 
+ uint32_t ParseMetricHashTo32Bits(uint64_t hash) {
+@@ -43,10 +54,8 @@ uint32_t ParseMetricHashTo32Bits(uint64_t hash) {
+ uint32_t HashFieldTrialName(std::string_view name) {
+   // SHA-1 is designed to produce a uniformly random spread in its output space,
+   // even for nearly-identical inputs.
+-  std::array<uint8_t, SHA_DIGEST_LENGTH> hash;
+-  ::SHA1(reinterpret_cast<const uint8_t*>(name.data()), name.size(),
+-         hash.data());
+-  return U32FromLittleEndian(base::span(hash).first<4>());
++  SHA1Digest sha1_hash = SHA1Hash(as_byte_span(name));
++  return U32FromLittleEndian(span(sha1_hash).first<4u>());
+ }
+ 
+ }  // namespace base
+-- 
+2.50.0.727.gbf7dc18ff4-goog
+
