@@ -31,6 +31,7 @@ WARNINGS_TO_SILENCE: Dict[str, Iterable[str]] = {
     "base/memory/scoped_refptr.h": ("-Wsign-conversion",),
     "base/numerics/clamped_math_impl.h": ("-Wimplicit-int-float-conversion",),
     "base/time/time.h": ("-Wimplicit-int-float-conversion",),
+    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/check.h": ("-Wunused-parameter",),
 }
 
 
@@ -43,7 +44,11 @@ def header_path_to_define(header_path: str) -> str:
     "FOO_H"
     >>> header_name_to_define("foo/bar.h")
     "FOO_BAR_H"
+    >>> header_name_to_define("base/allocator/partition_allocator/src/partition_alloc/foo.h")
+    "PARTITION_ALLOC_FOO_H"
     """
+    # The include guard for partition_allocator needs special treatment.
+    header_path = header_path.removeprefix("base/allocator/partition_allocator/src/")
     return re.sub(r"[^a-zA-Z0-9_]", "_", header_path).upper()
 
 

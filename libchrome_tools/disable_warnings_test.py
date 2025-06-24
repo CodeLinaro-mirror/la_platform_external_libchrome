@@ -27,6 +27,10 @@ class Test(unittest.TestCase):
             disable_warnings.header_path_to_define("b4r_baz.h"),
             "B4R_BAZ_H",
         )
+        self.assertEqual(
+            disable_warnings.header_path_to_define("base/allocator/partition_allocator/src/partition_alloc/foo.h"),
+            "PARTITION_ALLOC_FOO_H",
+        )
 
     def test_header_guard_detection_fails_on_bad_guards(self):
         """Ensures that we `raise` if a header has bad guards."""
