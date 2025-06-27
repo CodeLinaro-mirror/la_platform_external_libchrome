@@ -1279,6 +1279,7 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/sync_handle_watcher.cc",
           "mojo/public/cpp/bindings/lib/task_runner_helper.cc",
           "mojo/public/cpp/bindings/lib/thread_safe_forwarder_base.cc",
+          "mojo/public/cpp/bindings/lib/unserialized_message_context.cc",
           "mojo/public/cpp/bindings/lib/validation_context.cc",
           "mojo/public/cpp/bindings/lib/validation_errors.cc",
           "mojo/public/cpp/bindings/lib/validation_util.cc",
