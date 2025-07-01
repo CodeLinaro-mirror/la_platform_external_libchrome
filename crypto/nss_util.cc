@@ -40,6 +40,7 @@
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/native_library.h"
+#include "base/notimplemented.h"
 #include "base/stl_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_executor.h"
