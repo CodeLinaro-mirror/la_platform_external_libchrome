@@ -1,0 +1,56 @@
+From 497a0fdf1882b2681a75d7b4fb72d90196228cb4 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Mon, 30 Jun 2025 21:07:04 -0600
+Subject: [PATCH] Set kStrippedPrefixLength to zero.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+kStrippedPrefixLength is for Chrome to strip out unnecessary prefix of
+source path relative to build path.
+
+For Chrome OS, all sources build may have different prefix length, so it
+won't work with Chrome OS.
+
+Disabling this strip by setting kStrippedPrefixLength to zero.
+
+BUG=b:208658574
+TEST=run network.ShillNoErrorsInLog and check dbus_method_invoker.h not truncated.
+
+Change-Id: I463c3496fa7a641a2e42822e5ef730bbfad6be43
+Reviewed-on: https://chromium-review.googlesource.com/c/aosp/platform/external/libchrome/+/3317140
+Reviewed-by: Grace Cham <hscham@chromium.org>
+Tested-by: Grace Cham <hscham@chromium.org>
+Commit-Queue: Qijiang Yūki Ishii <fqj@google.com>
+---
+ base/location.cc | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/base/location.cc b/base/location.cc
+index b0ccf6c58a..a9fa06c5ac 100644
+--- a/base/location.cc
++++ b/base/location.cc
+@@ -19,6 +19,7 @@ namespace base {
+ 
+ namespace {
+ 
++#if 0
+ #if defined(__clang__) && defined(_MSC_VER)
+ constexpr std::string_view kThisFilePath = "base\\location.cc";
+ #else
+@@ -54,6 +55,12 @@ constexpr bool StrEndsWith(std::string_view name,
+ static_assert(StrEndsWith(__FILE__, kStrippedPrefixLength, kThisFilePath),
+               "The file name does not match the expected prefix format.");
+ 
++#else
++
++constexpr size_t kStrippedPrefixLength = 0;
++
++#endif
++
+ }  // namespace
+ 
+ Location::Location() = default;
+-- 
+2.50.0.727.gbf7dc18ff4-goog
+

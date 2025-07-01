@@ -19,7 +19,6 @@ namespace base {
 
 namespace {
 
-#if 0
 #if defined(__clang__) && defined(_MSC_VER)
 constexpr std::string_view kThisFilePath = "base\\location.cc";
 #else
@@ -54,12 +53,6 @@ constexpr bool StrEndsWith(std::string_view name,
 
 static_assert(StrEndsWith(__FILE__, kStrippedPrefixLength, kThisFilePath),
               "The file name does not match the expected prefix format.");
-
-#else
-
-constexpr size_t kStrippedPrefixLength = 0;
-
-#endif
 
 }  // namespace
 
