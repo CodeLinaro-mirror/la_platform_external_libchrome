@@ -653,15 +653,7 @@ class BASE_EXPORT TraceArguments {
 
   // Allow move operations.
   TraceArguments(TraceArguments&& other) noexcept {
-    memcpy(types_, other.types_, sizeof(types_));
-    memcpy(names_, other.names_, sizeof(names_));
-
-    // Move to avoid expensive copy since only pointers are needed, see below
-    size_ = other.size_;
-    for (size_t i = 0; i < size_; ++i) {
-      values_[i] = std::move(other.values_[i]);
-    }
-
+    ::memcpy(static_cast<void*>(this), &other, sizeof(*this));
     // All owning pointers were copied to |this|. Setting |other.size_| will
     // mask the pointer values still in |other|.
     other.size_ = 0;

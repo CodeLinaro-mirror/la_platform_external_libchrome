@@ -1,0 +1,61 @@
+From fa9611a35db47e240096c384c375da92890cb5fc Mon Sep 17 00:00:00 2001
+From: Adrian Ratiu <adrian.ratiu@collabora.com>
+Date: Tue, 10 Jun 2025 11:25:29 +0000
+Subject: [PATCH] trace_event: trace_arguments: fix risky memcpy
+
+Glibc 2.41 improved its headers fortify checks and one
+of the checks added is for memcpy on complex structs,
+which are considered inherently risky, and should be
+avoided (in this case it's a class).
+
+Therefore replace the top-level memcpy of the entire
+struct with memcpy of its members (trivial types) and
+a move of its TraceValue struct.
+
+The error is:
+/build/asurada/usr/include/libchrome/base/trace_event/trace_arguments.h:656:14: error: first argument in call to 'memcpy' is a pointer to non-trivially copyable type 'base::trace_event::TraceArguments' [-Werror,-Wnontrivial-memcall]
+  656 |     ::memcpy(this, &other, sizeof(*this));
+      |              ^
+/build/asurada/usr/include/libchrome/base/trace_event/trace_arguments.h:656:14: note: explicitly cast the pointer to silence this warning
+  656 |     ::memcpy(this, &other, sizeof(*this));
+      |              ^
+      |              (void*)
+1 error generated.
+
+BUG=b:387993322
+TEST=cros-workon-asurada start libchrome; emerge libvda-gpu-tests.
+
+Change-Id: I3e48c500171c851a59ad111a20bef40ab34af24b
+Reviewed-on: https://chromium-review.googlesource.com/c/chromiumos/platform/libchrome/+/6632927
+Reviewed-by: Jae Hoon Kim <kimjae@chromium.org>
+Tested-by: Adrian Ratiu <adrian.ratiu@collabora.corp-partner.google.com>
+Reviewed-by: George Burgess <gbiv@chromium.org>
+Commit-Queue: Adrian Ratiu <adrian.ratiu@collabora.corp-partner.google.com>
+---
+ base/trace_event/trace_arguments.h | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/base/trace_event/trace_arguments.h b/base/trace_event/trace_arguments.h
+index f4325bd1a4..37ee33b65b 100644
+--- a/base/trace_event/trace_arguments.h
++++ b/base/trace_event/trace_arguments.h
+@@ -653,7 +653,15 @@ class BASE_EXPORT TraceArguments {
+ 
+   // Allow move operations.
+   TraceArguments(TraceArguments&& other) noexcept {
+-    ::memcpy(static_cast<void*>(this), &other, sizeof(*this));
++    memcpy(types_, other.types_, sizeof(types_));
++    memcpy(names_, other.names_, sizeof(names_));
++
++    // Move to avoid expensive copy since only pointers are needed, see below
++    size_ = other.size_;
++    for (size_t i = 0; i < size_; ++i) {
++      values_[i] = std::move(other.values_[i]);
++    }
++
+     // All owning pointers were copied to |this|. Setting |other.size_| will
+     // mask the pointer values still in |other|.
+     other.size_ = 0;
+-- 
+2.50.0.727.gbf7dc18ff4-goog
+
