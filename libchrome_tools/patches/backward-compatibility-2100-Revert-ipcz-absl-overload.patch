@@ -1,3 +1,18 @@
+From 3d15b3db7dcc0424e4a7533f93bc6d07d0f0e855 Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Wed, 9 Jul 2025 02:25:04 +0000
+Subject: [PATCH] Add a patch for build error on grunt
+
+backward-compatibility-2100-Revert-ipcz-absl-overload.patch
+
+Change-Id: I670446cd78a0a581c0225e4eea7384cd5c2fe13d
+---
+ third_party/ipcz/src/ipcz/box.cc       |  5 ++--
+ third_party/ipcz/src/ipcz/box.h        |  4 +--
+ third_party/ipcz/src/util/overloaded.h | 36 ++++++++++++++++++++++++++
+ 3 files changed, 40 insertions(+), 5 deletions(-)
+ create mode 100644 third_party/ipcz/src/util/overloaded.h
+
 diff --git a/third_party/ipcz/src/ipcz/box.cc b/third_party/ipcz/src/ipcz/box.cc
 index 0d936aae09..de051ab293 100644
 --- a/third_party/ipcz/src/ipcz/box.cc
@@ -92,3 +107,6 @@ index 0000000000..4287983601
 +}  // namespace ipcz
 +
 +#endif  // IPCZ_SRC_UTIL_OVERLOADED_H_
+-- 
+2.50.0.727.gbf7dc18ff4-goog
+
