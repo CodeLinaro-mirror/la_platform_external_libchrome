@@ -1,0 +1,40 @@
+From 0d61934280d61dc889aea3a2ee1a9aae62f22b27 Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Fri, 11 Jul 2025 01:51:10 +0000
+Subject: [PATCH] Android-specific changes
+
+These were originally committed directly[1] and are moved piece-by-piece
+into this patch.
+
+[1]https://chromium-review.googlesource.com/c/aosp/platform/external/libchrome/+/2220416
+
+Change-Id: I4746a23279f03a0c3edf3f7effe2cab232063435
+---
+ base/task/current_thread.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/base/task/current_thread.h b/base/task/current_thread.h
+index bca2544745..1b5afe1cf4 100644
+--- a/base/task/current_thread.h
++++ b/base/task/current_thread.h
+@@ -238,6 +238,8 @@ class BASE_EXPORT CurrentThread {
+   raw_ptr<sequence_manager::internal::SequenceManagerImpl> current_;
+ };
+ 
++#if !BUILDFLAG(IS_ANDROID)
++
+ // UI extension of CurrentThread.
+ class BASE_EXPORT CurrentUIThread : public CurrentThread {
+  public:
+@@ -291,6 +293,8 @@ class BASE_EXPORT CurrentUIThread : public CurrentThread {
+   MessagePumpForUI* GetMessagePumpForUI() const;
+ };
+ 
++#endif  // !BUILDFLAG(IS_ANDROID)
++
+ // ForIO extension of CurrentThread.
+ class BASE_EXPORT CurrentIOThread : public CurrentThread {
+  public:
+-- 
+2.50.0.727.gbf7dc18ff4-goog
+

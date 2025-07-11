@@ -1,0 +1,151 @@
+From 3855649757d1dc189705925b5258b84565bbd7f1 Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Fri, 11 Jul 2025 04:53:34 +0000
+Subject: [PATCH] Revert "base/hash: remove streaming sha1 API"
+
+This reverts commit 4d5d2bbb62325553b2c9ce637c71e804c161cc16, which
+removed some sha1 functions still in use by patch
+long-term-0600-Use-non-boringssl-md5-sha1-implementation.patch.
+---
+ base/hash/sha1.cc          | 19 ++++++++++++++++++-
+ base/hash/sha1.h           | 15 ++++++++++++++-
+ base/hash/sha1_unittest.cc | 38 +++++++++++++++++++++++++++++++++++++-
+ 3 files changed, 69 insertions(+), 3 deletions(-)
+
+diff --git a/base/hash/sha1.cc b/base/hash/sha1.cc
+index d169a73303..a6bd3c920e 100644
+--- a/base/hash/sha1.cc
++++ b/base/hash/sha1.cc
+@@ -4,11 +4,14 @@
+ 
+ #include "base/hash/sha1.h"
+ 
+-#include <cstdint>
++#include <stdint.h>
++
++#include <cstddef>
+ #include <string>
+ #include <string_view>
+ 
+ #include "base/containers/span.h"
++#include "base/hash/sha1.h"
+ #include "third_party/boringssl/src/include/openssl/sha.h"
+ 
+ namespace base {
+@@ -28,4 +31,18 @@ std::string SHA1HashString(std::string_view str) {
+   return digest;
+ }
+ 
++// These functions allow streaming SHA-1 operations.
++void SHA1Init(SHA1Context& context) {
++  SHA1_Init(&context);
++}
++
++void SHA1Update(std::string_view data, SHA1Context& context) {
++  SHA1_Update(&context, data.data(), data.size());
++}
++
++void SHA1Final(SHA1Context& context, SHA1Digest& digest) {
++  SHA1Context ctx(context);
++  SHA1_Final(digest.data(), &ctx);
++}
++
+ }  // namespace base
+diff --git a/base/hash/sha1.h b/base/hash/sha1.h
+index 9f4c9e05ec..edb521aa60 100644
+--- a/base/hash/sha1.h
++++ b/base/hash/sha1.h
+@@ -5,16 +5,25 @@
+ #ifndef BASE_HASH_SHA1_H_
+ #define BASE_HASH_SHA1_H_
+ 
++#include <stddef.h>
++#include <stdint.h>
++
+ #include <array>
+-#include <cstdint>
+ #include <string>
+ #include <string_view>
+ 
+ #include "base/base_export.h"
++#include "base/compiler_specific.h"
+ #include "base/containers/span.h"
++#include "build/build_config.h"
++#include "third_party/boringssl/src/include/openssl/sha.h"
+ 
+ namespace base {
+ 
++// Used for storing intermediate data during an SHA1 computation. Callers
++// should not access the data.
++using SHA1Context = SHA_CTX;
++
+ enum { kSHA1Length = 20 };  // Length in bytes of a SHA-1 hash.
+ 
+ // The output of an SHA-1 operation.
+@@ -27,6 +36,10 @@ BASE_EXPORT SHA1Digest SHA1Hash(span<const uint8_t> data);
+ // hash.
+ BASE_EXPORT std::string SHA1HashString(std::string_view str);
+ 
++// These functions allow streaming SHA-1 operations.
++BASE_EXPORT void SHA1Init(SHA1Context& context);
++BASE_EXPORT void SHA1Update(std::string_view data, SHA1Context& context);
++BASE_EXPORT void SHA1Final(SHA1Context& context, SHA1Digest& digest);
+ }  // namespace base
+ 
+ #endif  // BASE_HASH_SHA1_H_
+diff --git a/base/hash/sha1_unittest.cc b/base/hash/sha1_unittest.cc
+index 7a28bf84e2..7146ff75b4 100644
+--- a/base/hash/sha1_unittest.cc
++++ b/base/hash/sha1_unittest.cc
+@@ -4,7 +4,9 @@
+ 
+ #include "base/hash/sha1.h"
+ 
+-#include <cstdint>
++#include <stddef.h>
++#include <stdint.h>
++
+ #include <string>
+ 
+ #include "base/containers/span.h"
+@@ -83,3 +85,37 @@ TEST(SHA1Test, Test3BytesAndSpan) {
+   base::SHA1Digest output = base::SHA1Hash(base::as_byte_span(input));
+   EXPECT_EQ(kExpected, base::as_byte_span(output));
+ }
++
++TEST(SHA1Test, StreamingSHA1WithWholeInput) {
++  // Example A.1 from FIPS 180-2: one-block message.
++  std::string input = "abc";
++  constexpr uint8_t kExpected[] = {0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81,
++                                   0x6a, 0xba, 0x3e, 0x25, 0x71, 0x78, 0x50,
++                                   0xc2, 0x6c, 0x9c, 0xd0, 0xd8, 0x9d};
++
++  base::SHA1Context context;
++  base::SHA1Digest digest;
++  base::SHA1Init(context);
++  base::SHA1Update(input, context);
++  base::SHA1Final(context, digest);
++  EXPECT_EQ(base::span(kExpected), digest);
++}
++
++TEST(SHA1Test, StreamingSHA1WithChunkedInput) {
++  // Example A.3 from FIPS 180-2: long message, split into 2 updates.
++  std::string input1(500000, 'a');
++  std::string input2(500000, 'a');
++  std::string input = input1 + input2;
++  constexpr uint8_t kExpected[] = {0x34, 0xaa, 0x97, 0x3c, 0xd4, 0xc4, 0xda,
++                                   0xa4, 0xf6, 0x1e, 0xeb, 0x2b, 0xdb, 0xad,
++                                   0x27, 0x31, 0x65, 0x34, 0x01, 0x6f};
++
++  base::SHA1Context context;
++  base::SHA1Digest digest;
++
++  base::SHA1Init(context);
++  base::SHA1Update(input1, context);
++  base::SHA1Update(input2, context);
++  base::SHA1Final(context, digest);
++  EXPECT_EQ(base::span(kExpected), digest);
++}
+-- 
+2.50.0.727.gbf7dc18ff4-goog
+
