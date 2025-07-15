@@ -1,19 +1,18 @@
-From c1f6674152aa6cf08fa03cc4c9c967ccd1ce12d8 Mon Sep 17 00:00:00 2001
-From: Grace Cham <hscham@chromium.org>
-Date: Tue, 14 Jun 2022 22:11:19 +0900
+From f448c661c2c2f57c572d423bd806947ee1a39271 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Tue, 15 Jul 2025 18:08:10 +0800
 Subject: [PATCH] Add libchrome-specific build configs
 
-Change-Id: Ic6580e412c3f1a4f2fe7b425bf7ead6c2fb18dbb
-patch-name: long-term-0000-Add-libchrome-specific-build-configs.patch
+Change-Id: I268af41407886833b211b5f68dd0f601d923358e
 ---
- build/build_config.h | 28 ++++++++++++++++++++++++++--
- 1 file changed, 26 insertions(+), 2 deletions(-)
+ build/build_config.h | 30 +++++++++++++++++++++++++++---
+ 1 file changed, 27 insertions(+), 3 deletions(-)
 
 diff --git a/build/build_config.h b/build/build_config.h
-index fed5f3eb33..a7725b26cc 100644
+index 41215c9fb8..bf977f7208 100644
 --- a/build/build_config.h
 +++ b/build/build_config.h
-@@ -54,12 +54,36 @@
+@@ -54,15 +54,39 @@
  
  #include "build/buildflag.h"  // IWYU pragma: export
  
@@ -43,15 +42,19 @@ index fed5f3eb33..a7725b26cc 100644
 +
 +#endif  // defined(__ANDROID__)
 +
+ // Clangd does not detect BUILDFLAG_INTERNAL_* indirect usage, so mark the
+ // header as "always_keep" to avoid "unused include" warning.
+ //
+ // IWYU pragma: always_keep
+ 
  // A set of macros to use for platform detection.
- #if defined(__native_client__)
- // __native_client__ must be first, so that other OS_ defines are not set.
- #define OS_NACL 1
--#elif defined(ANDROID)
--#define OS_ANDROID
- #elif defined(__APPLE__)
+-#if defined(ANDROID)
+-#define OS_ANDROID 1
+-#elif defined(__APPLE__)
++#if defined(__APPLE__)
  // Only include TargetConditionals after testing ANDROID as some Android builds
  // on the Mac have this header available and it's not needed unless the target
+ // is really an Apple platform.
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.50.0.727.gbf7dc18ff4-goog
 
