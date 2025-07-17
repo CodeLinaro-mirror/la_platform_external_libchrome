@@ -688,6 +688,7 @@ libbase_sublibs = [
       "base/task/sequence_manager/task_queue.cc",
       "base/task/sequence_manager/task_queue_impl.cc",
       "base/task/sequence_manager/task_queue_selector.cc",
+      "base/task/sequence_manager/task_time_observer.cc",
       "base/task/sequence_manager/tasks.cc",
       "base/task/sequence_manager/thread_controller.cc",
       "base/task/sequence_manager/thread_controller_impl.cc",
