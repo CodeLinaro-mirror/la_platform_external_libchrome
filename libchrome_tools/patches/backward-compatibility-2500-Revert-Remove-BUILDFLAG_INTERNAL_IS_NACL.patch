@@ -1,0 +1,27 @@
+From 1544235add00d42d0a0218e18728998cd5e385a9 Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Tue, 22 Jul 2025 12:55:18 -0600
+Subject: [PATCH] Revert "build: Remove BUILDFLAG_INTERNAL_IS_NACL"
+
+This reverts commit 51b465a41d20171f90fbbe27b2b1b6415dc4740f.
+---
+ build/build_config.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/build/build_config.h b/build/build_config.h
+index 4768a6dc5c..41215c9fb8 100644
+--- a/build/build_config.h
++++ b/build/build_config.h
+@@ -220,6 +220,9 @@
+ #define BUILDFLAG_INTERNAL_IS_MAC() (0)
+ #endif
+ 
++// TODO(crbug.com/40511454): Remove all uses.
++#define BUILDFLAG_INTERNAL_IS_NACL() (0)
++
+ #if defined(OS_NETBSD)
+ #define BUILDFLAG_INTERNAL_IS_NETBSD() (1)
+ #else
+-- 
+2.50.0.727.gbf7dc18ff4-goog
+

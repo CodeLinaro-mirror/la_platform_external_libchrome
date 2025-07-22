@@ -5,7 +5,9 @@
 #ifndef BASE_BYTE_COUNT_H_
 #define BASE_BYTE_COUNT_H_
 
+#include <compare>
 #include <cstdint>
+#include <type_traits>
 
 #include "base/numerics/checked_math.h"
 #include "base/numerics/safe_conversions.h"
@@ -31,6 +33,7 @@ class ByteCount {
   constexpr ByteCount() = default;
 
   constexpr explicit ByteCount(int64_t bytes) : bytes_(bytes) {}
+
   ~ByteCount() = default;
 
   ByteCount(const ByteCount&) = default;
@@ -38,6 +41,11 @@ class ByteCount {
 
   static constexpr ByteCount FromUnsigned(uint64_t bytes) {
     return ByteCount(checked_cast<int64_t>(bytes));
+  }
+
+  static constexpr ByteCount FromChecked(
+      const CheckedNumeric<int64_t>& checked_bytes) {
+    return ByteCount(checked_bytes.ValueOrDie());
   }
 
   constexpr bool is_zero() const { return bytes_ == 0; }
@@ -59,42 +67,54 @@ class ByteCount {
     return checked_cast<uint64_t>(bytes_);
   }
 
+  // Math operations.
+
   constexpr ByteCount operator+(ByteCount other) const {
-    return ByteCount(
-        (CheckedNumeric<int64_t>(bytes_) + other.bytes_).ValueOrDie());
+    return ByteCount::FromChecked(CheckedNumeric<int64_t>(bytes_) +
+                                  other.bytes_);
   }
+
   constexpr ByteCount operator-(ByteCount other) const {
-    return ByteCount(
-        (CheckedNumeric<int64_t>(bytes_) - other.bytes_).ValueOrDie());
+    return ByteCount::FromChecked(CheckedNumeric<int64_t>(bytes_) -
+                                  other.bytes_);
   }
 
   template <typename T>
   constexpr ByteCount operator*(T value) const {
-    return ByteCount((CheckedNumeric<int64_t>(bytes_) * value).ValueOrDie());
+    return ByteCount::FromChecked(CheckedNumeric<int64_t>(bytes_) * value);
   }
 
   template <typename T>
   constexpr ByteCount operator/(T value) const {
-    return ByteCount((CheckedNumeric<int64_t>(bytes_) / value).ValueOrDie());
+    return ByteCount::FromChecked(CheckedNumeric<int64_t>(bytes_) / value);
   }
 
-  constexpr auto operator<=>(const ByteCount& other) const = default;
+  constexpr friend bool operator==(const ByteCount& a,
+                                   const ByteCount& b) = default;
+  constexpr friend auto operator<=>(const ByteCount& a,
+                                    const ByteCount& b) = default;
 
  private:
   int64_t bytes_ = 0;
 };
 
-constexpr ByteCount KiB(int64_t kib) {
-  return ByteCount((CheckedNumeric<int64_t>(kib) * 1024).ValueOrDie());
+template <typename T>
+  requires std::is_integral_v<T>
+constexpr ByteCount KiB(T kib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(kib) * 1024);
 }
 
-constexpr ByteCount MiB(int64_t mib) {
-  return ByteCount((CheckedNumeric<int64_t>(mib) * 1024 * 1024).ValueOrDie());
+template <typename T>
+  requires std::is_integral_v<T>
+constexpr ByteCount MiB(T mib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(mib) * 1024 * 1024);
 }
 
-constexpr ByteCount GiB(int64_t gib) {
-  return ByteCount(
-      (CheckedNumeric<int64_t>(gib) * 1024 * 1024 * 1024).ValueOrDie());
+template <typename T>
+  requires std::is_integral_v<T>
+constexpr ByteCount GiB(T gib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(gib) * 1024 * 1024 *
+                                1024);
 }
 
 }  // namespace base
