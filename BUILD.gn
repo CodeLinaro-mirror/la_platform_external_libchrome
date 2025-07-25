@@ -251,6 +251,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "ENABLE_PARTITION_LOCK_REENTRANCY_CHECK=false",
     "ENABLE_PARTITION_LOCK_PRIORITY_INHERITANCE=false",
     "SHIM_SUPPORTS_SIZED_DEALLOC=false",
+    "MOVE_METADATA_OUT_OF_GIGACAGE_FOR_64_BITS_POINTERS=false",
   ]
 }
 
