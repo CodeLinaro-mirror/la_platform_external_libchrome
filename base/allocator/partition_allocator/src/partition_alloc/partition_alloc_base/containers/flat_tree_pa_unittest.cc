@@ -65,7 +65,7 @@ class InputIterator {
   pointer operator->() const { return it_; }
 
   InputIterator& operator++() {
-    ++it_;
+    PA_UNSAFE_TODO(++it_);
     return *this;
   }
   InputIterator operator++(int) {

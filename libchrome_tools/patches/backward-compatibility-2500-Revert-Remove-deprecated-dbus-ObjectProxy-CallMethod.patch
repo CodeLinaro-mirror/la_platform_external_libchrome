@@ -1,0 +1,257 @@
+From 0129922f9d5fa0b0f26eae74295722da4ea988e2 Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@chromium.org>
+Date: Tue, 5 Aug 2025 22:33:18 -0700
+Subject: [PATCH] Revert "Remove deprecated
+ dbus::ObjectProxy::CallMethodWithErrorCallback()"
+
+This reverts commit 207bf344b4a84e3bfacf3cd2dfe9d2844d22d6b7.
+---
+ dbus/end_to_end_async_unittest.cc | 40 +++++++++++++------------------
+ dbus/mock_object_proxy.cc         |  9 +++++++
+ dbus/mock_object_proxy.h          | 13 ++++++++++
+ dbus/object_proxy.cc              | 17 +++++++++++++
+ dbus/object_proxy.h               | 20 ++++++++++++++++
+ 5 files changed, 75 insertions(+), 24 deletions(-)
+
+diff --git a/dbus/end_to_end_async_unittest.cc b/dbus/end_to_end_async_unittest.cc
+index 823370234a..5811621cca 100644
+--- a/dbus/end_to_end_async_unittest.cc
++++ b/dbus/end_to_end_async_unittest.cc
+@@ -162,11 +162,12 @@ class EndToEndAsyncTest : public testing::Test {
+ 
+   // Calls the method asynchronously. OnResponse() will be called once the
+   // response is received without error, otherwise OnError() will be called.
+-  void CallMethodWithErrorResponse(MethodCall* method_call, int timeout_ms) {
+-    object_proxy_->CallMethodWithErrorResponse(
++  void CallMethodWithErrorCallback(MethodCall* method_call,
++                                   int timeout_ms) {
++    object_proxy_->CallMethodWithErrorCallback(
+         method_call, timeout_ms,
+-        base::BindOnce(&EndToEndAsyncTest::OnResponseOrError,
+-                       base::Unretained(this)));
++        base::BindOnce(&EndToEndAsyncTest::OnResponse, base::Unretained(this)),
++        base::BindOnce(&EndToEndAsyncTest::OnError, base::Unretained(this)));
+   }
+ 
+   // Wait for the give number of responses.
+@@ -192,14 +193,6 @@ class EndToEndAsyncTest : public testing::Test {
+     run_loop_->Quit();
+   }
+ 
+-  void OnResponseOrError(Response* response, ErrorResponse* error_response) {
+-    if (response) {
+-      OnResponse(response);
+-    } else {
+-      OnError(error_response);
+-    }
+-  }
+-
+   // Wait for the given number of errors.
+   void WaitForErrors(size_t num_errors) {
+     while (error_names_.size() < num_errors) {
+@@ -273,7 +266,6 @@ class EndToEndAsyncTest : public testing::Test {
+   std::string test_signal_string_;
+   // Text message from "Test" signal delivered to root.
+   std::string root_test_signal_string_;
+-  base::WeakPtrFactory<EndToEndAsyncTest> weak_ptr_factory_{this};
+ };
+ 
+ TEST_F(EndToEndAsyncTest, Echo) {
+@@ -293,7 +285,7 @@ TEST_F(EndToEndAsyncTest, Echo) {
+   EXPECT_EQ(kHello, response_strings_[0]);
+ }
+ 
+-TEST_F(EndToEndAsyncTest, EchoWithErrorResponse) {
++TEST_F(EndToEndAsyncTest, EchoWithErrorCallback) {
+   const char* kHello = "hello";
+ 
+   // Create the method call.
+@@ -303,7 +295,7 @@ TEST_F(EndToEndAsyncTest, EchoWithErrorResponse) {
+ 
+   // Call the method.
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  CallMethodWithErrorResponse(&method_call, timeout_ms);
++  CallMethodWithErrorCallback(&method_call, timeout_ms);
+ 
+   // Check the response.
+   WaitForResponses(1);
+@@ -372,7 +364,7 @@ TEST_F(EndToEndAsyncTest, BrokenBus) {
+   ASSERT_EQ("", response_strings_[0]);
+ }
+ 
+-TEST_F(EndToEndAsyncTest, BrokenBusWithErrorResponse) {
++TEST_F(EndToEndAsyncTest, BrokenBusWithErrorCallback) {
+   const char* kHello = "hello";
+ 
+   // Set up a broken bus.
+@@ -385,7 +377,7 @@ TEST_F(EndToEndAsyncTest, BrokenBusWithErrorResponse) {
+ 
+   // Call the method.
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  CallMethodWithErrorResponse(&method_call, timeout_ms);
++  CallMethodWithErrorCallback(&method_call, timeout_ms);
+   WaitForErrors(1);
+ 
+   // Should fail because of the broken bus.
+@@ -410,7 +402,7 @@ TEST_F(EndToEndAsyncTest, Timeout) {
+   ASSERT_EQ("", response_strings_[0]);
+ }
+ 
+-TEST_F(EndToEndAsyncTest, TimeoutWithErrorResponse) {
++TEST_F(EndToEndAsyncTest, TimeoutWithErrorCallback) {
+   const char* kHello = "hello";
+ 
+   // Create the method call.
+@@ -420,7 +412,7 @@ TEST_F(EndToEndAsyncTest, TimeoutWithErrorResponse) {
+ 
+   // Call the method with timeout of 0ms.
+   const int timeout_ms = 0;
+-  CallMethodWithErrorResponse(&method_call, timeout_ms);
++  CallMethodWithErrorCallback(&method_call, timeout_ms);
+   WaitForErrors(1);
+ 
+   // Should fail because of timeout.
+@@ -483,11 +475,11 @@ TEST_F(EndToEndAsyncTest, NonexistentMethod) {
+   ASSERT_EQ("", response_strings_[0]);
+ }
+ 
+-TEST_F(EndToEndAsyncTest, NonexistentMethodWithErrorResponse) {
++TEST_F(EndToEndAsyncTest, NonexistentMethodWithErrorCallback) {
+   MethodCall method_call("org.chromium.TestInterface", "Nonexistent");
+ 
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  CallMethodWithErrorResponse(&method_call, timeout_ms);
++  CallMethodWithErrorCallback(&method_call, timeout_ms);
+   WaitForErrors(1);
+ 
+   // Should fail because the method is nonexistent.
+@@ -506,11 +498,11 @@ TEST_F(EndToEndAsyncTest, BrokenMethod) {
+   ASSERT_EQ("", response_strings_[0]);
+ }
+ 
+-TEST_F(EndToEndAsyncTest, BrokenMethodWithErrorResponse) {
++TEST_F(EndToEndAsyncTest, BrokenMethodWithErrorCallback) {
+   MethodCall method_call("org.chromium.TestInterface", "BrokenMethod");
+ 
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  CallMethodWithErrorResponse(&method_call, timeout_ms);
++  CallMethodWithErrorCallback(&method_call, timeout_ms);
+   WaitForErrors(1);
+ 
+   // Should fail because the method is broken.
+@@ -529,7 +521,7 @@ TEST_F(EndToEndAsyncTest, InvalidServiceName) {
+   MethodCall method_call("org.chromium.TestInterface", "Echo");
+ 
+   const int timeout_ms = ObjectProxy::TIMEOUT_USE_DEFAULT;
+-  CallMethodWithErrorResponse(&method_call, timeout_ms);
++  CallMethodWithErrorCallback(&method_call, timeout_ms);
+   WaitForErrors(1);
+ 
+   // Should fail because of the invalid bus name.
+diff --git a/dbus/mock_object_proxy.cc b/dbus/mock_object_proxy.cc
+index a4363c6b17..a108ae7134 100644
+--- a/dbus/mock_object_proxy.cc
++++ b/dbus/mock_object_proxy.cc
+@@ -27,6 +27,15 @@ void MockObjectProxy::CallMethodWithErrorResponse(
+   DoCallMethodWithErrorResponse(method_call, timeout_ms, &callback);
+ }
+ 
++void MockObjectProxy::CallMethodWithErrorCallback(
++    MethodCall* method_call,
++    int timeout_ms,
++    ResponseCallback callback,
++    ErrorCallback error_callback) {
++  DoCallMethodWithErrorCallback(method_call, timeout_ms, &callback,
++                                &error_callback);
++}
++
+ void MockObjectProxy::WaitForServiceToBeAvailable(
+     WaitForServiceToBeAvailableCallback callback) {
+   DoWaitForServiceToBeAvailable(&callback);
+diff --git a/dbus/mock_object_proxy.h b/dbus/mock_object_proxy.h
+index 03a0ad0967..9731ee502e 100644
+--- a/dbus/mock_object_proxy.h
++++ b/dbus/mock_object_proxy.h
+@@ -51,6 +51,19 @@ class MockObjectProxy : public ObjectProxy {
+                     int timeout_ms,
+                     ResponseOrErrorCallback* callback));
+ 
++  // This method is not mockable because it takes a move-only argument. To work
++  // around this, CallMethodWithErrorCallback() implementation here calls
++  // DoCallMethodWithErrorCallback() which is mockable.
++  void CallMethodWithErrorCallback(MethodCall* method_call,
++                                   int timeout_ms,
++                                   ResponseCallback callback,
++                                   ErrorCallback error_callback) override;
++  MOCK_METHOD4(DoCallMethodWithErrorCallback,
++               void(MethodCall* method_call,
++                    int timeout_ms,
++                    ResponseCallback* callback,
++                    ErrorCallback* error_callback));
++
+   // This method is not mockable because it takes a move-only argument. To work
+   // around this, WaitForServiceToBeAvailable() implementation here calls
+   // DoWaitForServiceToBeAvailable() which is mockable.
+diff --git a/dbus/object_proxy.cc b/dbus/object_proxy.cc
+index ae389f8970..64171f23a4 100644
+--- a/dbus/object_proxy.cc
++++ b/dbus/object_proxy.cc
+@@ -211,7 +211,24 @@ void ObjectProxy::CallMethodWithErrorResponse(
+   bus_->GetDBusTaskRunner()->PostTask(FROM_HERE, std::move(task));
+ }
+ 
++void ObjectProxy::CallMethodWithErrorCallback(MethodCall* method_call,
++                                              int timeout_ms,
++                                              ResponseCallback callback,
++                                              ErrorCallback error_callback) {
++  auto internal_callback = base::BindOnce(
++      [](ResponseCallback callback, ErrorCallback error_callback,
++         Response* response, ErrorResponse* error_response) {
++        if (response) {
++          std::move(callback).Run(response);
++        } else {
++          std::move(error_callback).Run(error_response);
++        }
++      },
++      std::move(callback), std::move(error_callback));
+ 
++  CallMethodWithErrorResponse(method_call, timeout_ms,
++                              std::move(internal_callback));
++}
+ 
+ void ObjectProxy::ConnectToSignal(const std::string& interface_name,
+                                   const std::string& signal_name,
+diff --git a/dbus/object_proxy.h b/dbus/object_proxy.h
+index 18b1ca0e8c..31fddb06f6 100644
+--- a/dbus/object_proxy.h
++++ b/dbus/object_proxy.h
+@@ -150,6 +150,26 @@ class CHROME_DBUS_EXPORT ObjectProxy
+                                            int timeout_ms,
+                                            ResponseOrErrorCallback callback);
+ 
++  // DEPRECATED. Please use CallMethodWithErrorResponse() instead.
++  // TODO(hidehiko): Remove this when migration is done.
++  // Requests to call the method of the remote object.
++  //
++  // |callback| and |error_callback| will be called in the origin thread, once
++  // the method call is complete. As it's called in the origin thread,
++  // |callback| can safely reference objects in the origin thread (i.e.
++  // UI thread in most cases).
++  //
++  // If the method call is successful, |callback| will be invoked with a
++  // Response object. If unsuccessful, |error_callback| will be invoked with an
++  // ErrorResponse object (if the remote object returned an error) or nullptr
++  // (if a response was not received at all).
++  //
++  // Must be called in the origin thread.
++  virtual void CallMethodWithErrorCallback(MethodCall* method_call,
++                                           int timeout_ms,
++                                           ResponseCallback callback,
++                                           ErrorCallback error_callback);
++
+   // Requests to connect to the signal from the remote object.
+   //
+   // |signal_callback| will be called in the origin thread, when the
+-- 
+2.50.1.565.gc32cd1483b-goog
+
