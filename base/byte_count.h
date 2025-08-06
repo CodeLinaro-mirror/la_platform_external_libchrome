@@ -7,16 +7,19 @@
 
 #include <compare>
 #include <cstdint>
+#include <iosfwd>
 #include <type_traits>
 
+#include "base/base_export.h"
 #include "base/numerics/checked_math.h"
 #include "base/numerics/safe_conversions.h"
 
 namespace base {
 
 // Represents an integral number of bytes. Supports arithmetic operations and
-// conversions to/from KiB, MiB and GiB. Any operation that overflows will
-// result in a crash and thus this should only be used for trusted inputs.
+// conversions to/from KiB, MiB, GiB, TiB, PiB, and EiB. Any operation that
+// overflows will result in a crash and thus this should only be used for
+// trusted inputs.
 //
 // Sample usage:
 //
@@ -31,7 +34,7 @@ namespace base {
 //
 // KiB(), MiB() and GiB() can take float parameters. This will return the
 // nearest integral number of bytes, rounding towards zero.
-class ByteCount {
+class BASE_EXPORT ByteCount {
  public:
   constexpr ByteCount() = default;
 
@@ -58,12 +61,28 @@ class ByteCount {
   constexpr int64_t InKiB() const { return bytes_ / 1024; }
   constexpr int64_t InMiB() const { return bytes_ / 1024 / 1024; }
   constexpr int64_t InGiB() const { return bytes_ / 1024 / 1024 / 1024; }
+  constexpr int64_t InTiB() const { return bytes_ / 1024 / 1024 / 1024 / 1024; }
+  constexpr int64_t InPiB() const {
+    return bytes_ / 1024 / 1024 / 1024 / 1024 / 1024;
+  }
+  constexpr int64_t InEiB() const {
+    return bytes_ / 1024 / 1024 / 1024 / 1024 / 1024 / 1024;
+  }
 
   // Conversion to floating point values.
   constexpr double InBytesF() const { return bytes_; }
   constexpr double InKiBF() const { return bytes_ / 1024.0; }
   constexpr double InMiBF() const { return bytes_ / 1024.0 / 1024.0; }
   constexpr double InGiBF() const { return bytes_ / 1024.0 / 1024.0 / 1024.0; }
+  constexpr double InTiBF() const {
+    return bytes_ / 1024.0 / 1024.0 / 1024.0 / 1024.0;
+  }
+  constexpr double InPiBF() const {
+    return bytes_ / 1024.0 / 1024.0 / 1024.0 / 1024.0 / 1024.0;
+  }
+  constexpr double InEiBF() const {
+    return bytes_ / 1024.0 / 1024.0 / 1024.0 / 1024.0 / 1024.0 / 1024.0;
+  }
 
   // Conversion to an unsigned amount of bytes. Only use when it is guaranteed
   // that the value is positive. Fails if the value is negative.
@@ -170,6 +189,50 @@ constexpr ByteCount GiB(T gib) {
   return ByteCount::FromChecked(
       CheckedNumeric<int64_t>(gib * 1024.0 * 1024.0 * 1024.0));
 }
+
+template <typename T>
+  requires std::is_integral_v<T>
+constexpr ByteCount TiB(T tib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(tib) * 1024 * 1024 *
+                                1024 * 1024);
+}
+
+template <typename T>
+  requires std::is_floating_point_v<T>
+constexpr ByteCount TiB(T gib) {
+  return ByteCount::FromChecked(
+      CheckedNumeric<int64_t>(gib * 1024.0 * 1024.0 * 1024.0 * 1024.0));
+}
+
+template <typename T>
+  requires std::is_integral_v<T>
+constexpr ByteCount PiB(T pib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(pib) * 1024 * 1024 *
+                                1024 * 1024 * 1024);
+}
+
+template <typename T>
+  requires std::is_floating_point_v<T>
+constexpr ByteCount PiB(T pib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(
+      pib * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0));
+}
+
+template <typename T>
+  requires std::is_integral_v<T>
+constexpr ByteCount EiB(T eib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(eib) * 1024 * 1024 *
+                                1024 * 1024 * 1024 * 1024);
+}
+
+template <typename T>
+  requires std::is_floating_point_v<T>
+constexpr ByteCount EiB(T eib) {
+  return ByteCount::FromChecked(CheckedNumeric<int64_t>(
+      eib * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0 * 1024.0));
+}
+
+BASE_EXPORT std::ostream& operator<<(std::ostream& os, ByteCount byte_count);
 
 }  // namespace base
 
