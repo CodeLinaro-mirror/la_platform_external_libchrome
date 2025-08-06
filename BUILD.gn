@@ -10,6 +10,7 @@ import("//common-mk/mojom_type_mappings_generator.gni")
 import("//common-mk/pkg_config.gni")
 import("//common-mk/proto_library.gni")
 import("//libchrome/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni")
+import("//libchrome/base/tracing/protos/sources.gni")
 import("//libchrome/build/buildflag_header.gni")
 
 libchrome_basever = read_file("BASE_VER", "trim string")
@@ -427,7 +428,10 @@ buildflag_header("protected_memory_buildflags") {
 protozero_library("tracing_protozero") {
   proto_in_dir = "base/tracing/protos"
   proto_out_dir = "include/base/tracing/protos"
-  sources = [ "base/tracing/protos/chrome_track_event.proto" ]
+
+  # `chrome_track_event_sources` is from //base/tracing/protos/sources.gni.
+  # It contains .proto files relative to that directory.
+  sources = rebase_path(chrome_track_event_sources, ".", "base/tracing/protos")
 }
 
 libbase_sublibs = [
@@ -1580,9 +1584,10 @@ install_config("install_buildflag_header") {
 }
 
 install_config("install_protozero_generated") {
-  sources = [
-    "${root_gen_dir}/include/base/tracing/protos/chrome_track_event.pbzero.h",
-  ]
+  # `chrome_track_event_sources` is from //base/tracing/protos/sources.gni.
+  # It contains .proto files relative to that directory.
+  sources = process_file_template(chrome_track_event_sources,
+      "${root_gen_dir}/include/base/tracing/protos/{{source_name_part}}.pbzero.h")
   deps = [ ":tracing_protozero" ]
   tree_relative_to = "${root_gen_dir}/include"
   install_path = "/usr/include/libchrome"
