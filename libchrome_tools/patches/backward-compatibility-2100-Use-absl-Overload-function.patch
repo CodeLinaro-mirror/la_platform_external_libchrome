@@ -1,0 +1,91 @@
+From aa8e3c151a2e5d3c875c8d1d6a5aa33e89c66868 Mon Sep 17 00:00:00 2001
+From: Di Wu <diwux@google.com>
+Date: Fri, 8 Aug 2025 03:56:56 +0000
+Subject: [PATCH] Use absl::Overload() instead of absl::Overload{}
+
+Change-Id: Ia22bdde5849efa1e2515e3474b4e1613eecde789
+---
+ third_party/ipcz/src/ipcz/box.cc | 14 +++++++-------
+ third_party/ipcz/src/ipcz/box.h  |  8 ++++----
+ 2 files changed, 11 insertions(+), 11 deletions(-)
+
+diff --git a/third_party/ipcz/src/ipcz/box.cc b/third_party/ipcz/src/ipcz/box.cc
+index 0d936aae09..7415acda6d 100644
+--- a/third_party/ipcz/src/ipcz/box.cc
++++ b/third_party/ipcz/src/ipcz/box.cc
+@@ -36,7 +36,7 @@ IpczResult Box::Close() {
+ 
+ bool Box::CanSendFrom(Router& sender) {
+   return std::visit(
+-      absl::Overload{
++      absl::Overload(
+           [](const Empty&) { return false; },
+           [](const DriverObject& object) {
+             return object.is_valid() && object.IsSerializable();
+@@ -49,15 +49,15 @@ bool Box::CanSendFrom(Router& sender) {
+               }
+             }
+             return true;
+-          },
+-      },
++          }
++      ),
+       contents_);
+ }
+ 
+ IpczResult Box::ExtractContents(ExtractMode mode, IpczBoxContents& contents) {
+   const bool peek = (mode == kPeek);
+   const IpczResult result = std::visit(
+-      absl::Overload{
++      absl::Overload(
+           [](const Empty& empty) { return IPCZ_RESULT_INVALID_ARGUMENT; },
+           [&contents, peek](DriverObject& object) {
+             contents.type = IPCZ_BOX_TYPE_DRIVER_OBJECT;
+@@ -79,8 +79,8 @@ IpczResult Box::ExtractContents(ExtractMode mode, IpczBoxContents& contents) {
+                 peek ? wrapper->handle()
+                      : ipcz::APIObject::ReleaseAsHandle(std::move(wrapper));
+             return IPCZ_RESULT_OK;
+-          },
+-      },
++          }
++      ),
+       contents_);
+ 
+   if (!peek) {
+@@ -90,4 +90,4 @@ IpczResult Box::ExtractContents(ExtractMode mode, IpczBoxContents& contents) {
+   return result;
+ }
+ 
+-}  // namespace ipcz
++}  // namespace ipcz
+\ No newline at end of file
+diff --git a/third_party/ipcz/src/ipcz/box.h b/third_party/ipcz/src/ipcz/box.h
+index 69a9ce627e..a5c6625d28 100644
+--- a/third_party/ipcz/src/ipcz/box.h
++++ b/third_party/ipcz/src/ipcz/box.h
+@@ -41,12 +41,12 @@ class Box : public APIObjectImpl<Box, APIObject::kBox> {
+ 
+   Type type() const {
+     return std::visit(
+-        absl::Overload{
++        absl::Overload(
+             [](const Empty&) { return Type::kEmpty; },
+             [](const DriverObject&) { return Type::kDriverObject; },
+             [](const ApplicationObject&) { return Type::kApplicationObject; },
+-            [](const Ref<ParcelWrapper>&) { return Type::kSubparcel; },
+-        },
++            [](const Ref<ParcelWrapper>&) { return Type::kSubparcel; }
++        ),
+         contents_);
+   }
+ 
+@@ -81,4 +81,4 @@ class Box : public APIObjectImpl<Box, APIObject::kBox> {
+ 
+ }  // namespace ipcz
+ 
+-#endif  // IPCZ_SRC_IPCZ_BOX_
++#endif  // IPCZ_SRC_IPCZ_BOX_
+\ No newline at end of file
+-- 
+2.50.1.703.g449372360f-goog
+
