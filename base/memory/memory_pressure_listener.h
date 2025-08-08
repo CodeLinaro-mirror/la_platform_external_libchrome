@@ -13,7 +13,8 @@
 #include "base/base_export.h"
 #include "base/functional/callback.h"
 #include "base/location.h"
-#include "base/tracing_buildflags.h"
+#include "base/memory/memory_pressure_level.h"
+#include "base/threading/thread_checker.h"
 
 namespace base {
 
@@ -25,7 +26,7 @@ namespace base {
 //
 // Note that even on the same thread, the MemoryPressureCallback will not be
 // called within the system memory pressure broadcast. If synchronous
-// invocation is desired, a SyncMemoryPressureCallback can be provided.
+// invocation is desired, then SyncMemoryPressureListener must be used.
 // However, deleting a listener with a synchronous callback from within a
 // synchronous callback is not supported and will deadlock.
 //
@@ -51,31 +52,11 @@ namespace base {
 //
 class BASE_EXPORT MemoryPressureListener {
  public:
-  // A Java counterpart will be generated for this enum.
-  // The values needs to be kept in sync with the MemoryPressureLevel entry in
-  // enums.xml.
-  // GENERATED_JAVA_ENUM_PACKAGE: org.chromium.base
-  // GENERATED_JAVA_PREFIX_TO_STRIP: MEMORY_PRESSURE_LEVEL_
-  enum MemoryPressureLevel {
-    // No problems, there is enough memory to use. This event is not sent via
-    // callback, but the enum is used in other places to find out the current
-    // state of the system.
-    MEMORY_PRESSURE_LEVEL_NONE = 0,
-
-    // Modules are advised to free buffers that are cheap to re-allocate and not
-    // immediately needed.
-    MEMORY_PRESSURE_LEVEL_MODERATE = 1,
-
-    // At this level, modules are advised to free all possible memory.  The
-    // alternative is to be killed by the system, which means all memory will
-    // have to be re-created, plus the cost of a cold start.
-    MEMORY_PRESSURE_LEVEL_CRITICAL = 2,
-
-    // This must be the last value in the enum. The casing is different from the
-    // other values to make this enum work well with the
-    // UMA_HISTOGRAM_ENUMERATION macro.
-    kMaxValue = MEMORY_PRESSURE_LEVEL_CRITICAL,
-  };
+  // MemoryPressureLevel used to be defined here instead of in
+  // base/memory/memory_pressure_level.h. The using statements here avoids the
+  // needs to refactor the whole codebase.
+  using MemoryPressureLevel = MemoryPressureLevel;
+  using enum MemoryPressureLevel;
 
   using MemoryPressureCallback = RepeatingCallback<void(MemoryPressureLevel)>;
   using SyncMemoryPressureCallback =
@@ -84,41 +65,69 @@ class BASE_EXPORT MemoryPressureListener {
   MemoryPressureListener(
       const base::Location& creation_location,
       const MemoryPressureCallback& memory_pressure_callback);
-  MemoryPressureListener(
-      const base::Location& creation_location,
-      const MemoryPressureCallback& memory_pressure_callback,
-      const SyncMemoryPressureCallback& sync_memory_pressure_callback);
 
   MemoryPressureListener(const MemoryPressureListener&) = delete;
   MemoryPressureListener& operator=(const MemoryPressureListener&) = delete;
 
   ~MemoryPressureListener();
 
+  void Notify(MemoryPressureLevel memory_pressure_level);
+  void SyncNotify(MemoryPressureLevel memory_pressure_level);
+
   // Intended for use by the platform specific implementation.
+  // Note: This simply forwards the call to MemoryPressureListenerRegistry to
+  // avoid the need to refactor the whole codebase.
   static void NotifyMemoryPressure(MemoryPressureLevel memory_pressure_level);
 
   // These methods should not be used anywhere else but in memory measurement
   // code, where they are intended to maintain stable conditions across
   // measurements.
+  // Note: This simply forwards the call to MemoryPressureListenerRegistry to
+  // avoid the need to refactor the whole codebase.
   static bool AreNotificationsSuppressed();
   static void SetNotificationsSuppressed(bool suppressed);
   static void SimulatePressureNotification(
       MemoryPressureLevel memory_pressure_level);
-
-  void Notify(MemoryPressureLevel memory_pressure_level);
-  void SyncNotify(MemoryPressureLevel memory_pressure_level);
 
   bool has_sync_callback() const {
     return !sync_memory_pressure_callback_.is_null();
   }
 
  private:
-  static void DoNotifyMemoryPressure(MemoryPressureLevel memory_pressure_level);
+  friend class SyncMemoryPressureListener;
+
+  MemoryPressureListener(
+      const base::Location& creation_location,
+      const MemoryPressureCallback& memory_pressure_callback,
+      const SyncMemoryPressureCallback& sync_memory_pressure_callback);
 
   const MemoryPressureCallback callback_;
   const SyncMemoryPressureCallback sync_memory_pressure_callback_;
 
   const base::Location creation_location_;
+};
+
+class BASE_EXPORT SyncMemoryPressureListener {
+ public:
+  using SyncMemoryPressureCallback =
+      RepeatingCallback<void(MemoryPressureLevel)>;
+
+  explicit SyncMemoryPressureListener(SyncMemoryPressureCallback callback);
+
+  SyncMemoryPressureListener(const SyncMemoryPressureListener&) = delete;
+  SyncMemoryPressureListener& operator=(const SyncMemoryPressureListener&) =
+      delete;
+
+  ~SyncMemoryPressureListener();
+
+ private:
+  void OnMemoryPressure(MemoryPressureLevel memory_pressure_level);
+
+  SyncMemoryPressureCallback callback_;
+
+  MemoryPressureListener memory_pressure_listener_;
+
+  THREAD_CHECKER(thread_checker_);
 };
 
 }  // namespace base

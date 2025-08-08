@@ -537,6 +537,7 @@ libbase_sublibs = [
       "base/logging_chromeos.cc",
       "base/memory/aligned_memory.cc",
       "base/memory/memory_pressure_listener.cc",
+      "base/memory/memory_pressure_listener_registry.cc",
       "base/memory/page_size_posix.cc",
       "base/memory/platform_shared_memory_handle.cc",
       "base/memory/platform_shared_memory_mapper_posix.cc",
