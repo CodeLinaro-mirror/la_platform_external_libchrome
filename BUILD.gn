@@ -663,6 +663,7 @@ libbase_sublibs = [
       "base/synchronization/condition_variable_posix.cc",
       "base/synchronization/lock.cc",
       "base/synchronization/lock_impl_posix.cc",
+      "base/synchronization/lock_metrics_recorder.cc",
       "base/synchronization/waitable_event.cc",
       "base/synchronization/waitable_event_posix.cc",
       "base/synchronization/waitable_event_watcher_posix.cc",
