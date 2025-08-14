@@ -1,0 +1,405 @@
+From 945137d773b2560c6bebe62b1f7dab8819971887 Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@chromium.org>
+Date: Fri, 15 Aug 2025 05:21:10 +0000
+Subject: [PATCH] Revert "Spanify dbus::MessageReader::PopArrayOf..."
+
+This reverts commit db0c78f6c5e352f608dd572fc325f6ae6a6de11b.
+---
+ dbus/message.cc          | 71 ++++++++++++++++------------------------
+ dbus/message.h           | 13 ++++----
+ dbus/message_unittest.cc | 41 ++++++++++++++---------
+ dbus/property.cc         | 49 ++++++++++++++-------------
+ 4 files changed, 89 insertions(+), 85 deletions(-)
+
+diff --git a/dbus/message.cc b/dbus/message.cc
+index 3a1fcbf46d..d24b105770 100644
+--- a/dbus/message.cc
++++ b/dbus/message.cc
+@@ -847,95 +847,80 @@ bool MessageReader::PopVariant(MessageReader* sub_reader) {
+   return PopContainer(DBUS_TYPE_VARIANT, sub_reader);
+ }
+ 
+-bool MessageReader::PopArrayOfBytes(base::span<const uint8_t>* bytes) {
++bool MessageReader::PopArrayOfBytes(const uint8_t** bytes, size_t* length) {
+   MessageReader array_reader(message_);
+   if (!PopArray(&array_reader))
+     return false;
+   // An empty array is allowed.
+   if (!array_reader.HasMoreData()) {
+-    *bytes = base::span<const uint8_t>();
++    *length = 0;
++    *bytes = nullptr;
+     return true;
+   }
+   if (!array_reader.CheckDataType(DBUS_TYPE_BYTE))
+     return false;
+-  const uint8_t* values = nullptr;
+   int int_length = 0;
+-  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_, &values,
++  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_, bytes,
+                                     &int_length);
+-  // SAFETY: The returned span is pointing to memory owned by the message.
+-  // The caller must not use the span after the message is destroyed. The size
+-  // is guaranteed to be correct by the dbus API.
+-  *bytes = UNSAFE_BUFFERS(
+-      base::span(values, base::checked_cast<size_t>(int_length)));
++  *length = static_cast<size_t>(int_length);
+   return true;
+ }
+ 
+-bool MessageReader::PopArrayOfInt32s(base::span<const int32_t>* signed_ints) {
++bool MessageReader::PopArrayOfInt32s(const int32_t** signed_ints,
++                                     size_t* length) {
+   MessageReader array_reader(message_);
+   if (!PopArray(&array_reader))
+     return false;
+   // An empty array is allowed.
+   if (!array_reader.HasMoreData()) {
+-    *signed_ints = base::span<const int32_t>();
++    *length = 0;
++    *signed_ints = nullptr;
+     return true;
+   }
+   if (!array_reader.CheckDataType(DBUS_TYPE_INT32))
+     return false;
+-  const int32_t* values = nullptr;
+   int int_length = 0;
+-  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_, &values,
+-                                    &int_length);
+-  // SAFETY: The returned span is pointing to memory owned by the message.
+-  // The caller must not use the span after the message is destroyed. The size
+-  // is guaranteed to be correct by the dbus API.
+-  *signed_ints = UNSAFE_BUFFERS(
+-      base::span(values, base::checked_cast<size_t>(int_length)));
++  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_,
++                                    signed_ints, &int_length);
++  *length = static_cast<size_t>(int_length);
+   return true;
+ }
+ 
+-bool MessageReader::PopArrayOfUint32s(
+-    base::span<const uint32_t>* unsigned_ints) {
++bool MessageReader::PopArrayOfUint32s(const uint32_t** unsigned_ints,
++                                      size_t* length) {
+   MessageReader array_reader(message_);
+   if (!PopArray(&array_reader))
+     return false;
+   // An empty array is allowed.
+   if (!array_reader.HasMoreData()) {
+-    *unsigned_ints = base::span<const uint32_t>();
++    *length = 0;
++    *unsigned_ints = nullptr;
+     return true;
+   }
+   if (!array_reader.CheckDataType(DBUS_TYPE_UINT32))
+     return false;
+-  const uint32_t* values = nullptr;
+   int int_length = 0;
+-  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_, &values,
+-                                    &int_length);
+-  // SAFETY: The returned span is pointing to memory owned by the message.
+-  // The caller must not use the span after the message is destroyed. The size
+-  // is guaranteed to be correct by the dbus API.
+-  *unsigned_ints = UNSAFE_BUFFERS(
+-      base::span(values, base::checked_cast<size_t>(int_length)));
++  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_,
++                                    unsigned_ints, &int_length);
++  *length = static_cast<size_t>(int_length);
+   return true;
+ }
+ 
+-bool MessageReader::PopArrayOfDoubles(base::span<const double>* doubles) {
++bool MessageReader::PopArrayOfDoubles(const double** doubles, size_t* length) {
+   MessageReader array_reader(message_);
+   if (!PopArray(&array_reader))
+     return false;
+   if (!array_reader.HasMoreData()) {
+-    *doubles = base::span<const double>();
++    *length = 0;
++    *doubles = nullptr;
+     return true;
+   }
+   if (!array_reader.CheckDataType(DBUS_TYPE_DOUBLE))
+     return false;
+-  const double* values = nullptr;
+   int int_length = 0;
+-  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_, &values,
++  dbus_message_iter_get_fixed_array(&array_reader.raw_message_iter_, doubles,
+                                     &int_length);
+-  // SAFETY: The returned span is pointing to memory owned by the message.
+-  // The caller must not use the span after the message is destroyed. The size
+-  // is guaranteed to be correct by the dbus API.
+-  *doubles = UNSAFE_BUFFERS(
+-      base::span(values, base::checked_cast<size_t>(int_length)));
++  *length = static_cast<size_t>(int_length);
+   return true;
+ }
+ 
+@@ -971,12 +956,14 @@ bool MessageReader::PopArrayOfObjectPaths(
+ bool MessageReader::PopArrayOfBytesAsProto(
+     google::protobuf::MessageLite* protobuf) {
+   DCHECK(protobuf);
+-  base::span<const uint8_t> bytes;
+-  if (!PopArrayOfBytes(&bytes)) {
++  const char* serialized_buf = nullptr;
++  size_t buf_size = 0;
++  if (!PopArrayOfBytes(reinterpret_cast<const uint8_t**>(&serialized_buf),
++                       &buf_size)) {
+     LOG(ERROR) << "Error reading array of bytes";
+     return false;
+   }
+-  if (!protobuf->ParseFromArray(bytes.data(), bytes.size())) {
++  if (!protobuf->ParseFromArray(serialized_buf, buf_size)) {
+     LOG(ERROR) << "Failed to parse protocol buffer from array";
+     return false;
+   }
+diff --git a/dbus/message.h b/dbus/message.h
+index 1a78f31157..1fcfdea847 100644
+--- a/dbus/message.h
++++ b/dbus/message.h
+@@ -437,18 +437,19 @@ class CHROME_DBUS_EXPORT MessageReader {
+   // Arrays of bytes are often used for exchanging binary blobs hence it's
+   // worth having a specialized function.
+   //
+-  // The returned span points to memory owned by the message reader. The
+-  // caller must not access the span after the message reader is destroyed.
+-  bool PopArrayOfBytes(base::span<const uint8_t>* bytes);
++  // Ownership of the memory pointed to by |bytes| remains with the
++  // MessageReader; |bytes| must be copied if the contents will be referenced
++  // after the MessageReader is destroyed.
++  bool PopArrayOfBytes(const uint8_t** bytes, size_t* length);
+ 
+   // Gets the array of int32_ts at the current iterator position.
+-  bool PopArrayOfInt32s(base::span<const int32_t>* signed_ints);
++  bool PopArrayOfInt32s(const int32_t** signed_ints, size_t* length);
+ 
+   // Gets the array of uint32_ts at the current iterator position.
+-  bool PopArrayOfUint32s(base::span<const uint32_t>* unsigned_ints);
++  bool PopArrayOfUint32s(const uint32_t** unsigned_ints, size_t* length);
+ 
+   // Gets the array of doubles at the current iterator position.
+-  bool PopArrayOfDoubles(base::span<const double>* doubles);
++  bool PopArrayOfDoubles(const double** doubles, size_t* length);
+ 
+   // Gets the array of strings at the current iterator position. |strings| is
+   // cleared before being modified. Returns true and advances the iterator on
+diff --git a/dbus/message_unittest.cc b/dbus/message_unittest.cc
+index 1145202ba3..5f539f43a9 100644
+--- a/dbus/message_unittest.cc
++++ b/dbus/message_unittest.cc
+@@ -2,6 +2,11 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#ifdef UNSAFE_BUFFERS_BUILD
++// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
++#pragma allow_unsafe_buffers
++#endif
++
+ #include "dbus/message.h"
+ 
+ #include <stddef.h>
+@@ -229,11 +234,12 @@ TEST(MessageTest, ArrayOfBytes) {
+   writer.AppendArrayOfBytes(bytes);
+ 
+   MessageReader reader(message.get());
+-  base::span<const uint8_t> output_bytes;
++  const uint8_t* output_bytes = nullptr;
++  size_t length = 0;
+   ASSERT_EQ("ay", reader.GetDataSignature());
+-  ASSERT_TRUE(reader.PopArrayOfBytes(&output_bytes));
++  ASSERT_TRUE(reader.PopArrayOfBytes(&output_bytes, &length));
+   ASSERT_FALSE(reader.HasMoreData());
+-  ASSERT_EQ(3U, output_bytes.size());
++  ASSERT_EQ(3U, length);
+   EXPECT_EQ(1, output_bytes[0]);
+   EXPECT_EQ(2, output_bytes[1]);
+   EXPECT_EQ(3, output_bytes[2]);
+@@ -249,11 +255,12 @@ TEST(MessageTest, ArrayOfInt32s) {
+   writer.AppendArrayOfInt32s(int32s);
+ 
+   MessageReader reader(message.get());
+-  base::span<const int32_t> output_int32s;
++  const int32_t* output_int32s = nullptr;
++  size_t length = 0;
+   ASSERT_EQ("ai", reader.GetDataSignature());
+-  ASSERT_TRUE(reader.PopArrayOfInt32s(&output_int32s));
++  ASSERT_TRUE(reader.PopArrayOfInt32s(&output_int32s, &length));
+   ASSERT_FALSE(reader.HasMoreData());
+-  ASSERT_EQ(3U, output_int32s.size());
++  ASSERT_EQ(3U, length);
+   EXPECT_EQ(1, output_int32s[0]);
+   EXPECT_EQ(2, output_int32s[1]);
+   EXPECT_EQ(3, output_int32s[2]);
+@@ -269,11 +276,12 @@ TEST(MessageTest, ArrayOfUint32s) {
+   writer.AppendArrayOfUint32s(uint32s);
+ 
+   MessageReader reader(message.get());
+-  base::span<const uint32_t> output_uint32s;
++  const uint32_t* output_uint32s = nullptr;
++  size_t length = 0;
+   ASSERT_EQ("au", reader.GetDataSignature());
+-  ASSERT_TRUE(reader.PopArrayOfUint32s(&output_uint32s));
++  ASSERT_TRUE(reader.PopArrayOfUint32s(&output_uint32s, &length));
+   ASSERT_FALSE(reader.HasMoreData());
+-  ASSERT_EQ(3U, output_uint32s.size());
++  ASSERT_EQ(3U, length);
+   EXPECT_EQ(1U, output_uint32s[0]);
+   EXPECT_EQ(2U, output_uint32s[1]);
+   EXPECT_EQ(3U, output_uint32s[2]);
+@@ -289,11 +297,12 @@ TEST(MessageTest, ArrayOfDoubles) {
+   writer.AppendArrayOfDoubles(doubles);
+ 
+   MessageReader reader(message.get());
+-  base::span<const double> output_doubles;
++  const double* output_doubles = nullptr;
++  size_t length = 0;
+   ASSERT_EQ("ad", reader.GetDataSignature());
+-  ASSERT_TRUE(reader.PopArrayOfDoubles(&output_doubles));
++  ASSERT_TRUE(reader.PopArrayOfDoubles(&output_doubles, &length));
+   ASSERT_FALSE(reader.HasMoreData());
+-  ASSERT_EQ(3U, output_doubles.size());
++  ASSERT_EQ(3U, length);
+   EXPECT_EQ(0.2, output_doubles[0]);
+   EXPECT_EQ(0.5, output_doubles[1]);
+   EXPECT_EQ(1, output_doubles[2]);
+@@ -306,11 +315,13 @@ TEST(MessageTest, ArrayOfBytes_Empty) {
+   writer.AppendArrayOfBytes(bytes);
+ 
+   MessageReader reader(message.get());
+-  base::span<const uint8_t> output_bytes;
++  const uint8_t* output_bytes = nullptr;
++  size_t length = 0;
+   ASSERT_EQ("ay", reader.GetDataSignature());
+-  ASSERT_TRUE(reader.PopArrayOfBytes(&output_bytes));
++  ASSERT_TRUE(reader.PopArrayOfBytes(&output_bytes, &length));
+   ASSERT_FALSE(reader.HasMoreData());
+-  EXPECT_TRUE(output_bytes.empty());
++  ASSERT_EQ(0U, length);
++  EXPECT_EQ(nullptr, output_bytes);
+ }
+ 
+ TEST(MessageTest, ArrayOfStrings) {
+diff --git a/dbus/property.cc b/dbus/property.cc
+index 060f2e86d7..baab620402 100644
+--- a/dbus/property.cc
++++ b/dbus/property.cc
+@@ -2,15 +2,20 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#ifdef UNSAFE_BUFFERS_BUILD
++// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
++#pragma allow_unsafe_buffers
++#endif
++
+ #include "dbus/property.h"
+ 
+ #include <stddef.h>
+ 
+ #include <memory>
+ 
+-#include "base/containers/to_vector.h"
+ #include "base/functional/bind.h"
+ #include "base/logging.h"
++
+ #include "dbus/message.h"
+ #include "dbus/object_path.h"
+ #include "dbus/object_proxy.h"
+@@ -535,11 +540,11 @@ bool Property<std::vector<uint8_t>>::PopValueFromReader(MessageReader* reader) {
+     return false;
+ 
+   value_.clear();
+-  base::span<const uint8_t> bytes;
+-  if (!variant_reader.PopArrayOfBytes(&bytes)) {
++  const uint8_t* bytes = nullptr;
++  size_t length = 0;
++  if (!variant_reader.PopArrayOfBytes(&bytes, &length))
+     return false;
+-  }
+-  value_ = base::ToVector(bytes);
++  value_.assign(bytes, bytes + length);
+   return true;
+ }
+ 
+@@ -618,14 +623,14 @@ bool Property<std::vector<std::pair<std::vector<uint8_t>, uint16_t>>>::
+       return false;
+ 
+     std::pair<std::vector<uint8_t>, uint16_t> entry;
+-    base::span<const uint8_t> bytes;
+-    if (!struct_reader.PopArrayOfBytes(&bytes)) {
++    const uint8_t* bytes = nullptr;
++    size_t length = 0;
++    if (!struct_reader.PopArrayOfBytes(&bytes, &length))
+       return false;
+-    }
+-    entry.first = base::ToVector(bytes);
++    entry.first.assign(bytes, bytes + length);
+     if (!struct_reader.PopUint16(&entry.second))
+       return false;
+-    value_.push_back(std::move(entry));
++    value_.push_back(entry);
+   }
+   return true;
+ }
+@@ -672,22 +677,22 @@ bool Property<std::map<std::string, std::vector<uint8_t>>>::PopValueFromReader(
+     if (!entry_reader.PopString(&key))
+       return false;
+ 
+-    base::span<const uint8_t> bytes;
++    const uint8_t* bytes = nullptr;
++    size_t length = 0;
++
+     if (entry_reader.GetDataType() == Message::VARIANT) {
+       // Make BlueZ happy since it wraps the array of bytes with a variant.
+       MessageReader value_variant_reader(nullptr);
+       if (!entry_reader.PopVariant(&value_variant_reader))
+         return false;
+-      if (!value_variant_reader.PopArrayOfBytes(&bytes)) {
++      if (!value_variant_reader.PopArrayOfBytes(&bytes, &length))
+         return false;
+-      }
+     } else {
+-      if (!entry_reader.PopArrayOfBytes(&bytes)) {
++      if (!entry_reader.PopArrayOfBytes(&bytes, &length))
+         return false;
+-      }
+     }
+ 
+-    value_[key] = base::ToVector(bytes);
++    value_[key].assign(bytes, bytes + length);
+   }
+   return true;
+ }
+@@ -743,22 +748,22 @@ bool Property<std::map<uint16_t, std::vector<uint8_t>>>::PopValueFromReader(
+     if (!entry_reader.PopUint16(&key))
+       return false;
+ 
+-    base::span<const uint8_t> bytes;
++    const uint8_t* bytes = nullptr;
++    size_t length = 0;
++
+     if (entry_reader.GetDataType() == Message::VARIANT) {
+       // Make BlueZ happy since it wraps the array of bytes with a variant.
+       MessageReader value_variant_reader(nullptr);
+       if (!entry_reader.PopVariant(&value_variant_reader))
+         return false;
+-      if (!value_variant_reader.PopArrayOfBytes(&bytes)) {
++      if (!value_variant_reader.PopArrayOfBytes(&bytes, &length))
+         return false;
+-      }
+     } else {
+-      if (!entry_reader.PopArrayOfBytes(&bytes)) {
++      if (!entry_reader.PopArrayOfBytes(&bytes, &length))
+         return false;
+-      }
+     }
+ 
+-    value_[key] = base::ToVector(bytes);
++    value_[key].assign(bytes, bytes + length);
+   }
+   return true;
+ }
+-- 
+2.51.0.rc1.167.g924127e9c0-goog
+
