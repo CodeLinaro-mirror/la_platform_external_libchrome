@@ -29,9 +29,6 @@ BAD_KEYWORDS = {
     # removal of deprecated base::ThreadLocal(Pointer|Boolean) APIs
     r'base::(ThreadLocalBoolean|ThreadLocalPointer)':
     'Use `thread_local bool|T*` instead. See https://chromium.googlesource.com/chromium/src/+/main/styleguide/c++/c++.md#thread_local-variables for discussion. (b/274724518)',
-    # base::StringPiece will be deprecated and replaced by std:string_view.
-    r'(include.*base/strings/string_piece.h|base::StringPiece)':
-    'Use the now equivalent std::string_view (crrev.com/c/4294483). See upstream bug crbug.com/691162 for details.',
     # UMA_HISTOGRAM macros send their metrics into the void on CrOS.
     r'UMA_(?:STABILITY_){0,1}HISTOGRAM[_A-Z0-9]*\(': 'Chromium UMA macros don\'t work on CrOS. See crsrc.org/o/src/platform2/metrics/metrics_library.h if you want to collect metrics on CrOS.',
     # UmaHistogram functions send their metrics into the void on CrOS.
