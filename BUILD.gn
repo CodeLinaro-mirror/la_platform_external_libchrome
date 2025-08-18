@@ -846,6 +846,7 @@ libbase_sublibs = [
     name = "base-policy"
     deps = [ ":base-core" ]
     libs = [ "re2" ]
+    pkg_deps = [ "absl" ]
     configs = [ ":policy_export_config" ]
     sources = [
       "components/policy/core/common/json_schema_constants.cc",
@@ -893,6 +894,7 @@ if (use.crypto) {
         "pthread",
       ]
       pkg_deps = [
+        "absl",
         "nss",
         "openssl",
       ]
