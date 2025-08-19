@@ -1,0 +1,42 @@
+From 453ab5a02893e851eff62250f8fbdc494cf66117 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Wed, 20 Aug 2025 02:44:48 +0000
+Subject: [PATCH] Add missing includes for base/time/time.h
+
+To fix missing includes caused by
+- crrev.com/c/6853759
+- crrev.com/c/6847496
+
+Change-Id: I2150456463465581f75f84be401eaee2b13fe66d
+---
+ base/task/sequenced_task_runner.h | 1 +
+ base/threading/platform_thread.h  | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/base/task/sequenced_task_runner.h b/base/task/sequenced_task_runner.h
+index d000b4c479..9a908d1a6f 100644
+--- a/base/task/sequenced_task_runner.h
++++ b/base/task/sequenced_task_runner.h
+@@ -14,6 +14,7 @@
+ #include "base/task/delayed_task_handle.h"
+ #include "base/task/sequenced_task_runner_helpers.h"
+ #include "base/task/task_runner.h"
++#include "base/time/time.h"
+ #include "base/types/pass_key.h"
+ 
+ namespace actor {
+diff --git a/base/threading/platform_thread.h b/base/threading/platform_thread.h
+index 36f3b22ad9..5fbdba781c 100644
+--- a/base/threading/platform_thread.h
++++ b/base/threading/platform_thread.h
+@@ -20,6 +20,7 @@
+ #include "base/message_loop/message_pump_type.h"
+ #include "base/process/process_handle.h"
+ #include "base/threading/platform_thread_ref.h"
++#include "base/time/time.h"
+ #include "base/trace_event/base_tracing_forward.h"
+ #include "base/types/strong_alias.h"
+ #include "build/build_config.h"
+-- 
+2.51.0.rc1.167.g924127e9c0-goog
+
