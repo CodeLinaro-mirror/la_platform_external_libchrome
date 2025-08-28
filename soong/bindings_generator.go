@@ -110,7 +110,7 @@ func (m *mojomDowngradedFiles) GenerateAndroidBuildActions(ctx android.ModuleCon
 			Input:  in,
 			Output: out,
 			Args: map[string]string{
-				"outDir":  path.Dir(out.String()),
+				"outDir": path.Dir(out.String()),
 			},
 		})
 	}
@@ -153,6 +153,12 @@ type mojomPickles struct {
 	outDir        android.Path
 }
 
+type MojomPicklesInfo struct {
+	OutDir android.Path
+}
+
+var MojomPicklesInfoProvider = blueprint.NewProvider[MojomPicklesInfo]()
+
 var _ genrule.SourceFileGenerator = (*mojomPickles)(nil)
 
 func (m *mojomPickles) GenerateAndroidBuildActions(ctx android.ModuleContext) {
@@ -181,6 +187,10 @@ func (m *mojomPickles) GenerateAndroidBuildActions(ctx android.ModuleContext) {
 			},
 		})
 	}
+
+	android.SetProvider(ctx, MojomPicklesInfoProvider, MojomPicklesInfo{
+		OutDir: m.outDir,
+	})
 }
 
 func (m *mojomPickles) GeneratedHeaderDirs() android.Paths {
@@ -251,8 +261,13 @@ func (p *mojomGenerationProperties) flags(ctx android.ModuleContext) string {
 			ctx.PropertyErrorf("pickles", "not a module: %q", m)
 			continue
 		}
-		module := android.GetModuleFromPathDep(ctx, m, "").(*mojomPickles)
-		flags = append(flags, fmt.Sprintf("--gen_dir=%s", module.outDir.String()))
+		module := android.GetModuleProxyFromPathDep(ctx, m, "")
+		info, ok := android.OtherModuleProvider(ctx, module, MojomPicklesInfoProvider)
+		if !ok {
+			panic(fmt.Errorf("dependency %q is not a mojom_pickles module", ctx.OtherModuleName(module)))
+		}
+
+		flags = append(flags, fmt.Sprintf("--gen_dir=%s", info.OutDir.String()))
 	}
 	if p.Flags != "" {
 		flags = append(flags, p.Flags)
