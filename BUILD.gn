@@ -565,6 +565,7 @@ libbase_sublibs = [
       "base/metrics/crc32.cc",
       "base/metrics/dummy_histogram.cc",
       "base/metrics/field_trial.cc",
+      "base/metrics/field_trial_entry.cc",
       "base/metrics/field_trial_param_associator.cc",
       "base/metrics/field_trial_params.cc",
       "base/metrics/histogram.cc",

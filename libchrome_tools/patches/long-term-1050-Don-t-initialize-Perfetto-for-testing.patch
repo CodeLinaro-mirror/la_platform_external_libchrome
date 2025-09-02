@@ -10,30 +10,39 @@ in-process tracing service which isn't needed by production code.
 Change-Id: I99c002b6ee50fe237c2aa7dd4943949a4faad793
 patch-name: long-term-1050-Don-t-initialize-Perfetto-for-testing.patch
 ---
- base/trace_event/trace_log.cc | 3 +++
- 1 file changed, 3 insertions(+)
+ base/trace_event/trace_event_impl.cc | 4 ++++
+ 1 file changed, 4 insertions(+)
 
-diff --git a/base/trace_event/trace_log.cc b/base/trace_event/trace_log.cc
-index dd3b5dbe5e..eb1307e4d0 100644
---- a/base/trace_event/trace_log.cc
-+++ b/base/trace_event/trace_log.cc
-@@ -953,6 +953,8 @@ perfetto::DataSourceConfig TraceLog::GetCurrentTrackEventDataSourceConfig()
+diff --git a/base/trace_event/trace_event_impl.cc b/base/trace_event/trace_event_impl.cc
+index 71322477f2..e73ade4bbf 100644
+--- a/base/trace_event/trace_event_impl.cc
++++ b/base/trace_event/trace_event_impl.cc
+@@ -341,7 +341,9 @@ void TraceEvent::AppendPrettyPrinted(std::ostringstream* out) const {
  }
  
- void TraceLog::InitializePerfettoIfNeeded() {
-+  // Disable the code to initialize Perfetto for testing to save binary size.
+ void SetPerfettoInitializedForTesting() {
 +#if 0
-   // When we're using the Perfetto client library, only tests should be
-   // recording traces directly through TraceLog. Production code should instead
-   // use perfetto::Tracing::NewTrace(). Let's make sure the tracing service
-@@ -977,6 +979,7 @@ void TraceLog::InitializePerfettoIfNeeded() {
+   g_perfetto_initialized_for_testing = true;
++#endif
+ }
+ 
+ bool IsPerfettoInitializedForTesting() {
+@@ -349,6 +351,7 @@ bool IsPerfettoInitializedForTesting() {
+ }
+ 
+ void InitializeInProcessPerfettoBackend() {
++#if 0
+   perfetto::TracingInitArgs init_args;
+   init_args.backends = perfetto::BackendType::kInProcessBackend;
+   init_args.shmem_batch_commits_duration_ms = 1000;
+@@ -357,6 +360,7 @@ void InitializeInProcessPerfettoBackend() {
    init_args.disallow_merging_with_system_tracks = true;
    perfetto::Tracing::Initialize(init_args);
    TrackEvent::Register();
 +#endif
  }
  
- bool TraceLog::IsPerfettoInitializedByTraceLog() const {
+ }  // namespace base::trace_event
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.51.0.318.gd7df087d1a-goog
 
