@@ -49,6 +49,12 @@ std::atomic_bool g_is_reduce_ppms_enabled{false};
 
 // Alphabetical:
 
+// When enabled, the compositor threads (including GPU) will be boosted to
+// kInteractive when not in input or loading scenarios.
+BASE_FEATURE(kBoostCompositorThreadsPriorityWhenIdle,
+             "BoostCompositorThreadsPriorityWhenIdle",
+             FEATURE_DISABLED_BY_DEFAULT);
+
 // Controls caching within BASE_FEATURE_PARAM(). This is feature-controlled
 // so that ScopedFeatureList can disable it to turn off caching.
 BASE_FEATURE(kFeatureParamWithCache, FEATURE_ENABLED_BY_DEFAULT);
@@ -79,6 +85,8 @@ BASE_FEATURE_PARAM(int,
                    LOW_MEMORY_DEVICE_THRESHOLD_MB);
 
 BASE_FEATURE(kReducePPMs, FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kVariantMapUsesAbslFlatMap, FEATURE_DISABLED_BY_DEFAULT);
 
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS)
 // Force to enable LowEndDeviceMode partially on Android 3Gb devices.
@@ -123,6 +131,26 @@ BASE_FEATURE(kUpdateStateBeforeUnbinding, FEATURE_DISABLED_BY_DEFAULT);
 // Use shared service connection to rebind a service binding to update the LRU
 // in the ProcessList of OomAdjuster.
 BASE_FEATURE(kUseSharedRebindServiceConnection, FEATURE_ENABLED_BY_DEFAULT);
+
+// Use madvise MADV_WILLNEED to prefetch the native library. This replaces the
+// default mechanism of pre-reading the memory from a forked process.
+BASE_FEATURE(kLibraryPrefetcherMadvise, FEATURE_DISABLED_BY_DEFAULT);
+
+// If > 0, split the madvise range into chunks of this many bytes, rounded up to
+// a page size. The default of 1 therefore rounds to a whole page.
+BASE_FEATURE_PARAM(size_t,
+                   kLibraryPrefetcherMadviseLength,
+                   &kLibraryPrefetcherMadvise,
+                   "length",
+                   1);
+
+// Whether to fall back to the fork-and-read method if madvise is not supported.
+// Does not trigger fork-and-read if madvise failed during the actual prefetch.
+BASE_FEATURE_PARAM(bool,
+                   kLibraryPrefetcherMadviseFallback,
+                   &kLibraryPrefetcherMadvise,
+                   "fallback",
+                   true);
 #endif  // BUILDFLAG(IS_ANDROID)
 
 bool IsReducePPMsEnabled() {
