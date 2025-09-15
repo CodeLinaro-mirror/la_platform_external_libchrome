@@ -1,4 +1,4 @@
-From c67effc769a21fd01db70960d1d282f5e784663c Mon Sep 17 00:00:00 2001
+From 0e789180c814ff4baf919536ed0917dedc56a9e8 Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Mon, 8 Jul 2024 10:15:38 -0600
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
@@ -10,29 +10,33 @@ return nullptr (and handled by caller) instead of crashing as the
 original patch will do.
 
 This reverts commit 324e03c9fba0fd78a721524032eeac43c80dd1db.
-This partially reverts commit e558947377db0b8e4f66687fd3c272ab6c34963e
-(The UncheckedRealloc pieces).
+This partially reverts
+- commit e558947377db0b8e4f66687fd3c272ab6c34963e
+  (The UncheckedRealloc pieces).
+- commit 189a4b53310663b54cebbe1f0fd96dfa0667aef5
+  (The UncheckedCalloc pieces and manually added `__libc_calloc`).
 
-patch-name: long-term-1100-Revert-base-allocator-Support-max-alloc-size-with-us.patch
 Change-Id: If83feeb40d469d4f91e5f13255b96d5a986a459a
+patch-name: long-term-1100-Revert-base-allocator-Support-max-alloc-size-with-us.patch
 ---
- ...llocator_shim_default_dispatch_to_glibc.cc | 46 +------------------
- 1 file changed, 2 insertions(+), 44 deletions(-)
+ ...llocator_shim_default_dispatch_to_glibc.cc | 57 +------------------
+ base/process/memory_linux.cc                  |  1 +
+ 2 files changed, 4 insertions(+), 54 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
-index 699d98da76..bdcf15e6ca 100644
+index b032eae581..298e18dada 100644
 --- a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
-@@ -2,8 +2,6 @@
- // Use of this source code is governed by a BSD-style license that can be
- // found in the LICENSE file.
+@@ -10,8 +10,6 @@
+ #include <dlfcn.h>
+ #include <malloc.h>
  
 -#include <limits>
 -
  #include "partition_alloc/oom.h"
  #include "partition_alloc/partition_alloc_base/compiler_specific.h"
  #include "partition_alloc/partition_alloc_base/numerics/checked_math.h"
-@@ -28,59 +26,19 @@ namespace {
+@@ -33,68 +31,19 @@ namespace {
  
  using allocator_shim::AllocatorDispatch;
  
@@ -65,6 +69,15 @@ index 699d98da76..bdcf15e6ca 100644
 -    partition_alloc::TerminateBecauseOutOfMemory(size * n);
 -  }
 -
+-  return __libc_calloc(n, size);
+-}
+-
+-void* GlibcUncheckedCalloc(size_t n, size_t size, void* context) {
+-  const auto total = partition_alloc::internal::base::CheckMul(n, size);
+-  if (!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize) [[unlikely]] {
+-    return nullptr;
+-  }
+-
    return __libc_calloc(n, size);
  }
  
@@ -92,20 +105,34 @@ index 699d98da76..bdcf15e6ca 100644
    return __libc_memalign(alignment, size);
  }
  
-@@ -106,11 +64,11 @@ size_t GlibcGetSizeEstimate(void* address, void* context) {
+@@ -135,12 +84,12 @@ size_t GlibcGetSizeEstimate(void* address, void* context) {
  
  const AllocatorDispatch AllocatorDispatch::default_dispatch = {
      &GlibcMalloc,           /* alloc_function */
 -    &GlibcUncheckedMalloc,  /* alloc_unchecked_function */
 +    &GlibcMalloc,           /* alloc_unchecked_function */
      &GlibcCalloc,           /* alloc_zero_initialized_function */
+-    &GlibcUncheckedCalloc,  /* alloc_zero_initialized_unchecked_function */
++    &GlibcCalloc,           /* alloc_zero_initialized_unchecked_function */
      &GlibcMemalign,         /* alloc_aligned_function */
      &GlibcRealloc,          /* realloc_function */
 -    &GlibcUncheckedRealloc, /* realloc_unchecked_function */
 +    &GlibcRealloc,          /* realloc_unchecked_function */
      &GlibcFree,             /* free_function */
-     &GlibcGetSizeEstimate,  /* get_size_estimate_function */
-     nullptr,                /* good_size_function */
+     GlibcFreeWithSize,      /* free_with_size_function */
+     GlibcFreeWithAlignment,
+diff --git a/base/process/memory_linux.cc b/base/process/memory_linux.cc
+index 4d1b7e7d5e..214c6f7e74 100644
+--- a/base/process/memory_linux.cc
++++ b/base/process/memory_linux.cc
+@@ -22,6 +22,7 @@
+ #elif !defined(MEMORY_TOOL_REPLACES_ALLOCATOR) && defined(LIBC_GLIBC)
+ extern "C" {
+ void* __libc_malloc(size_t);
++void* __libc_calloc(size_t, size_t);
+ void __libc_free(void*);
+ }
+ #endif
 -- 
-2.46.0.76.ge559c4bf1a-goog
+2.51.0.534.gc79095c0ca-goog
 
