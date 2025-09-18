@@ -1190,10 +1190,8 @@ if (use.mojo) {
   #   disallow_interfaces = true
   # }
 
-  if (use.ipcz) {
-    pkg_config("mojo-ipcz-pkg-config") {
-      pkg_deps = [ "absl" ]
-    }
+  pkg_config("mojo-dependencies") {
+    pkg_deps = [ "absl" ]
   }
 
   # Probably we should consider build libmojo as a part of libchrome.
@@ -1216,6 +1214,7 @@ if (use.mojo) {
       ":libchrome_config",
       ":mojo_export_config",
       "//common-mk:visibility_default",
+      ":mojo-dependencies",
     ]
 
     sources =
@@ -1353,7 +1352,6 @@ if (use.mojo) {
     }
 
     if (use.ipcz) {
-      configs += [ ":mojo-ipcz-pkg-config" ]
       cflags = [ "-Wno-invalid-offsetof" ]
 
       sources += [
