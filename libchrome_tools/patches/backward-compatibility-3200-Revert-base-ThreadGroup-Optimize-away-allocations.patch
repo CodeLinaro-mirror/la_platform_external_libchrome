@@ -1,0 +1,63 @@
+From 176da08bc50141776330f83c42baa7d0f378b1bd Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Tue, 23 Sep 2025 15:09:56 -0600
+Subject: [PATCH] Revert "base: ThreadGroup: Optimize away allocations"
+
+This reverts commit 1c2ba778ef45c5290d19bce1c7f2e7a27e21287f.
+---
+ base/task/thread_pool/thread_group.cc      | 4 +---
+ base/task/thread_pool/thread_group.h       | 2 +-
+ base/task/thread_pool/thread_group_impl.cc | 2 +-
+ 3 files changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/base/task/thread_pool/thread_group.cc b/base/task/thread_pool/thread_group.cc
+index 93dfd5fe72..30ba510307 100644
+--- a/base/task/thread_pool/thread_group.cc
++++ b/base/task/thread_pool/thread_group.cc
+@@ -11,7 +11,6 @@
+ #include "base/check.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+-#include "base/strings/stringprintf.h"
+ #include "base/task/task_features.h"
+ #include "base/task/thread_pool/task_tracker.h"
+ #include "build/build_config.h"
+@@ -128,8 +127,7 @@ ThreadGroup::ThreadGroup(std::string_view histogram_label,
+                          TrackedRef<Delegate> delegate)
+     : task_tracker_(std::move(task_tracker)),
+       delegate_(std::move(delegate)),
+-      unnecessary_wakeup_histogram_label_(
+-          StringPrintf("ThreadPool.UnnecessaryWakeup.%s", histogram_label)),
++      histogram_label_(histogram_label),
+       thread_group_label_(thread_group_label),
+       thread_type_hint_(thread_type_hint),
+       idle_workers_set_cv_for_testing_(lock_.CreateConditionVariable()) {
+diff --git a/base/task/thread_pool/thread_group.h b/base/task/thread_pool/thread_group.h
+index 3c4408b510..7115d8a628 100644
+--- a/base/task/thread_pool/thread_group.h
++++ b/base/task/thread_pool/thread_group.h
+@@ -476,7 +476,7 @@ class BASE_EXPORT ThreadGroup {
+   std::atomic<YieldSortKey> max_allowed_sort_key_ GUARDED_BY(lock_){
+       kMaxYieldSortKey};
+ 
+-  const std::string unnecessary_wakeup_histogram_label_;
++  const std::string histogram_label_;
+   const std::string thread_group_label_;
+   const ThreadType thread_type_hint_;
+ 
+diff --git a/base/task/thread_pool/thread_group_impl.cc b/base/task/thread_pool/thread_group_impl.cc
+index 28d7efb9c0..7e751480f3 100644
+--- a/base/task/thread_pool/thread_group_impl.cc
++++ b/base/task/thread_pool/thread_group_impl.cc
+@@ -646,7 +646,7 @@ void ThreadGroupImpl::WorkerDelegate::RecordUnnecessaryWakeup() {
+   DCHECK_CALLED_ON_VALID_THREAD(worker_thread_checker_);
+ 
+   base::BooleanHistogram::FactoryGet(
+-      outer_->unnecessary_wakeup_histogram_label_,
++      std::string("ThreadPool.UnnecessaryWakeup.") + outer_->histogram_label_,
+       base::Histogram::kUmaTargetedHistogramFlag)
+       ->Add(true);
+ 
+-- 
+2.51.0.534.gc79095c0ca-goog
+

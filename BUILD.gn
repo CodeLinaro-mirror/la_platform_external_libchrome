@@ -1221,7 +1221,6 @@ if (use.mojo) {
         [
           "ipc/ipc_message.cc",
           "ipc/ipc_message_attachment_set.cc",
-          "ipc/native_handle_type_converters.cc",
           "mojo/core/broker_host.cc",
           "mojo/core/broker_posix.cc",
           "mojo/core/channel.cc",
@@ -1272,6 +1271,7 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/message_dispatcher.cc",
           "mojo/public/cpp/bindings/lib/message_header_validator.cc",
           "mojo/public/cpp/bindings/lib/message_internal.cc",
+          "mojo/public/cpp/bindings/lib/native_handle_type_converters.cc",
           "mojo/public/cpp/bindings/lib/multiplex_router.cc",
           "mojo/public/cpp/bindings/lib/pending_receiver_state.cc",
           "mojo/public/cpp/bindings/lib/pending_remote_state.cc",
