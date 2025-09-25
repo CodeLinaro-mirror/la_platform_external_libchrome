@@ -639,6 +639,7 @@ libbase_sublibs = [
       "base/rand_util_posix.cc",
       "base/run_loop.cc",
       "base/sampling_heap_profiler/lock_free_address_hash_set.cc",
+      "base/sampling_heap_profiler/lock_free_bloom_filter.cc",
       "base/sampling_heap_profiler/poisson_allocation_sampler.cc",
       "base/scoped_native_library.cc",
       "base/sequence_checker.cc",
