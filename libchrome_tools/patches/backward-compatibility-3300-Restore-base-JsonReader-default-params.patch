@@ -1,21 +1,29 @@
-From c6321e19b39a53fc392914741e92f0a185c28225 Mon Sep 17 00:00:00 2001
+From 20c593951449ecccd1b57781c9385f645b213436 Mon Sep 17 00:00:00 2001
 From: Ryo Hashimoto <hashimoto@chromium.org>
-Date: Tue, 30 Sep 2025 17:07:45 +0900
+Date: Thu, 2 Oct 2025 17:00:23 +0900
 Subject: [PATCH] Restore base::JsonReader default params
 
 This is essentially a revert of crrev.com/c/6980536 and
 crrev.com/c/6987337
 
-Change-Id: I314dfc4116d510069e7a2e5c3ed1b1fdc09f6397
+Change-Id: If90bd12878868300d8c57bc04d43c98e9fd79a89
 ---
- base/json/json_reader.h | 6 ++++--
- 1 file changed, 4 insertions(+), 2 deletions(-)
+ base/json/json_reader.h | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
 
 diff --git a/base/json/json_reader.h b/base/json/json_reader.h
-index d0cab4f5b2..1b00a3054b 100644
+index a3229c425b..1b00a3054b 100644
 --- a/base/json/json_reader.h
 +++ b/base/json/json_reader.h
-@@ -112,7 +112,7 @@ class BASE_EXPORT JSONReader {
+@@ -105,14 +105,14 @@ class BASE_EXPORT JSONReader {
+   // If |json| is not a properly formed JSON string, returns std::nullopt.
+   static std::optional<Value> Read(
+       std::string_view json,
+-      int options,
++      int options = JSON_PARSE_CHROMIUM_EXTENSIONS,
+       size_t max_depth = internal::kAbsoluteMaxDepth);
+ 
+   // Reads and parses |json|, returning a Value::Dict.
    // If |json| is not a properly formed JSON dict string, returns std::nullopt.
    static std::optional<Value::Dict> ReadDict(
        std::string_view json,
@@ -36,5 +44,5 @@ index d0cab4f5b2..1b00a3054b 100644
  
  }  // namespace base
 -- 
-2.51.0.570.gb178f27e6d-goog
+2.51.0.618.g983fd99d29-goog
 

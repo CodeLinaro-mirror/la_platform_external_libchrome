@@ -31,8 +31,6 @@ import org.junit.rules.ExternalResource;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.test.util.ApplicationTestUtils;
-import org.chromium.base.test.util.Criteria;
-import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.ui.KeyboardUtils;
 
 import java.util.EnumSet;
@@ -139,23 +137,9 @@ public class BaseActivityTestRule<T extends Activity> extends ExternalResource {
         if (activity != null) {
             View decorView = activity.getWindow().getDecorView();
             if (KeyboardUtils.isAndroidSoftKeyboardShowing(decorView)) {
-                hideSoftKeyboardAndWaitForHidden(decorView);
-
-                Log.w(
-                        TAG,
-                        "Soft keyboard should not be showing at the end of a test. Hid it for"
-                                + " subsequent tests.");
+                Log.w(TAG, "Soft keyboard should not be showing at the end of a test.");
             }
         }
-    }
-
-    /** Hides the soft keyboard and waits for it to be hidden. */
-    public void hideSoftKeyboardAndWaitForHidden(View view) {
-        KeyboardUtils.hideAndroidSoftKeyboard(view);
-        CriteriaHelper.pollInstrumentationThread(
-                () -> {
-                    Criteria.checkThat(KeyboardUtils.isAndroidSoftKeyboardShowing(view), is(false));
-                });
     }
 
     /**
