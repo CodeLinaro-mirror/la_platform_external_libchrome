@@ -31,11 +31,6 @@ chromeos {
         project: "chromeos/config-internal"
         path: "test/plans/v2/ctpv1_compatible/legacy_default_vm.star"
       }
-      test_plan_starlark_files {
-        host: "chrome-internal.googlesource.com"
-        project: "chromeos/config-internal"
-        path: "test/plans/v2/ctpv1_compatible/fingerprint_cq.star"
-      }
       # Skip testing on developer-tools.
       path_regexp_excludes: "libchrome_tools/developer-tools/.*"
     }
