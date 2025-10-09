@@ -1,0 +1,48 @@
+From 20c593951449ecccd1b57781c9385f645b213436 Mon Sep 17 00:00:00 2001
+From: Ryo Hashimoto <hashimoto@chromium.org>
+Date: Thu, 2 Oct 2025 17:00:23 +0900
+Subject: [PATCH] Restore base::JsonReader default params
+
+This is essentially a revert of crrev.com/c/6980536 and
+crrev.com/c/6987337
+
+Change-Id: If90bd12878868300d8c57bc04d43c98e9fd79a89
+---
+ base/json/json_reader.h | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/base/json/json_reader.h b/base/json/json_reader.h
+index a3229c425b..1b00a3054b 100644
+--- a/base/json/json_reader.h
++++ b/base/json/json_reader.h
+@@ -105,14 +105,14 @@ class BASE_EXPORT JSONReader {
+   // If |json| is not a properly formed JSON string, returns std::nullopt.
+   static std::optional<Value> Read(
+       std::string_view json,
+-      int options,
++      int options = JSON_PARSE_CHROMIUM_EXTENSIONS,
+       size_t max_depth = internal::kAbsoluteMaxDepth);
+ 
+   // Reads and parses |json|, returning a Value::Dict.
+   // If |json| is not a properly formed JSON dict string, returns std::nullopt.
+   static std::optional<Value::Dict> ReadDict(
+       std::string_view json,
+-      int options,
++      int options = JSON_PARSE_CHROMIUM_EXTENSIONS,
+       size_t max_depth = internal::kAbsoluteMaxDepth);
+ 
+   // Reads and parses |json|, returning a Value::List.
+@@ -126,7 +126,9 @@ class BASE_EXPORT JSONReader {
+   // expected value. Otherwise, it returns an Error instance, populated with a
+   // formatted error message, an error code, and the error location if
+   // appropriate as the error value of the expected type.
+-  static Result ReadAndReturnValueWithError(std::string_view json, int options);
++  static Result ReadAndReturnValueWithError(
++      std::string_view json,
++      int options = JSON_PARSE_CHROMIUM_EXTENSIONS);
+ };
+ 
+ }  // namespace base
+-- 
+2.51.0.618.g983fd99d29-goog
+
