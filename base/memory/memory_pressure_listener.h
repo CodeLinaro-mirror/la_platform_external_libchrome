@@ -19,6 +19,7 @@
 #include "base/memory/memory_pressure_level.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/observer_list_types.h"
 #include "base/sequence_checker.h"
 #include "base/threading/thread_checker.h"
 
@@ -110,6 +111,31 @@ enum class MemoryPressureListenerTag {
 //    // Stop listening.
 //    listener.reset();
 
+class BASE_EXPORT MemoryPressureListener : public CheckedObserver {
+ public:
+  // Intended for use by the platform specific implementation.
+  // Note: This simply forwards the call to MemoryPressureListenerRegistry to
+  // avoid the need to refactor the whole codebase.
+  static void NotifyMemoryPressure(MemoryPressureLevel memory_pressure_level);
+
+  // These methods should not be used anywhere else but in memory measurement
+  // code, where they are intended to maintain stable conditions across
+  // measurements.
+  // Note: This simply forwards the call to MemoryPressureListenerRegistry to
+  // avoid the need to refactor the whole codebase.
+  static bool AreNotificationsSuppressed();
+  static void SetNotificationsSuppressed(bool suppressed);
+  static void SimulatePressureNotification(
+      MemoryPressureLevel memory_pressure_level);
+  // Invokes `SimulatePressureNotification` asynchronously on the main thread,
+  // ensuring that any pending registration tasks have completed by the time it
+  // runs.
+  static void SimulatePressureNotificationAsync(
+      MemoryPressureLevel memory_pressure_level);
+
+  virtual void OnMemoryPressure(MemoryPressureLevel memory_pressure_level) = 0;
+};
+
 // Used for listeners that live on the main thread and must be called
 // synchronously. Prefer using MemoryPressureListenerRegistration as this will
 // eventually be removed.
@@ -117,9 +143,16 @@ class BASE_EXPORT SyncMemoryPressureListenerRegistration {
  public:
   using MemoryPressureCallback = RepeatingCallback<void(MemoryPressureLevel)>;
 
-  explicit SyncMemoryPressureListenerRegistration(
+  // Constructor using a callback.
+  // DEPRECATED. Use the MemoryPressureListener interface.
+  SyncMemoryPressureListenerRegistration(
       MemoryPressureListenerTag tag,
       MemoryPressureCallback memory_pressure_callback);
+
+  // Constructor using the MemoryPressureListener interface.
+  SyncMemoryPressureListenerRegistration(
+      MemoryPressureListenerTag,
+      MemoryPressureListener* memory_pressure_listener);
 
   SyncMemoryPressureListenerRegistration(
       const SyncMemoryPressureListenerRegistration&) = delete;
@@ -133,10 +166,10 @@ class BASE_EXPORT SyncMemoryPressureListenerRegistration {
   MemoryPressureListenerTag tag() { return tag_; }
 
  private:
+  MemoryPressureListenerTag tag_;
+
   MemoryPressureCallback memory_pressure_callback_
       GUARDED_BY_CONTEXT(thread_checker_);
-
-  MemoryPressureListenerTag tag_;
 
   THREAD_CHECKER(thread_checker_);
 };
@@ -147,10 +180,18 @@ class BASE_EXPORT AsyncMemoryPressureListenerRegistration {
  public:
   using MemoryPressureCallback = RepeatingCallback<void(MemoryPressureLevel)>;
 
+  // Constructor using a callback.
+  // DEPRECATED. Use the MemoryPressureListener interface.
   AsyncMemoryPressureListenerRegistration(
       const base::Location& creation_location,
       MemoryPressureListenerTag tag,
       MemoryPressureCallback memory_pressure_callback);
+
+  // Constructor using the MemoryPressureListener interface.
+  AsyncMemoryPressureListenerRegistration(
+      const base::Location& creation_location,
+      MemoryPressureListenerTag tag,
+      MemoryPressureListener* memory_pressure_listener);
 
   AsyncMemoryPressureListenerRegistration(
       const AsyncMemoryPressureListenerRegistration&) = delete;
@@ -190,10 +231,18 @@ class BASE_EXPORT MemoryPressureListenerRegistration {
  public:
   using MemoryPressureCallback = RepeatingCallback<void(MemoryPressureLevel)>;
 
+  // Constructor using a callback.
+  // DEPRECATED. Use the MemoryPressureListener interface.
   MemoryPressureListenerRegistration(
       const Location& creation_location,
       MemoryPressureListenerTag tag,
       MemoryPressureCallback memory_pressure_callback);
+
+  // Constructor using the MemoryPressureListener interface.
+  MemoryPressureListenerRegistration(
+      const Location& creation_location,
+      MemoryPressureListenerTag tag,
+      MemoryPressureListener* memory_pressure_listener);
 
   MemoryPressureListenerRegistration(
       const MemoryPressureListenerRegistration&) = delete;
@@ -202,36 +251,11 @@ class BASE_EXPORT MemoryPressureListenerRegistration {
 
   ~MemoryPressureListenerRegistration();
 
-  // Intended for use by the platform specific implementation.
-  // Note: This simply forwards the call to MemoryPressureListenerRegistry to
-  // avoid the need to refactor the whole codebase.
-  static void NotifyMemoryPressure(MemoryPressureLevel memory_pressure_level);
-
-  // These methods should not be used anywhere else but in memory measurement
-  // code, where they are intended to maintain stable conditions across
-  // measurements.
-  // Note: This simply forwards the call to MemoryPressureListenerRegistry to
-  // avoid the need to refactor the whole codebase.
-  static bool AreNotificationsSuppressed();
-  static void SetNotificationsSuppressed(bool suppressed);
-  static void SimulatePressureNotification(
-      MemoryPressureLevel memory_pressure_level);
-  // Invokes `SimulatePressureNotification` asynchronously on the main thread,
-  // ensuring that any pending registration tasks have completed by the time it
-  // runs.
-  static void SimulatePressureNotificationAsync(
-      MemoryPressureLevel memory_pressure_level);
-
  private:
   std::variant<SyncMemoryPressureListenerRegistration,
                AsyncMemoryPressureListenerRegistration>
       listener_;
 };
-
-// TODO(pmonette): Remove those typedefs.
-using MemoryPressureListener = MemoryPressureListenerRegistration;
-using SyncMemoryPressureListener = SyncMemoryPressureListenerRegistration;
-using AsyncMemoryPressureListener = AsyncMemoryPressureListenerRegistration;
 
 }  // namespace base
 

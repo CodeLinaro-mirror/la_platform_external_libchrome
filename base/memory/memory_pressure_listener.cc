@@ -50,15 +50,55 @@ CreateMemoryPressureListenerRegistrationImpl(
 
 }  // namespace
 
+// MemoryPressureListener ------------------------------------------------------
+
+// static
+void MemoryPressureListener::NotifyMemoryPressure(
+    MemoryPressureLevel memory_pressure_level) {
+  MemoryPressureListenerRegistry::NotifyMemoryPressure(memory_pressure_level);
+}
+
+// static
+bool MemoryPressureListener::AreNotificationsSuppressed() {
+  return MemoryPressureListenerRegistry::AreNotificationsSuppressed();
+}
+
+// static
+void MemoryPressureListener::SetNotificationsSuppressed(bool suppressed) {
+  MemoryPressureListenerRegistry::SetNotificationsSuppressed(suppressed);
+}
+
+// static
+void MemoryPressureListener::SimulatePressureNotification(
+    MemoryPressureLevel memory_pressure_level) {
+  MemoryPressureListenerRegistry::SimulatePressureNotification(
+      memory_pressure_level);
+}
+
+// static
+void MemoryPressureListener::SimulatePressureNotificationAsync(
+    MemoryPressureLevel memory_pressure_level) {
+  MemoryPressureListenerRegistry::SimulatePressureNotificationAsync(
+      memory_pressure_level);
+}
+
 // SyncMemoryPressureListenerRegistration --------------------------------------
 
 SyncMemoryPressureListenerRegistration::SyncMemoryPressureListenerRegistration(
     MemoryPressureListenerTag tag,
     MemoryPressureCallback memory_pressure_callback)
-    : memory_pressure_callback_(std::move(memory_pressure_callback)),
-      tag_(tag) {
+    : tag_(tag),
+      memory_pressure_callback_(std::move(memory_pressure_callback)) {
   MemoryPressureListenerRegistry::Get().AddObserver(this);
 }
+
+SyncMemoryPressureListenerRegistration::SyncMemoryPressureListenerRegistration(
+    MemoryPressureListenerTag tag,
+    MemoryPressureListener* memory_pressure_listener)
+    : SyncMemoryPressureListenerRegistration(
+          tag,
+          base::BindRepeating(&MemoryPressureListener::OnMemoryPressure,
+                              base::Unretained(memory_pressure_listener))) {}
 
 SyncMemoryPressureListenerRegistration::
     ~SyncMemoryPressureListenerRegistration() {
@@ -135,6 +175,17 @@ AsyncMemoryPressureListenerRegistration::
 }
 
 AsyncMemoryPressureListenerRegistration::
+    AsyncMemoryPressureListenerRegistration(
+        const base::Location& creation_location,
+        MemoryPressureListenerTag tag,
+        MemoryPressureListener* memory_pressure_listener)
+    : AsyncMemoryPressureListenerRegistration(
+          creation_location,
+          tag,
+          base::BindRepeating(&MemoryPressureListener::OnMemoryPressure,
+                              base::Unretained(memory_pressure_listener))) {}
+
+AsyncMemoryPressureListenerRegistration::
     ~AsyncMemoryPressureListenerRegistration() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   if (main_thread_) {
@@ -175,38 +226,17 @@ MemoryPressureListenerRegistration::MemoryPressureListenerRegistration(
           tag,
           std::move(memory_pressure_callback))) {}
 
+MemoryPressureListenerRegistration::MemoryPressureListenerRegistration(
+    const Location& creation_location,
+    MemoryPressureListenerTag tag,
+    MemoryPressureListener* memory_pressure_listener)
+    : MemoryPressureListenerRegistration(
+          creation_location,
+          tag,
+          base::BindRepeating(&MemoryPressureListener::OnMemoryPressure,
+                              base::Unretained(memory_pressure_listener))) {}
+
 MemoryPressureListenerRegistration::~MemoryPressureListenerRegistration() =
     default;
-
-// static
-void MemoryPressureListenerRegistration::NotifyMemoryPressure(
-    MemoryPressureLevel memory_pressure_level) {
-  MemoryPressureListenerRegistry::NotifyMemoryPressure(memory_pressure_level);
-}
-
-// static
-bool MemoryPressureListenerRegistration::AreNotificationsSuppressed() {
-  return MemoryPressureListenerRegistry::AreNotificationsSuppressed();
-}
-
-// static
-void MemoryPressureListenerRegistration::SetNotificationsSuppressed(
-    bool suppressed) {
-  MemoryPressureListenerRegistry::SetNotificationsSuppressed(suppressed);
-}
-
-// static
-void MemoryPressureListenerRegistration::SimulatePressureNotification(
-    MemoryPressureLevel memory_pressure_level) {
-  MemoryPressureListenerRegistry::SimulatePressureNotification(
-      memory_pressure_level);
-}
-
-// static
-void MemoryPressureListenerRegistration::SimulatePressureNotificationAsync(
-    MemoryPressureLevel memory_pressure_level) {
-  MemoryPressureListenerRegistry::SimulatePressureNotificationAsync(
-      memory_pressure_level);
-}
 
 }  // namespace base
