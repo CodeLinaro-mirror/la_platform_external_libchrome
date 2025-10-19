@@ -1,10 +1,12 @@
-From 0129922f9d5fa0b0f26eae74295722da4ea988e2 Mon Sep 17 00:00:00 2001
+From 8ce03c29df37690f94ccb1453e4163ad02ba7c9a Mon Sep 17 00:00:00 2001
 From: Jae Hoon Kim <kimjae@chromium.org>
 Date: Tue, 5 Aug 2025 22:33:18 -0700
 Subject: [PATCH] Revert "Remove deprecated
  dbus::ObjectProxy::CallMethodWithErrorCallback()"
 
 This reverts commit 207bf344b4a84e3bfacf3cd2dfe9d2844d22d6b7.
+
+Change-Id: Ib4d53c9370e72ff90526f08a840679ec792cb02a
 ---
  dbus/end_to_end_async_unittest.cc | 40 +++++++++++++------------------
  dbus/mock_object_proxy.cc         |  9 +++++++
@@ -149,12 +151,12 @@ index 823370234a..5811621cca 100644
  
    // Should fail because of the invalid bus name.
 diff --git a/dbus/mock_object_proxy.cc b/dbus/mock_object_proxy.cc
-index a4363c6b17..a108ae7134 100644
+index 81c537eccc..ee12d4f3ce 100644
 --- a/dbus/mock_object_proxy.cc
 +++ b/dbus/mock_object_proxy.cc
-@@ -27,6 +27,15 @@ void MockObjectProxy::CallMethodWithErrorResponse(
-   DoCallMethodWithErrorResponse(method_call, timeout_ms, &callback);
- }
+@@ -14,4 +14,13 @@ MockObjectProxy::MockObjectProxy(Bus* bus,
+ 
+ MockObjectProxy::~MockObjectProxy() = default;
  
 +void MockObjectProxy::CallMethodWithErrorCallback(
 +    MethodCall* method_call,
@@ -165,16 +167,14 @@ index a4363c6b17..a108ae7134 100644
 +                                &error_callback);
 +}
 +
- void MockObjectProxy::WaitForServiceToBeAvailable(
-     WaitForServiceToBeAvailableCallback callback) {
-   DoWaitForServiceToBeAvailable(&callback);
+ }  // namespace dbus
 diff --git a/dbus/mock_object_proxy.h b/dbus/mock_object_proxy.h
-index 03a0ad0967..9731ee502e 100644
+index 37b7e26301..f6ef0496aa 100644
 --- a/dbus/mock_object_proxy.h
 +++ b/dbus/mock_object_proxy.h
-@@ -51,6 +51,19 @@ class MockObjectProxy : public ObjectProxy {
+@@ -39,6 +39,19 @@ class MockObjectProxy : public ObjectProxy {
                      int timeout_ms,
-                     ResponseOrErrorCallback* callback));
+                     ResponseOrErrorCallback callback));
  
 +  // This method is not mockable because it takes a move-only argument. To work
 +  // around this, CallMethodWithErrorCallback() implementation here calls
@@ -189,9 +189,9 @@ index 03a0ad0967..9731ee502e 100644
 +                    ResponseCallback* callback,
 +                    ErrorCallback* error_callback));
 +
-   // This method is not mockable because it takes a move-only argument. To work
-   // around this, WaitForServiceToBeAvailable() implementation here calls
-   // DoWaitForServiceToBeAvailable() which is mockable.
+   MOCK_METHOD1(WaitForServiceToBeAvailable,
+                void(WaitForServiceToBeAvailableCallback callback));
+ 
 diff --git a/dbus/object_proxy.cc b/dbus/object_proxy.cc
 index ae389f8970..64171f23a4 100644
 --- a/dbus/object_proxy.cc
@@ -253,5 +253,5 @@ index 18b1ca0e8c..31fddb06f6 100644
    //
    // |signal_callback| will be called in the origin thread, when the
 -- 
-2.50.1.565.gc32cd1483b-goog
+2.51.0.858.gf9c4a03a3a-goog
 

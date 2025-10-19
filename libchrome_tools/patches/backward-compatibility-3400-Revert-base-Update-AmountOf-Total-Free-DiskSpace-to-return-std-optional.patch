@@ -1,0 +1,80 @@
+From 5bd47193962f87bf2ce1b4fe141f85ded2e7f530 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Tue, 21 Oct 2025 00:38:59 +0000
+Subject: [PATCH] Revert "[base] Update AmountOf{Total,Free}DiskSpace to return
+ std::optional"
+
+This reverts commit 72ae3f53fa7eff54876c585cd2e4bcbc3bd74068.
+---
+ base/system/sys_info.h        | 10 +++++-----
+ base/system/sys_info_posix.cc | 10 ++++------
+ 2 files changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/base/system/sys_info.h b/base/system/sys_info.h
+index ee505b91fb..9950658487 100644
+--- a/base/system/sys_info.h
++++ b/base/system/sys_info.h
+@@ -91,14 +91,14 @@ class BASE_EXPORT SysInfo {
+   static ByteCount AmountOfVirtualMemory();
+ 
+   // Return the available disk space in bytes on the volume containing |path|,
+-  // or nullopt on failure.
++  // or -1 on failure.
+   // TODO(crbug.com/429140103): Convert the return type to ByteCount.
+-  static std::optional<int64_t> AmountOfFreeDiskSpace(const FilePath& path);
++  static int64_t AmountOfFreeDiskSpace(const FilePath& path);
+ 
+-  // Return the total disk space in bytes on the volume containing |path|, or
+-  // nullopt on failure.
++  // Return the total disk space in bytes on the volume containing |path|, or -1
++  // on failure.
+   // TODO(crbug.com/429140103): Convert the return type to ByteCount.
+-  static std::optional<int64_t> AmountOfTotalDiskSpace(const FilePath& path);
++  static int64_t AmountOfTotalDiskSpace(const FilePath& path);
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+   // On ChromeOS, spaced is the central source-of-truth for disk space
+diff --git a/base/system/sys_info_posix.cc b/base/system/sys_info_posix.cc
+index a897170804..0adb9f90fa 100644
+--- a/base/system/sys_info_posix.cc
++++ b/base/system/sys_info_posix.cc
+@@ -209,7 +209,7 @@ ByteCount SysInfo::AmountOfVirtualMemory() {
+ }
+ 
+ // static
+-std::optional<int64_t> SysInfo::AmountOfFreeDiskSpace(const FilePath& path) {
++int64_t SysInfo::AmountOfFreeDiskSpace(const FilePath& path) {
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -220,14 +220,13 @@ std::optional<int64_t> SysInfo::AmountOfFreeDiskSpace(const FilePath& path) {
+ 
+   int64_t available;
+   if (!GetDiskSpaceInfo(path, &available, nullptr)) {
+-    return std::nullopt;
++    return -1;
+   }
+-  CHECK(available >= 0, base::NotFatalUntil::M150);
+   return available;
+ }
+ 
+ // static
+-std::optional<int64_t> SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
++int64_t SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
+   base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                 base::BlockingType::MAY_BLOCK);
+ 
+@@ -239,9 +238,8 @@ std::optional<int64_t> SysInfo::AmountOfTotalDiskSpace(const FilePath& path) {
+ 
+   int64_t total;
+   if (!GetDiskSpaceInfo(path, nullptr, &total)) {
+-    return std::nullopt;
++    return -1;
+   }
+-  CHECK(total >= 0, base::NotFatalUntil::M150);
+   return total;
+ }
+ 
+-- 
+2.51.0.869.ge66316f041-goog
+

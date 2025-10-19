@@ -1,0 +1,156 @@
+From f4a89a6289a32cc1fa8df8c110ab2bc402a01eee Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Mon, 20 Oct 2025 05:21:42 +0000
+Subject: [PATCH] Revert "Remove Do* Methods in MockObjectProxy"
+
+This reverts commit 42d69598b9e505798a55a8b569ce4953afb3e3ea.
+
+Change-Id: I50ba164cbc78a31978d803ec799cf15ed81a5246
+---
+ dbus/mock_object_proxy.cc | 27 ++++++++++++++++++++++++++
+ dbus/mock_object_proxy.h  | 40 +++++++++++++++++++++++++++++++--------
+ dbus/mock_unittest.cc     |  6 +++---
+ 3 files changed, 62 insertions(+), 11 deletions(-)
+
+diff --git a/dbus/mock_object_proxy.cc b/dbus/mock_object_proxy.cc
+index ee12d4f3ce..a108ae7134 100644
+--- a/dbus/mock_object_proxy.cc
++++ b/dbus/mock_object_proxy.cc
+@@ -14,6 +14,19 @@ MockObjectProxy::MockObjectProxy(Bus* bus,
+ 
+ MockObjectProxy::~MockObjectProxy() = default;
+ 
++void MockObjectProxy::CallMethod(MethodCall* method_call,
++                                 int timeout_ms,
++                                 ResponseCallback callback) {
++  DoCallMethod(method_call, timeout_ms, &callback);
++}
++
++void MockObjectProxy::CallMethodWithErrorResponse(
++    MethodCall* method_call,
++    int timeout_ms,
++    ResponseOrErrorCallback callback) {
++  DoCallMethodWithErrorResponse(method_call, timeout_ms, &callback);
++}
++
+ void MockObjectProxy::CallMethodWithErrorCallback(
+     MethodCall* method_call,
+     int timeout_ms,
+@@ -23,4 +36,18 @@ void MockObjectProxy::CallMethodWithErrorCallback(
+                                 &error_callback);
+ }
+ 
++void MockObjectProxy::WaitForServiceToBeAvailable(
++    WaitForServiceToBeAvailableCallback callback) {
++  DoWaitForServiceToBeAvailable(&callback);
++}
++
++void MockObjectProxy::ConnectToSignal(
++    const std::string& interface_name,
++    const std::string& signal_name,
++    SignalCallback signal_callback,
++    OnConnectedCallback on_connected_callback) {
++  DoConnectToSignal(interface_name, signal_name, signal_callback,
++                    &on_connected_callback);
++}
++
+ }  // namespace dbus
+diff --git a/dbus/mock_object_proxy.h b/dbus/mock_object_proxy.h
+index f6ef0496aa..9731ee502e 100644
+--- a/dbus/mock_object_proxy.h
++++ b/dbus/mock_object_proxy.h
+@@ -29,15 +29,27 @@ class MockObjectProxy : public ObjectProxy {
+       base::expected<std::unique_ptr<Response>, Error>(MethodCall* method_call,
+                                                        int timeout_ms));
+ 
+-  MOCK_METHOD3(CallMethod,
++  // This method is not mockable because it takes a move-only argument. To work
++  // around this, CallMethod() implementation here calls DoCallMethod() which is
++  // mockable.
++  void CallMethod(MethodCall* method_call,
++                  int timeout_ms,
++                  ResponseCallback callback) override;
++  MOCK_METHOD3(DoCallMethod,
+                void(MethodCall* method_call,
+                     int timeout_ms,
+-                    ResponseCallback callback));
++                    ResponseCallback* callback));
+ 
+-  MOCK_METHOD3(CallMethodWithErrorResponse,
++  // This method is not mockable because it takes a move-only argument. To work
++  // around this, CallMethodWithErrorResponse() implementation here calls
++  // DoCallMethodWithErrorResponse() which is mockable.
++  void CallMethodWithErrorResponse(MethodCall* method_call,
++                                   int timeout_ms,
++                                   ResponseOrErrorCallback callback) override;
++  MOCK_METHOD3(DoCallMethodWithErrorResponse,
+                void(MethodCall* method_call,
+                     int timeout_ms,
+-                    ResponseOrErrorCallback callback));
++                    ResponseOrErrorCallback* callback));
+ 
+   // This method is not mockable because it takes a move-only argument. To work
+   // around this, CallMethodWithErrorCallback() implementation here calls
+@@ -52,14 +64,26 @@ class MockObjectProxy : public ObjectProxy {
+                     ResponseCallback* callback,
+                     ErrorCallback* error_callback));
+ 
+-  MOCK_METHOD1(WaitForServiceToBeAvailable,
+-               void(WaitForServiceToBeAvailableCallback callback));
++  // This method is not mockable because it takes a move-only argument. To work
++  // around this, WaitForServiceToBeAvailable() implementation here calls
++  // DoWaitForServiceToBeAvailable() which is mockable.
++  void WaitForServiceToBeAvailable(
++      WaitForServiceToBeAvailableCallback callback) override;
++  MOCK_METHOD1(DoWaitForServiceToBeAvailable,
++               void(WaitForServiceToBeAvailableCallback* callback));
+ 
+-  MOCK_METHOD4(ConnectToSignal,
++  // This method is not mockable because it takes a move-only argument. To work
++  // around this, ConnectToSignal() implementation here calls
++  // DoConnectToSignal() which is mockable.
++  void ConnectToSignal(const std::string& interface_name,
++                       const std::string& signal_name,
++                       SignalCallback signal_callback,
++                       OnConnectedCallback on_connected_callback) override;
++  MOCK_METHOD4(DoConnectToSignal,
+                void(const std::string& interface_name,
+                     const std::string& signal_name,
+                     SignalCallback signal_callback,
+-                    OnConnectedCallback on_connected_callback));
++                    OnConnectedCallback* on_connected_callback));
+   MOCK_METHOD1(SetNameOwnerChangedCallback,
+                void(NameOwnerChangedCallback callback));
+   MOCK_METHOD0(Detach, void());
+diff --git a/dbus/mock_unittest.cc b/dbus/mock_unittest.cc
+index 60a8e087cd..9d71935c3c 100644
+--- a/dbus/mock_unittest.cc
++++ b/dbus/mock_unittest.cc
+@@ -49,7 +49,7 @@ class MockTest : public testing::Test {
+ 
+     // Set an expectation so mock_proxy's CallMethod() will use
+     // HandleMockProxyResponseWithMessageLoop() to return responses.
+-    EXPECT_CALL(*mock_proxy_.get(), CallMethod(_, _, _))
++    EXPECT_CALL(*mock_proxy_.get(), DoCallMethod(_, _, _))
+         .WillRepeatedly(
+             Invoke(this, &MockTest::HandleMockProxyResponseWithMessageLoop));
+ 
+@@ -113,13 +113,13 @@ class MockTest : public testing::Test {
+   void HandleMockProxyResponseWithMessageLoop(
+       MethodCall* method_call,
+       int timeout_ms,
+-      ObjectProxy::ResponseCallback response_callback) {
++      ObjectProxy::ResponseCallback* response_callback) {
+     std::unique_ptr<Response> response =
+         CreateMockProxyResponse(method_call, timeout_ms).value_or(nullptr);
+     task_environment_.GetMainThreadTaskRunner()->PostTask(
+         FROM_HERE,
+         base::BindOnce(&MockTest::RunResponseCallback, base::Unretained(this),
+-                       std::move(response_callback), std::move(response)));
++                       std::move(*response_callback), std::move(response)));
+   }
+ 
+   // Runs the given response callback with the given response.
+-- 
+2.51.0.858.gf9c4a03a3a-goog
+
