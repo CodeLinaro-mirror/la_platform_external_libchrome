@@ -683,6 +683,7 @@ libbase_sublibs = [
       "base/task/current_thread.cc",
       "base/task/default_delayed_task_handle_delegate.cc",
       "base/task/delayed_task_handle.cc",
+      "base/task/execution_fence.cc",
       "base/task/lazy_thread_pool_task_runner.cc",
       "base/task/post_job.cc",
       "base/task/scoped_set_task_priority_for_current_thread.cc",
