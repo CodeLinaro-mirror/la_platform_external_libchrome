@@ -1,0 +1,347 @@
+From d276092322a37d1a4db7ec783553149ea3d27171 Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Wed, 5 Nov 2025 10:37:59 -0700
+Subject: [PATCH] Revert "Remove base/hash/md5.h"
+
+This reverts commit d0b86310d2dc852e8d13b09da241fc45edea7a4d, which
+removed the md5.* files.  Make this a long-term patch because it is tied
+to long-term-0600-Use-non-boringssl-md5-sha1-implementation.patch.
+
+This also reverts 4553ef7771c0c2d6b330b6e645a72e742057ea3b, which
+removed some md5 functions still in use by platform2/metrics.
+
+Change-Id: I447c56df40abedc1b3016dce31f4dc71a7c821d3
+---
+ base/hash/md5.cc          |  47 +++++++++++
+ base/hash/md5.h           |  87 +++++++++++++++++++
+ base/hash/md5_unittest.cc | 170 ++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 304 insertions(+)
+ create mode 100644 base/hash/md5.cc
+ create mode 100644 base/hash/md5.h
+ create mode 100644 base/hash/md5_unittest.cc
+
+diff --git a/base/hash/md5.cc b/base/hash/md5.cc
+new file mode 100644
+index 0000000000..bbef7f4386
+--- /dev/null
++++ b/base/hash/md5.cc
+@@ -0,0 +1,47 @@
++// Copyright 2019 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/hash/md5.h"
++
++#include <cstdint>
++#include <string>
++#include <string_view>
++
++#include "base/containers/span.h"
++#include "base/hash/md5.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
++#include "third_party/boringssl/src/include/openssl/md5.h"
++
++namespace base {
++void MD5Init(MD5Context* context) {
++  MD5_Init(context);
++}
++
++void MD5Update(MD5Context* context, std::string_view data) {
++  MD5Update(context, base::as_byte_span(data));
++}
++
++void MD5Update(MD5Context* context, base::span<const uint8_t> data) {
++  MD5_Update(context, data.data(), data.size());
++}
++
++void MD5Final(MD5Digest* digest, MD5Context* context) {
++  MD5_Final(digest->a.data(), context);
++}
++
++std::string MD5DigestToBase16(const MD5Digest& digest) {
++  return HexEncodeLower(digest.a);
++}
++
++void MD5Sum(base::span<const uint8_t> data, MD5Digest* digest) {
++  MD5(data.data(), data.size(), digest->a.data());
++}
++
++std::string MD5String(std::string_view str) {
++  MD5Digest digest;
++  MD5Sum(base::as_byte_span(str), &digest);
++  return MD5DigestToBase16(digest);
++}
++}  // namespace base
+diff --git a/base/hash/md5.h b/base/hash/md5.h
+new file mode 100644
+index 0000000000..c9050eb9c2
+--- /dev/null
++++ b/base/hash/md5.h
+@@ -0,0 +1,87 @@
++// Copyright 2011 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_HASH_MD5_H_
++#define BASE_HASH_MD5_H_
++
++#include <stdint.h>
++
++#include <array>
++#include <string>
++#include <string_view>
++
++#include "base/base_export.h"
++#include "base/containers/span.h"
++#include "build/build_config.h"
++#include "third_party/boringssl/src/include/openssl/md5.h"
++
++// MD5 stands for Message Digest algorithm 5.
++//
++// DANGER DANGER DANGER:
++// MD5 is extremely obsolete and it is trivial for a malicious party to find MD5
++// collisions. Do not use MD5 for any security-related purposes whatsoever, and
++// especially do not use MD5 to validate that files or other data have not been
++// modified maliciously. This entire interface is obsolete and you should either
++// use a non-cryptographic hash (which will be much faster) or a cryptographic
++// hash (which will be collision-resistant against adversarial inputs). If you
++// believe you need to add a new use of MD5, consult a member of
++// //CRYPTO_OWNERS.
++//
++// NEW USES OF THIS API ARE FORBIDDEN FOR ANY PURPOSE. INSTEAD, YOU MUST USE
++// //crypto/obsolete/md5.h.
++
++// These functions perform MD5 operations. The simplest call is MD5Sum() to
++// generate the MD5 sum of the given data.
++//
++// You can also compute the MD5 sum of data incrementally by making multiple
++// calls to MD5Update():
++//   MD5Context ctx; // intermediate MD5 data: do not use
++//   MD5Init(&ctx);
++//   MD5Update(&ctx, data1, length1);
++//   MD5Update(&ctx, data2, length2);
++//   ...
++//
++//   MD5Digest digest; // the result of the computation
++//   MD5Final(&digest, &ctx);
++//
++// You can call MD5DigestToBase16() to generate a string of the digest.
++
++namespace base {
++
++// The output of an MD5 operation.
++struct MD5Digest {
++  std::array<uint8_t, MD5_DIGEST_LENGTH> a;
++};
++
++// Used for storing intermediate data during an MD5 computation. Callers
++// should not access the data.
++using MD5Context = MD5_CTX;
++
++// Initializes the given MD5 context structure for subsequent calls to
++// MD5Update().
++BASE_EXPORT void MD5Init(MD5Context* context);
++
++// For the given buffer of |data| as a std::string_view or span, updates the
++// given MD5 context with the sum of the data. You can call this any number of
++// times during the computation, except that MD5Init() must have been called
++// first.
++BASE_EXPORT void MD5Update(MD5Context* context, std::string_view data);
++BASE_EXPORT void MD5Update(MD5Context* context, base::span<const uint8_t> data);
++
++// Finalizes the MD5 operation and fills the buffer with the digest.
++BASE_EXPORT void MD5Final(MD5Digest* digest, MD5Context* context);
++
++// Converts a digest into human-readable hexadecimal.
++BASE_EXPORT std::string MD5DigestToBase16(const MD5Digest& digest);
++
++// Computes the MD5 sum of the given `data`.
++// The 'digest' structure will be filled with the result.
++BASE_EXPORT void MD5Sum(base::span<const uint8_t> data, MD5Digest* digest);
++
++// Returns the MD5 (in hexadecimal) of a string.
++BASE_EXPORT std::string MD5String(std::string_view str);
++
++}  // namespace base
++
++#endif  // BASE_HASH_MD5_H_
+diff --git a/base/hash/md5_unittest.cc b/base/hash/md5_unittest.cc
+new file mode 100644
+index 0000000000..73590a6f9e
+--- /dev/null
++++ b/base/hash/md5_unittest.cc
+@@ -0,0 +1,170 @@
++// Copyright 2011 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/hash/md5.h"
++
++#include <string.h>
++
++#include <cstdint>
++#include <string>
++#include <string_view>
++
++#include "base/containers/heap_array.h"
++#include "base/containers/span.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace base {
++
++TEST(MD5, DigestToBase16) {
++  MD5Digest digest({0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04,  //
++                    0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e});
++  std::string actual = MD5DigestToBase16(digest);
++  std::string expected = "d41d8cd98f00b204e9800998ecf8427e";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, MD5SumEmptyData) {
++  MD5Digest digest;
++  MD5Sum(base::span<uint8_t>(), &digest);
++  const uint8_t expected[] = {0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04,
++                              0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e};
++  EXPECT_EQ(base::span(expected), digest.a);
++}
++
++TEST(MD5, MD5SumOneByteData) {
++  MD5Digest digest;
++  MD5Sum(base::as_byte_span(std::string_view("a")), &digest);
++  const uint8_t expected[] = {0x0c, 0xc1, 0x75, 0xb9, 0xc0, 0xf1, 0xb6, 0xa8,
++                              0x31, 0xc3, 0x99, 0xe2, 0x69, 0x77, 0x26, 0x61};
++  EXPECT_EQ(base::span(expected), digest.a);
++}
++
++TEST(MD5, MD5SumLongData) {
++  const size_t length = 10 * 1024 * 1024 + 1;
++  auto data = base::HeapArray<uint8_t>::Uninit(length);
++
++  size_t i = 0;
++  for (auto& datum : data) {
++    datum = i++ & 0xff;
++  }
++
++  MD5Digest digest;
++  MD5Sum(data, &digest);
++
++  const uint8_t expected[] = {0x90, 0xbd, 0x6a, 0xd9, 0x0a, 0xce, 0xf5, 0xad,
++                              0xaa, 0x92, 0x20, 0x3e, 0x21, 0xc7, 0xa1, 0x3e};
++  EXPECT_EQ(base::span(expected), digest.a);
++}
++
++TEST(MD5, ContextWithEmptyData) {
++  MD5Context ctx;
++  MD5Init(&ctx);
++
++  MD5Digest digest;
++  MD5Final(&digest, &ctx);
++
++  const uint8_t expected[] = {0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04,
++                              0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e};
++  EXPECT_EQ(base::span(expected), digest.a);
++}
++
++TEST(MD5, ContextWithLongData) {
++  MD5Context ctx;
++  MD5Init(&ctx);
++
++  const size_t length = 10 * 1024 * 1024 + 1;
++  auto data = base::HeapArray<uint8_t>::Uninit(length);
++
++  size_t i = 0;
++  for (auto& datum : data) {
++    datum = i++ & 0xff;
++  }
++
++  size_t total = 0;
++  while (total < data.size()) {
++    size_t len = 4097;  // intentionally not 2^k.
++    if (len > length - total) {
++      len = length - total;
++    }
++
++    MD5Update(&ctx, data.subspan(total, len));
++    total += len;
++  }
++
++  EXPECT_EQ(length, total);
++
++  MD5Digest digest;
++  MD5Final(&digest, &ctx);
++
++  const uint8_t expected[] = {0x90, 0xbd, 0x6a, 0xd9, 0x0a, 0xce, 0xf5, 0xad,
++                              0xaa, 0x92, 0x20, 0x3e, 0x21, 0xc7, 0xa1, 0x3e};
++  EXPECT_EQ(base::span(expected), digest.a);
++}
++
++// Example data from http://www.ietf.org/rfc/rfc1321.txt A.5 Test Suite
++TEST(MD5, MD5StringTestSuite1) {
++  std::string actual = MD5String("");
++  std::string expected = "d41d8cd98f00b204e9800998ecf8427e";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, MD5StringTestSuite2) {
++  std::string actual = MD5String("a");
++  std::string expected = "0cc175b9c0f1b6a831c399e269772661";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, MD5StringTestSuite3) {
++  std::string actual = MD5String("abc");
++  std::string expected = "900150983cd24fb0d6963f7d28e17f72";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, MD5StringTestSuite4) {
++  std::string actual = MD5String("message digest");
++  std::string expected = "f96b697d7cb7938d525a2f31aaf161d0";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, MD5StringTestSuite5) {
++  std::string actual = MD5String("abcdefghijklmnopqrstuvwxyz");
++  std::string expected = "c3fcd3d76192e4007dfb496cca67e13b";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, MD5StringTestSuite6) {
++  std::string actual = MD5String(
++      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
++      "abcdefghijklmnopqrstuvwxyz"
++      "0123456789");
++  std::string expected = "d174ab98d277d9f5a5611c2c9f419d9f";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, MD5StringTestSuite7) {
++  std::string actual = MD5String(
++      "12345678901234567890"
++      "12345678901234567890"
++      "12345678901234567890"
++      "12345678901234567890");
++  std::string expected = "57edf4a22be3c955ac49da2e2107b67a";
++  EXPECT_EQ(expected, actual);
++}
++
++TEST(MD5, ContextWithStringData) {
++  MD5Context ctx;
++  MD5Init(&ctx);
++
++  MD5Update(&ctx, "abc");
++
++  MD5Digest digest;
++  MD5Final(&digest, &ctx);
++
++  std::string actual = MD5DigestToBase16(digest);
++  std::string expected = "900150983cd24fb0d6963f7d28e17f72";
++
++  EXPECT_EQ(expected, actual);
++}
++
++}  // namespace base
+-- 
+2.51.2.1026.g39e6a42477-goog
+
