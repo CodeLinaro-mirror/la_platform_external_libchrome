@@ -70,8 +70,12 @@ struct NestedDataInfo<'a> {
 /// Return the highest ordinal that appears in a packed struct.
 // FOR_RELEASE: It would be nicer to store this in the wire type so we
 // don't need to compute it each time.
-fn get_max_ordinal(fields: &Vec<(String, MojomWireType)>) -> Ordinal {
+fn get_max_ordinal(fields: &Vec<(String, MojomWireType)>) -> Option<Ordinal> {
     use std::cmp::max;
+    if fields.is_empty() {
+        return None;
+    }
+
     let mut max_so_far: Ordinal = 0;
     for (_, wire_type) in fields.into_iter() {
         match wire_type {
@@ -85,7 +89,7 @@ fn get_max_ordinal(fields: &Vec<(String, MojomWireType)>) -> Ordinal {
             }
         }
     }
-    return max_so_far;
+    return Some(max_so_far);
 }
 
 /// Parse a 32-bit size as part of a struct or array header
@@ -128,8 +132,9 @@ pub fn parse_struct(
     // by index. We have to provide dummy values since rust won't allow
     // uninitialized memory.
 
-    let mut ret: Vec<(String, MojomValue)> =
-        vec![(String::new(), MojomValue::Int8(0)); get_max_ordinal(fields) + 1];
+    let num_fields = get_max_ordinal(fields).map_or(0, |o| o + 1);
+
+    let mut ret: Vec<(String, MojomValue)> = vec![(String::new(), MojomValue::Int8(0)); num_fields];
     for (name, mojom_wire_type) in fields {
         // Make sure we're at the right alignment for this field
         skip_to_alignment(data, mojom_wire_type.alignment())?;
@@ -201,4 +206,28 @@ pub fn parse_struct(
         ret[nested_data.ordinal] = (nested_data.field_name, parsed_data);
     }
     Ok(ret)
+}
+
+/// Parse a single mojom value of the given type, outside the context of a
+/// struct. This function is only useful for unit testing, since all mojom
+/// values in practice are members of a struct. The function only works for
+/// some mojom types, since e.g. booleans can't be parsed individually.
+pub fn parse_single_value_for_testing(
+    data: &[u8],
+    wire_type: &MojomWireType,
+) -> ParsingResult<MojomValue> {
+    let mut data = ParserData::new(data);
+    match wire_type {
+        MojomWireType::Leaf { leaf_type, .. } => parse_leaf_element(&mut data, leaf_type),
+        MojomWireType::Bitfield { .. } => unimplemented!("Bitfields cannot be parsed individually"),
+        MojomWireType::Pointer { nested_data_type, .. } => match nested_data_type {
+            PackedStructuredType::Struct { packed_field_types } => {
+                let parsed_fields = parse_struct(&mut data, &packed_field_types)?;
+                Ok(MojomValue::Struct(parsed_fields))
+            }
+            PackedStructuredType::Array { .. } => {
+                panic!("Arrays are not yet implemented");
+            }
+        },
+    }
 }
