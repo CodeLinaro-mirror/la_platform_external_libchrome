@@ -1,0 +1,47 @@
+From 45b50a7af86c93d995d910ce8f223c2280ecec3a Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Fri, 7 Nov 2025 09:15:11 -0700
+Subject: [PATCH] Revert "base: Remove leading '.' from temp dirs on POSIX."
+
+139cd7813c0556d395c01527aeb5c54ef754e23d added a second parameter to the
+FormatTemporaryFileName function.  This does a partial revert of that
+commit by adding back in the 1-arg function which simply delegates to
+the 2-arg function.  This allows a simple upgrade path for platform2
+packages.
+---
+ base/files/file_util.h        | 3 +++
+ base/files/file_util_posix.cc | 4 ++++
+ 2 files changed, 7 insertions(+)
+
+diff --git a/base/files/file_util.h b/base/files/file_util.h
+index 2a61b50b09..8b85659f7e 100644
+--- a/base/files/file_util.h
++++ b/base/files/file_util.h
+@@ -427,6 +427,9 @@ BASE_EXPORT bool CreateTemporaryFileInDir(const FilePath& dir,
+ // naming scheme that incorporates |identifier|. |hidden| is ignored on Windows.
+ BASE_EXPORT FilePath
+ FormatTemporaryFileName(FilePath::StringViewType identifier, bool hidden);
++// Temporary addition for libchrome transition.
++BASE_EXPORT FilePath
++FormatTemporaryFileName(FilePath::StringViewType identifier);
+ 
+ // Create and open a temporary file stream for exclusive read, write, and delete
+ // access. The full path is placed in `path`. Returns the opened file stream, or
+diff --git a/base/files/file_util_posix.cc b/base/files/file_util_posix.cc
+index 9661e09573..e50b18dd8d 100644
+--- a/base/files/file_util_posix.cc
++++ b/base/files/file_util_posix.cc
+@@ -883,6 +883,10 @@ FilePath FormatTemporaryFileName(FilePath::StringViewType identifier,
+ #endif
+   return FilePath(StrCat({hidden ? "." : "", prefix, ".", identifier}));
+ }
++// Temporary addition for libchrome transition.
++FilePath FormatTemporaryFileName(FilePath::StringViewType identifier) {
++  return FormatTemporaryFileName(identifier, true);
++}
+ 
+ ScopedFILE CreateAndOpenTemporaryStreamInDir(const FilePath& dir,
+                                              FilePath* path) {
+-- 
+2.51.2.1041.gc1ab5b90ca-goog
+
