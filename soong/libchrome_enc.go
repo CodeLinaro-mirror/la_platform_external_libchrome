@@ -5,7 +5,10 @@ package libchrome
 import (
 	"android/soong/android"
 	"bytes"
+	"fmt"
 	"github.com/google/blueprint/gobtools"
+	"github.com/google/blueprint/proptools"
+	"reflect"
 )
 
 // begin of bindings_generator.go
@@ -20,6 +23,35 @@ func (r MojomPicklesInfo) Encode(ctx gobtools.EncContext, buf *bytes.Buffer) err
 		return err
 	}
 	return err
+}
+
+func (r MojomPicklesInfo) CustomHash(hasher *proptools.Hasher) error {
+	hasher.WriteString(":libchrome.MojomPicklesInfo")
+	hasher.WriteInt(1)
+	hasher.WriteString(":libchrome.android.Path")
+	val1 := r.OutDir == nil
+	if val1 {
+		hasher.WriteByte(0)
+	} else {
+		if v := reflect.ValueOf(r.OutDir); v.Kind() == reflect.Ptr {
+			if v.IsNil() {
+				panic(fmt.Errorf("nil pointer is not supported in interface"))
+			} else {
+				val2 := r.OutDir == nil
+				if val2 {
+					hasher.WriteByte(0)
+				} else {
+					val3 := func(hasher *proptools.Hasher) error { return r.OutDir.(proptools.CustomHash).CustomHash(hasher) }
+					if err := proptools.HashReference(hasher, uintptr(v.Pointer()), val3); err != nil {
+						return err
+					}
+				}
+			}
+		} else {
+			r.OutDir.(proptools.CustomHash).CustomHash(hasher)
+		}
+	}
+	return nil
 }
 
 func (r *MojomPicklesInfo) Decode(ctx gobtools.EncContext, buf *bytes.Reader) error {
