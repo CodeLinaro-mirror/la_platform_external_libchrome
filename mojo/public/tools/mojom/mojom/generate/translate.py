@@ -278,9 +278,6 @@ _EXTENSIBLE_ENUMS_MISSING_DEFAULT_CHROMEOS = {
 
 ### DO NOT ADD ENTRIES TO THIS LIST. ###
 _EXTENSIBLE_ENUMS_MISSING_DEFAULT_TO_BE_FIXED = {
-    'x:device.mojom.HidBusType',
-    'x:device.mojom.WakeLockReason',
-    'x:device.mojom.WakeLockType',
     'x:fuzz.mojom.FuzzEnum',
     'x:media_session.mojom.MediaPlaybackState',
     'x:media_session.mojom.MediaSessionAction',
@@ -294,13 +291,10 @@ _EXTENSIBLE_ENUMS_MISSING_DEFAULT_TO_BE_FIXED = {
     'x:media_session.mojom.MediaSession.SuspendType',
     'x:media_session.mojom.EnforcementMode',
     'x:media_session.mojom.AudioFocusType',
-    'x:mojo.test.AnExtensibleEnum',
-    'x:mojo.test.EnumB',
     'x:mojo.test.ExtensibleEmptyEnum',
     'x:mojo.test.enum_default_unittest.mojom.ExtensibleEnumWithoutDefault',
     'x:network.mojom.WebSandboxFlags',
     'x:test.mojom.ExtensibleEnumForUnitTests',
-    'x:ui.mojom.KeyboardCode',
 }
 ### DO NOT ADD ENTRIES TO THIS LIST. ###
 
