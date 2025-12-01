@@ -752,6 +752,7 @@ libbase_sublibs = [
       "base/threading/post_task_and_reply_impl.cc",
       "base/threading/scoped_blocking_call.cc",
       "base/threading/scoped_blocking_call_internal.cc",
+      "base/threading/scoped_thread_priority.cc",
       "base/threading/sequence_local_storage_map.cc",
       "base/threading/sequence_local_storage_slot.cc",
       "base/threading/simple_thread.cc",

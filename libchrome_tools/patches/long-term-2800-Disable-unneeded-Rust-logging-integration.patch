@@ -1,26 +1,26 @@
-From e120daa4c7b8fda5a31d56b30ef873c60f383ed2 Mon Sep 17 00:00:00 2001
-From: Wei-Luan Wang <weiluanwang@google.com>
-Date: Thu, 26 Jun 2025 02:01:41 +0000
+From 824cd6d64902ab421e130218b9ffc606f3337ce2 Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@google.com>
+Date: Tue, 2 Dec 2025 10:29:04 +0800
 Subject: [PATCH] Disable unneeded Rust logging integration
 
-Change-Id: Ic0bf93a07ed2d3f4422544cc699e17086d096d75
+Change-Id: Iacf5974cdf24452778fb3def26d200514c778247
 ---
  base/logging.cc | 4 ----
  1 file changed, 4 deletions(-)
 
 diff --git a/base/logging.cc b/base/logging.cc
-index dd46cccf28..4f0a186200 100644
+index 1a4944f54c..0677d95161 100644
 --- a/base/logging.cc
 +++ b/base/logging.cc
-@@ -33,7 +33,6 @@
- #include "base/debug/task_trace.h"
+@@ -34,7 +34,6 @@
  #include "base/functional/callback.h"
  #include "base/immediate_crash.h"
+ #include "base/logging/logging_settings.h"
 -#include "base/logging/rust_logger.rs.h"
  #include "base/no_destructor.h"
  #include "base/path_service.h"
  #include "base/pending_task.h"
-@@ -505,9 +504,6 @@ bool BaseInitLoggingImpl(const LoggingSettings& settings) {
+@@ -506,9 +505,6 @@ bool BaseInitLoggingImpl(const LoggingSettings& settings) {
    }
  #endif
  
@@ -31,5 +31,5 @@ index dd46cccf28..4f0a186200 100644
    if ((g_logging_destination & LOG_TO_FILE) == 0) {
      return true;
 -- 
-2.50.0.727.gbf7dc18ff4-goog
+2.52.0.107.ga0afd4fd5b-goog
 

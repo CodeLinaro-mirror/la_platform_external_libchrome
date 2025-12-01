@@ -1,0 +1,25 @@
+From 1d936331d71c512c1ef8d5b24524ee6d32fbcee8 Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@google.com>
+Date: Tue, 2 Dec 2025 12:00:04 +0800
+Subject: [PATCH] Include base/logging/logging_settings.h in base/logging.h
+
+Change-Id: I2f4d558f7c80d6094fc4ed66e3a4e1e96a88583a
+---
+ base/logging.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/base/logging.h b/base/logging.h
+index 2d72f112e9..5d556877bc 100644
+--- a/base/logging.h
++++ b/base/logging.h
+@@ -18,6 +18,7 @@
+ #include "base/dcheck_is_on.h"
+ #include "base/functional/callback_forward.h"
+ #include "base/logging/log_severity.h"
++#include "base/logging/logging_settings.h"
+ #include "base/strings/utf_ostream_operators.h"
+ #include "build/build_config.h"
+ 
+-- 
+2.52.0.107.ga0afd4fd5b-goog
+
