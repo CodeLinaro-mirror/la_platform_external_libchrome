@@ -11,6 +11,8 @@ import (
 	"github.com/google/blueprint"
 )
 
+//go:generate go run ../../../build/blueprint/gobtools/codegen/gob_gen.go
+
 func init() {
 	android.RegisterModuleType("generate_mojom_downgraded_files", mojomDowngradedFilesFactory)
 	android.RegisterModuleType("generate_mojom_pickles", mojomPicklesFactory)
@@ -153,6 +155,7 @@ type mojomPickles struct {
 	outDir        android.Path
 }
 
+// @auto-generate: gob
 type MojomPicklesInfo struct {
 	OutDir android.Path
 }
