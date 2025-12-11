@@ -10,7 +10,6 @@
 #include <algorithm>
 #include <array>
 #include <memory>
-#include <tuple>
 #include <utility>
 
 #include "base/base_switches.h"
@@ -18,6 +17,7 @@
 #include "base/debug/alias.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/strings/span_printf.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
@@ -150,37 +150,40 @@ void MemoryDumpManager::Initialize(
 
 void MemoryDumpManager::RegisterDumpProvider(
     MemoryDumpProvider* mdp,
-    const char* name,
+    MemoryDumpProvider::Name name,
     scoped_refptr<SingleThreadTaskRunner> task_runner,
     MemoryDumpProvider::Options options) {
   options.dumps_on_single_thread_task_runner = true;
-  RegisterDumpProviderInternal(mdp, name, std::move(task_runner), options);
+  RegisterDumpProviderInternal(mdp, std::move(name), std::move(task_runner),
+                               options);
 }
 
 void MemoryDumpManager::RegisterDumpProvider(
     MemoryDumpProvider* mdp,
-    const char* name,
+    MemoryDumpProvider::Name name,
     scoped_refptr<SingleThreadTaskRunner> task_runner) {
   // Set |dumps_on_single_thread_task_runner| to true because all providers
   // without task runner are run on dump thread.
   MemoryDumpProvider::Options options;
   options.dumps_on_single_thread_task_runner = true;
-  RegisterDumpProviderInternal(mdp, name, std::move(task_runner), options);
+  RegisterDumpProviderInternal(mdp, std::move(name), std::move(task_runner),
+                               options);
 }
 
 void MemoryDumpManager::RegisterDumpProviderWithSequencedTaskRunner(
     MemoryDumpProvider* mdp,
-    const char* name,
+    MemoryDumpProvider::Name name,
     scoped_refptr<SequencedTaskRunner> task_runner,
     MemoryDumpProvider::Options options) {
   DCHECK(task_runner);
   options.dumps_on_single_thread_task_runner = false;
-  RegisterDumpProviderInternal(mdp, name, std::move(task_runner), options);
+  RegisterDumpProviderInternal(mdp, std::move(name), std::move(task_runner),
+                               options);
 }
 
 void MemoryDumpManager::RegisterDumpProviderInternal(
     MemoryDumpProvider* mdp,
-    const char* name,
+    MemoryDumpProvider::Name name,
     scoped_refptr<SequencedTaskRunner> task_runner,
     const MemoryDumpProvider::Options& options) {
   if (dumper_registrations_ignored_for_testing_) {
@@ -191,10 +194,12 @@ void MemoryDumpManager::RegisterDumpProviderInternal(
   // have small enough performance overhead that it is reasonable to run them
   // in the background while the user is doing other things. Those MDPs are
   // 'allowed in background mode'.
-  bool allowed_in_background_mode = IsMemoryDumpProviderInAllowlist(name);
+  bool allowed_in_background_mode =
+      IsMemoryDumpProviderInAllowlist(name.static_name().data());
 
   scoped_refptr<MemoryDumpProviderInfo> mdpinfo = new MemoryDumpProviderInfo(
-      mdp, name, std::move(task_runner), options, allowed_in_background_mode);
+      mdp, name.static_name().data(), std::move(task_runner), options,
+      allowed_in_background_mode);
 
   {
     AutoLock lock(lock_);
@@ -314,18 +319,18 @@ void MemoryDumpManager::CreateProcessDump(const MemoryDumpRequestArgs& args,
                                     TRACE_ID_LOCAL(args.dump_guid), "dump_guid",
                                     TRACE_STR_COPY(guid_str));
 
-  std::unique_ptr<ProcessMemoryDumpAsyncState> pmd_async_state;
+  scoped_refptr<ProcessMemoryDumpAsyncState> pmd_async_state;
   {
     AutoLock lock(lock_);
 
-    pmd_async_state = std::make_unique<ProcessMemoryDumpAsyncState>(
+    pmd_async_state = base::MakeRefCounted<ProcessMemoryDumpAsyncState>(
         args, dump_providers_, std::move(callback),
         GetOrCreateBgTaskRunnerLocked());
   }
 
   // Start the process dump. This involves task runner hops as specified by the
   // MemoryDumpProvider(s) in RegisterDumpProvider()).
-  ContinueAsyncProcessDump(pmd_async_state.release());
+  ContinueAsyncProcessDump(std::move(pmd_async_state));
 }
 
 // Invokes OnMemoryDump() on all MDPs that are next in the pending list and run
@@ -334,18 +339,18 @@ void MemoryDumpManager::CreateProcessDump(const MemoryDumpRequestArgs& args,
 // OnMemoryDump() invocations are linearized. |lock_| is used in these functions
 // purely to ensure consistency w.r.t. (un)registrations of |dump_providers_|.
 void MemoryDumpManager::ContinueAsyncProcessDump(
-    ProcessMemoryDumpAsyncState* owned_pmd_async_state) {
+    scoped_refptr<ProcessMemoryDumpAsyncState> pmd_async_state) {
   HEAP_PROFILER_SCOPED_IGNORE;
 
-  // In theory |owned_pmd_async_state| should be a unique_ptr. The only reason
-  // why it isn't is because of the corner case logic of |did_post_task|
-  // above, which needs to take back the ownership of the |pmd_async_state| when
-  // the PostTask() fails.
-  // Unfortunately, PostTask() destroys the unique_ptr arguments upon failure
-  // to prevent accidental leaks. Using a unique_ptr would prevent us to to
-  // skip the hop and move on. Hence the manual naked -> unique ptr juggling.
-  auto pmd_async_state = WrapUnique(owned_pmd_async_state);
-  owned_pmd_async_state = nullptr;
+  // In theory |pmd_async_state| should be a unique_ptr. The only reason why it
+  // isn't is because of the corner case logic of |did_post_task| below, which
+  // needs to take back the ownership of the |pmd_async_state| when the
+  // PostTask() fails.
+  // Unfortunately, PostTask() destroys its arguments upon failure to prevent
+  // accidental leaks, which would destroy a unique_ptr but only drops one
+  // reference to a scoped_refptr. Using a scoped_refptr instead of a unique_ptr
+  // allows us to retain a reference until we know the PostTask succeeded. If
+  // not we can skip the hop and move on.
 
   while (!pmd_async_state->pending_dump_providers.empty()) {
     // Read MemoryDumpProviderInfo thread safety considerations in
@@ -380,13 +385,12 @@ void MemoryDumpManager::ContinueAsyncProcessDump(
     }
 
     bool did_post_task = task_runner->PostTask(
-        FROM_HERE,
-        BindOnce(&MemoryDumpManager::ContinueAsyncProcessDump, Unretained(this),
-                 Unretained(pmd_async_state.get())));
+        FROM_HERE, BindOnce(&MemoryDumpManager::ContinueAsyncProcessDump,
+                            Unretained(this), pmd_async_state));
 
     if (did_post_task) {
-      // Ownership is transferred to the posted task.
-      std::ignore = pmd_async_state.release();
+      // Ownership is transferred to the posted task. Drop our reference to
+      // `pmd_async_state` when leaving scope.
       return;
     }
 
@@ -463,7 +467,7 @@ void MemoryDumpManager::InvokeOnMemoryDump(MemoryDumpProviderInfo* mdpinfo,
 }
 
 void MemoryDumpManager::FinishAsyncProcessDump(
-    std::unique_ptr<ProcessMemoryDumpAsyncState> pmd_async_state) {
+    scoped_refptr<ProcessMemoryDumpAsyncState> pmd_async_state) {
   HEAP_PROFILER_SCOPED_IGNORE;
   DCHECK(pmd_async_state->pending_dump_providers.empty());
   const uint64_t dump_guid = pmd_async_state->req_args.dump_guid;

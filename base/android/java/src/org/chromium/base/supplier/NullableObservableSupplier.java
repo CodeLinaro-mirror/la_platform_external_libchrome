@@ -6,16 +6,15 @@ package org.chromium.base.supplier;
 
 import org.chromium.base.Callback;
 import org.chromium.base.supplier.ObservableSupplier.NotifyBehavior;
-import org.chromium.build.annotations.NullUnmarked;
+import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** An interface for classes that can be observed. */
-@NullUnmarked // TODO(455874046): Change to NullMarked once warnings are fixed.
-// TODO(455874046): Supplier<T> -> Supplier<@Nullable T>
-public interface NullableObservableSupplier<T> extends Supplier<T> {
+@NullMarked
+public interface NullableObservableSupplier<T> extends Supplier<@Nullable T> {
     /**
      * Adds an observer to the supplier.
      *
@@ -80,7 +79,7 @@ public interface NullableObservableSupplier<T> extends Supplier<T> {
                     ChildT,
                     FuncT extends @Nullable T,
                     FuncSup extends @Nullable NullableObservableSupplier<ChildT>>
-            NullableObservableSupplier<ChildT> createTransitiveNullable(
+            SettableNullableObservableSupplier<ChildT> createTransitiveNullable(
                     Function<FuncT, FuncSup> unwrapFunction) {
         return new TransitiveObservableSupplier<>(
                 (NullableObservableSupplier) this,
@@ -92,7 +91,7 @@ public interface NullableObservableSupplier<T> extends Supplier<T> {
     /** Creates an ObservableSupplier that tracks a value derived from this ObservableSupplier. */
     @SuppressWarnings("Unchecked")
     default <ChildT, FuncT extends @Nullable T>
-            NullableObservableSupplier<ChildT> createDerivedNullable(
+            SettableNullableObservableSupplier<ChildT> createDerivedNullable(
                     Function<FuncT, @Nullable ChildT> unwrapFunction) {
         return new UnwrapObservableSupplier<>(
                 (NullableObservableSupplier) this, unwrapFunction, /* allowSetToNull= */ true);
@@ -101,7 +100,7 @@ public interface NullableObservableSupplier<T> extends Supplier<T> {
     /** Creates an ObservableSupplier that tracks a value derived from this ObservableSupplier. */
     @SuppressWarnings("Unchecked")
     default <ChildT, FuncT extends @Nullable T>
-            NonNullObservableSupplier<ChildT> createDerivedNonNull(
+            SettableNonNullObservableSupplier<ChildT> createDerivedNonNull(
                     Function<FuncT, ChildT> unwrapFunction) {
         return new UnwrapObservableSupplier<>(
                         (NullableObservableSupplier) this,

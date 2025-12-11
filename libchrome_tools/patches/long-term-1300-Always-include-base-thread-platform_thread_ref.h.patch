@@ -1,4 +1,4 @@
-From f1f63f778e489973c2df519211c7c38abd295acf Mon Sep 17 00:00:00 2001
+From 686c577f3736caca4bea1ddd1d8637f965e9f105 Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Thu, 27 Oct 2022 11:04:47 +0900
 Subject: [PATCH] Always include base/thread/platform_thread_ref.h
@@ -10,22 +10,24 @@ client program unable to discover compilation failure at CQ/postsubmit.
 Change-Id: Iaca5e691c1fae13cac3b08b361820a3348a646f9
 patch-name: long-term-1300-Always-include-base-thread-platform_thread_ref.h.patch
 ---
- base/synchronization/lock.h | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+ base/synchronization/lock.h | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
 
 diff --git a/base/synchronization/lock.h b/base/synchronization/lock.h
-index 4b8381ce9a..717b06cc73 100644
+index af7cc4ede6..186c59184a 100644
 --- a/base/synchronization/lock.h
 +++ b/base/synchronization/lock.h
-@@ -14,7 +14,7 @@
+@@ -12,7 +12,9 @@
  #include "base/thread_annotations.h"
  #include "build/build_config.h"
  
 -#if DCHECK_IS_ON()
 +#if DCHECK_IS_ON() | 1
- #include <memory>
- 
++#include <memory>
++
  #include "base/compiler_specific.h"
+ #include "base/threading/platform_thread_ref.h"
+ #endif
 -- 
-2.47.0.338.g60cca15819-goog
+2.52.0.239.gd5f0c6e74e-goog
 

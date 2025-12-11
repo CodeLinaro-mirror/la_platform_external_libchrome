@@ -1162,6 +1162,8 @@ void PartitionRoot::Init(PartitionOptions opts) {
 
     settings.enable_free_with_size =
         (opts.free_with_size == PartitionOptions::kEnabled);
+    settings.enable_strict_free_size_check =
+        (opts.strict_free_size_check == PartitionOptions::kEnabled);
 
     initialized = true;
   }
@@ -1759,8 +1761,12 @@ void PartitionRoot::ResetForTesting(bool allow_leaks) {
 void PartitionRoot::ResetBookkeepingForTesting() {
   ::partition_alloc::internal::ScopedGuard guard{
       internal::PartitionRootLock(this)};
-  max_size_of_allocated_bytes = total_size_of_allocated_bytes;
-  max_size_of_committed_pages.store(total_size_of_committed_pages);
+  max_size_of_allocated_bytes.store(
+      total_size_of_allocated_bytes.load(std::memory_order_relaxed),
+      std::memory_order_relaxed);
+  max_size_of_committed_pages.store(
+      total_size_of_committed_pages.load(std::memory_order_relaxed),
+      std::memory_order_relaxed);
 }
 
 void PartitionRoot::SetGlobalEmptySlotSpanRingIndexForTesting(int16_t index) {

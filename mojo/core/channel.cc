@@ -1053,6 +1053,7 @@ void Channel::ShutDown() {
     // so the Channel can notify once it's finally being destroyed.
     delegate_ = nullptr;
   }
+  delayed_messages_.clear();
 }
 
 void Channel::WriteNextIpczMessage(
@@ -1181,6 +1182,7 @@ Channel::DispatchResult Channel::TryDispatchMessage(
     // on Linux).
     if (Message::IsExperimentalV3(header)) {
       uint32_t sequence_number = Message::ExtractChannelSequenceNumber(header);
+      DCHECK(sequence_number > dispatched_message_count_);
       if (sequence_number != dispatched_message_count_ + 1) {
         DelayMessage(sequence_number, buffer.first(num_bytes),
                      std::move(handles), std::move(envelope));
