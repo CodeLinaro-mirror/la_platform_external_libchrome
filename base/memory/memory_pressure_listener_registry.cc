@@ -22,7 +22,7 @@ namespace {
 
 std::atomic<bool> g_notifications_suppressed = false;
 
-BASE_FEATURE(kSuppressMemoryListeners, base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kSuppressMemoryListeners, FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE_PARAM(std::string,
                    kSuppressMemoryListenersMask,
@@ -73,13 +73,13 @@ void MemoryPressureListenerRegistry::NotifyMemoryPressureFromAnyThread(
   } else {
     main_thread_task_runner->PostTask(
         FROM_HERE,
-        base::BindOnce(&MemoryPressureListenerRegistry::NotifyMemoryPressure,
-                       memory_pressure_level));
+        BindOnce(&MemoryPressureListenerRegistry::NotifyMemoryPressure,
+                 memory_pressure_level));
   }
 }
 
 void MemoryPressureListenerRegistry::AddObserver(
-    SyncMemoryPressureListenerRegistration* listener) {
+    MemoryPressureListenerRegistration* listener) {
   CHECK(
       !SingleThreadTaskRunner::HasMainThreadDefault() ||
       SingleThreadTaskRunner::GetMainThreadDefault()->BelongsToCurrentThread());
@@ -87,7 +87,7 @@ void MemoryPressureListenerRegistry::AddObserver(
 }
 
 void MemoryPressureListenerRegistry::RemoveObserver(
-    SyncMemoryPressureListenerRegistration* listener) {
+    MemoryPressureListenerRegistration* listener) {
   listeners_.RemoveObserver(listener);
 }
 
@@ -98,13 +98,13 @@ void MemoryPressureListenerRegistry::DoNotifyMemoryPressure(
       SingleThreadTaskRunner::GetMainThreadDefault()->BelongsToCurrentThread());
   // Don't repeat MEMORY_PRESSURE_LEVEL_NONE notifications.
   // TODO(464120006): Turn into a CHECK when this can no longer happen.
-  if (memory_pressure_level == base::MEMORY_PRESSURE_LEVEL_NONE &&
-      last_memory_pressure_level_ == base::MEMORY_PRESSURE_LEVEL_NONE) {
+  if (memory_pressure_level == MEMORY_PRESSURE_LEVEL_NONE &&
+      last_memory_pressure_level_ == MEMORY_PRESSURE_LEVEL_NONE) {
     return;
   }
 
   last_memory_pressure_level_ = memory_pressure_level;
-  if (base::FeatureList::IsEnabled(kSuppressMemoryListeners)) {
+  if (FeatureList::IsEnabled(kSuppressMemoryListeners)) {
     auto mask = kSuppressMemoryListenersMask.Get();
     for (auto& listener : listeners_) {
       const size_t tag_index = static_cast<size_t>(listener.tag());
@@ -119,7 +119,7 @@ void MemoryPressureListenerRegistry::DoNotifyMemoryPressure(
       }
     }
   } else {
-    listeners_.Notify(&SyncMemoryPressureListenerRegistration::Notify,
+    listeners_.Notify(&MemoryPressureListenerRegistration::Notify,
                       memory_pressure_level);
   }
 }
@@ -145,9 +145,9 @@ void MemoryPressureListenerRegistry::SimulatePressureNotification(
 void MemoryPressureListenerRegistry::SimulatePressureNotificationAsync(
     MemoryPressureLevel memory_pressure_level,
     OnceClosure on_notification_sent_callback) {
-  CHECK(base::SingleThreadTaskRunner::GetMainThreadDefault()
-            ->BelongsToCurrentThread());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTaskAndReply(
+  CHECK(
+      SingleThreadTaskRunner::GetMainThreadDefault()->BelongsToCurrentThread());
+  SingleThreadTaskRunner::GetCurrentDefault()->PostTaskAndReply(
       FROM_HERE, BindOnce(&SimulatePressureNotification, memory_pressure_level),
       std::move(on_notification_sent_callback));
 }

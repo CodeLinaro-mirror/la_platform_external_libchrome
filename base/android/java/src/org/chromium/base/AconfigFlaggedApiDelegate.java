@@ -246,16 +246,14 @@ public interface AconfigFlaggedApiDelegate {
      * Calls {@link android.view.accessibility.AccessibilityNodeInfoCompat#setSelection(@Nullable
      * SelectionCompat selection)} if supported.
      *
-     * @param info The node to which the selection is assigned.
+     * @param info The node to which the extended selection is assigned.
      * @param view The view whose virtual descendant is associated with the selection position.
      * @param startVirtualDescendantId The ID of the virtual descendant within {@code view}'s
-     *     virtual subtree that contains the start selection position. Passing {@code View.NO_ID}
-     *     will clear the selection.
+     *     virtual subtree that contains the start selection position.
      * @param startOffset The offset for a selection position within the start virtual descendant's
      *     text content.
      * @param endVirtualDescendantId The ID of the virtual descendant within {@code view}'s virtual
-     *     subtree that contains the end selection position. Passing {@code View.NO_ID} will clear
-     *     the selection.
+     *     subtree that contains the end selection position.
      * @param endOffset The offset for a selection position within the end virtual descendant's text
      *     content.
      */
@@ -267,8 +265,38 @@ public interface AconfigFlaggedApiDelegate {
             int endVirtualDescendantId,
             int endOffset) {}
 
+    /**
+     * Calls {@link android.view.accessibility.AccessibilityNodeInfoCompat#setSelection(@Nullable
+     * SelectionCompat selection)} if supported.
+     *
+     * @param info The node whose extended selection is cleared.
+     */
+    default void clearSelection(AccessibilityNodeInfoCompat info) {}
+
     /** Checks if {@link android.content.pm.webapp.WebAppManager} service is available. */
     default boolean isWebAppServiceEnabled() {
+        return false;
+    }
+
+    /**
+     * Constructs {@link WebAppInstallRequest} and calls {@link
+     * android.content.pm.webapp.WebAppManager#install(@NonNull WebAppInstallRequest
+     * request, @NonNull @CallbackExecutor Executor executor, @NonNull ObjIntConsumer<String>
+     * callback)} with it if supported. Returns whether the method was successfully called.
+     *
+     * @param title The title of the web app to install.
+     * @param manifestUrl The manifest URL to install from.
+     * @param installSucceededCallback The callback to run when the install finished successfully.
+     * @param installFailedCallback The callback to run when the install failed.
+     * @param installCancelledCallback The callback to run when the user cancelled the installation.
+     */
+    default boolean installTwa(
+            String title,
+            String manifestUrl,
+            Runnable installSucceededCallback,
+            Runnable installFailedCallback,
+            Runnable installCancelledCallback) {
+        installFailedCallback.run();
         return false;
     }
 }

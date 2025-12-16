@@ -784,6 +784,7 @@ libbase_sublibs = [
       "base/trace_event/histogram_scope.cc",
       "base/trace_event/interned_args_helper.cc",
       "base/trace_event/malloc_dump_provider.cc",
+      "base/trace_event/measured_memory_dump_provider_info.cc",
       "base/trace_event/memory_allocator_dump.cc",
       "base/trace_event/memory_allocator_dump_guid.cc",
       "base/trace_event/memory_dump_manager.cc",

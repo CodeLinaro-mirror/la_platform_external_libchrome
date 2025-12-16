@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
-#pragma allow_unsafe_libc_calls
-#endif
-
 #include "base/system/sys_info.h"
 
 #include <errno.h>
@@ -23,6 +18,7 @@
 #include <type_traits>
 
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_util.h"
 #include "base/memory/page_size.h"
 #include "base/notimplemented.h"
@@ -54,17 +50,16 @@
 
 namespace {
 
-base::ByteCount AmountOfVirtualMemory() {
+base::ByteSize AmountOfVirtualMemory() {
   struct rlimit limit;
   int result = getrlimit(RLIMIT_DATA, &limit);
   if (result != 0) {
     NOTREACHED();
   }
-  return base::ByteCount::FromUnsigned(
-      limit.rlim_cur == RLIM_INFINITY ? 0 : limit.rlim_cur);
+  return base::ByteSize(limit.rlim_cur == RLIM_INFINITY ? 0 : limit.rlim_cur);
 }
 using LazyVirtualMemory =
-    base::internal::LazySysInfoValue<base::ByteCount, AmountOfVirtualMemory>;
+    base::internal::LazySysInfoValue<base::ByteSize, AmountOfVirtualMemory>;
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 bool IsStatsZeroIfUnlimited(const base::FilePath& path) {
@@ -126,8 +121,8 @@ void GetKernelVersionNumbers(int32_t* major_version,
                              int32_t* bugfix_version) {
   struct utsname info;
   CHECK_EQ(uname(&info), 0);
-  int num_read = sscanf(info.release, "%d.%d.%d", major_version, minor_version,
-                        bugfix_version);
+  int num_read = UNSAFE_TODO(sscanf(info.release, "%d.%d.%d", major_version,
+                                    minor_version, bugfix_version));
   if (num_read < 1) {
     *major_version = 0;
   }
@@ -202,7 +197,7 @@ int SysInfo::NumberOfProcessors() {
 #endif  // !BUILDFLAG(IS_OPENBSD)
 
 // static
-ByteCount SysInfo::AmountOfVirtualMemory() {
+ByteSize SysInfo::AmountOfVirtualMemory() {
   static_assert(std::is_trivially_destructible<LazyVirtualMemory>::value);
   static LazyVirtualMemory virtual_memory;
   return virtual_memory.value();
