@@ -17,7 +17,7 @@ WANT = [
     re.compile(rb'ipc/.*(\.cc|\.h|\.mojom)$'),
     re.compile(rb'ui/gfx/(gfx_export.h|geometry|range)'),
     re.compile(rb'testing/[^/]*\.(cc|h)$'),
-    re.compile(rb'third_party/(ipcz|jinja2|markupsafe|ply)'),
+    re.compile(rb'third_party/(ipcz|jinja2|markupsafe|ply|simdutf)'),
     re.compile(
         rb'components/(json_schema|policy/core/common/[^/]*$|policy/policy_export.h|timers)'
     ),
