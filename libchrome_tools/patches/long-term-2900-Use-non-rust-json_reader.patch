@@ -13,8 +13,8 @@ Change-Id: I6883925e7216b967ee3830d087792bc6fa25034f
  base/json/json_parser.cc          | 872 ++++++++++++++++++++++++++++++
  base/json/json_parser.h           | 269 +++++++++
  base/json/json_parser_unittest.cc | 341 ++++++++++++
- base/json/json_reader.cc          |  31 +-
- 4 files changed, 1499 insertions(+), 14 deletions(-)
+ base/json/json_reader.cc          |  28 +-
+ 4 files changed, 1499 insertions(+), 11 deletions(-)
  create mode 100644 base/json/json_parser.cc
  create mode 100644 base/json/json_parser.h
  create mode 100644 base/json/json_parser_unittest.cc
@@ -1520,7 +1520,7 @@ index 0000000000..bd4a1c169e
 +
 +}  // namespace base::internal
 diff --git a/base/json/json_reader.cc b/base/json/json_reader.cc
-index 664b729034..4450a1423d 100644
+index 361ed60a6f..ccd26c32f9 100644
 --- a/base/json/json_reader.cc
 +++ b/base/json/json_reader.cc
 @@ -7,15 +7,15 @@
@@ -1539,10 +1539,10 @@ index 664b729034..4450a1423d 100644
  
 +// Disable codes for rust.
 +#if 0
- namespace {
- const char kSecurityJsonParsingTime[] = "Security.JSONParser.ParsingTime";
- }  // namespace
-@@ -121,6 +121,7 @@ base::JSONReader::Result DecodeJSONInRust(std::string_view json,
+ // This namespace defines FFI-friendly functions that are be called from Rust in
+ // //third_party/rust/serde_json_lenient/v0_2/wrapper/.
+ namespace serde_json_lenient {
+@@ -117,6 +117,7 @@ base::JSONReader::Result DecodeJSONInRust(std::string_view json,
  
  }  // namespace
  }  // namespace serde_json_lenient
@@ -1550,12 +1550,10 @@ index 664b729034..4450a1423d 100644
  
  namespace base {
  
-@@ -133,14 +134,8 @@ std::string JSONReader::Error::ToString() const {
+@@ -129,12 +130,8 @@ std::string JSONReader::Error::ToString() const {
  std::optional<Value> JSONReader::Read(std::string_view json,
                                        int options,
                                        size_t max_depth) {
--  SCOPED_UMA_HISTOGRAM_TIMER_MICROS(kSecurityJsonParsingTime);
--
 -  JSONReader::Result result =
 -      serde_json_lenient::DecodeJSONInRust(json, options, max_depth);
 -  if (!result.has_value()) {
@@ -1567,11 +1565,10 @@ index 664b729034..4450a1423d 100644
  }
  
  // static
-@@ -169,9 +164,17 @@ std::optional<Value::List> JSONReader::ReadList(std::string_view json,
+@@ -163,8 +160,17 @@ std::optional<Value::List> JSONReader::ReadList(std::string_view json,
  JSONReader::Result JSONReader::ReadAndReturnValueWithError(
      std::string_view json,
      int options) {
--  SCOPED_UMA_HISTOGRAM_TIMER_MICROS(kSecurityJsonParsingTime);
 -  return serde_json_lenient::DecodeJSONInRust(json, options,
 -                                              internal::kAbsoluteMaxDepth);
 +  internal::JSONParser parser(options);
@@ -1589,5 +1586,5 @@ index 664b729034..4450a1423d 100644
  
  }  // namespace base
 -- 
-2.50.0.727.gbf7dc18ff4-goog
+2.52.0.322.g1dd061c0dc-goog
 
