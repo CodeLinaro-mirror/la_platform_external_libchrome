@@ -129,6 +129,9 @@ config("base_core_config") {
 
     # For double-conversion/strtod.cc
     "-Wno-unused-function",
+
+    # For third_party/simdutf/simdutf.cpp
+    "-Wno-unused-const-variable",
   ]
 }
 
@@ -645,6 +648,7 @@ libbase_sublibs = [
       "base/sequence_checker.cc",
       "base/sequence_checker_impl.cc",
       "base/sequence_token.cc",
+      "base/simdutf_shim.cc",
       "base/strings/escape.cc",
       "base/strings/pattern.cc",
       "base/strings/safe_sprintf.cc",
@@ -811,6 +815,7 @@ libbase_sublibs = [
       "base/version.cc",
       "base/vlog.cc",
       "dump_without_crashing.cc",
+      "third_party/simdutf/simdutf.cpp",
     ]
 
     if (use_allocator_shim) {
@@ -1533,6 +1538,7 @@ install_config("install_header") {
     "third_party/ipcz/**/*.h",
     "third_party/libevent/*.h",
     "third_party/perfetto/**/*.h",
+    "third_party/simdutf/**/*.h",
   ]
   if (use.crypto) {
     sources += [
