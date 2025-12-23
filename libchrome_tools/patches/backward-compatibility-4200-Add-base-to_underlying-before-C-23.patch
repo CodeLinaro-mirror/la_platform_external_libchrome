@@ -1,0 +1,590 @@
+From b3fd91a8ead2fae93cb874d5497b4a270cc749d9 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Wed, 24 Dec 2025 02:41:25 +0000
+Subject: [PATCH] Add base::to_underlying before C++23
+
+std::to_underlying is not available for C++20.
+
+Revert "Migrate usages of base::to_underlying in //mojo"
+This reverts commit 4ccea9cc3ff36be9a4d0d9b8b02d6b8caec84c0f.
+
+Revert "Migrate usages of base::to_underlying in //base"
+This reverts commit 86dec152c75a4a3f01802e7f57dad3866badd5cd.
+
+Revert "Make base::to_underlying an alias to std::to_underlying"
+This reverts commit 23c18f85275491a21335d2a260a8379c84cf50b5.
+---
+ base/apple/mach_port_rendezvous.cc            |  1 +
+ base/check.cc                                 |  6 ++--
+ base/containers/enum_set.h                    | 31 ++++++++--------
+ base/functional/callback_internal.cc          |  5 ++-
+ base/metrics/histogram_macros_internal.h      |  4 +--
+ base/task/thread_pool/priority_queue.cc       |  7 ++--
+ base/task/thread_pool/priority_queue.h        |  4 +--
+ base/types/cxx23_to_underlying.h              | 12 +++++--
+ base/types/cxx23_to_underlying_unittest.cc    | 35 +++++++++++++++++++
+ .../c++/basic_struct.test-mojom.cc.golden     |  1 +
+ .../c++/basic_union.test-mojom.cc.golden      |  1 +
+ .../c++/interface.test-mojom.cc.golden        |  5 +--
+ .../optional_primitives.test-mojom.cc.golden  |  1 +
+ .../c++/results.test-mojom.cc.golden          | 11 +++---
+ .../c++/typemap.test-mojom.cc.golden          |  5 +--
+ .../bindings/tests/sync_method_unittest.cc    |  7 ++--
+ .../cpp_templates/interface_definition.tmpl   |  8 ++---
+ .../generators/cpp_templates/module.cc.tmpl   |  1 +
+ 18 files changed, 98 insertions(+), 47 deletions(-)
+ create mode 100644 base/types/cxx23_to_underlying_unittest.cc
+
+diff --git a/base/apple/mach_port_rendezvous.cc b/base/apple/mach_port_rendezvous.cc
+index 3d47f143c1..bf19f32333 100644
+--- a/base/apple/mach_port_rendezvous.cc
++++ b/base/apple/mach_port_rendezvous.cc
+@@ -21,6 +21,7 @@
+ #include "base/notreached.h"
+ #include "base/numerics/byte_conversions.h"
+ #include "base/strings/stringprintf.h"
++#include "base/types/cxx23_to_underlying.h"
+ 
+ namespace base {
+ 
+diff --git a/base/check.cc b/base/check.cc
+index 2ce900f0f4..d69a6aa13d 100644
+--- a/base/check.cc
++++ b/base/check.cc
+@@ -5,7 +5,6 @@
+ #include "base/check.h"
+ 
+ #include <optional>
+-#include <utility>
+ 
+ #include "base/check_op.h"
+ #include "base/check_version_internal.h"
+@@ -14,6 +13,7 @@
+ #include "base/debug/dump_without_crashing.h"
+ #include "base/logging.h"
+ #include "base/thread_annotations.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "build/build_config.h"
+ 
+ namespace logging {
+@@ -67,7 +67,7 @@ LogSeverity GetDumpSeverity() {
+ 
+ LogSeverity GetNotFatalUntilSeverity(base::NotFatalUntil fatal_milestone) {
+   if (fatal_milestone != base::NotFatalUntil::NoSpecifiedMilestoneInternal &&
+-      std::to_underlying(fatal_milestone) <= BASE_CHECK_VERSION_INTERNAL) {
++      base::to_underlying(fatal_milestone) <= BASE_CHECK_VERSION_INTERNAL) {
+     return LOGGING_FATAL;
+   }
+   return GetDumpSeverity();
+@@ -112,7 +112,7 @@ void MaybeSetFatalMilestoneCrashKey(base::NotFatalUntil fatal_milestone) {
+   }
+   base::debug::SetCrashKeyString(
+       GetFatalMilestoneCrashKey(),
+-      base::NumberToString(std::to_underlying(fatal_milestone)));
++      base::NumberToString(base::to_underlying(fatal_milestone)));
+ }
+ 
+ void DumpWithoutCrashing(base::debug::CrashKeyString* message_key,
+diff --git a/base/containers/enum_set.h b/base/containers/enum_set.h
+index f38ef65d5a..3bd3b62e82 100644
+--- a/base/containers/enum_set.h
++++ b/base/containers/enum_set.h
+@@ -17,6 +17,7 @@
+ #include "base/check.h"
+ #include "base/check_op.h"
+ #include "base/memory/raw_ptr.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "build/build_config.h"
+ 
+ namespace base {
+@@ -62,7 +63,7 @@ class EnumSet {
+   static const E kMinValue = MinEnumValue;
+   static const E kMaxValue = MaxEnumValue;
+   static const size_t kValueCount =
+-      std::to_underlying(kMaxValue) - std::to_underlying(kMinValue) + 1;
++      to_underlying(kMaxValue) - to_underlying(kMinValue) + 1;
+ 
+   static_assert(kMinValue <= kMaxValue,
+                 "min value must be no greater than max value");
+@@ -227,37 +228,37 @@ class EnumSet {
+ 
+   // Returns an EnumSet constructed from |bitmask|.
+   static constexpr EnumSet FromEnumBitmask(const uint64_t bitmask) {
+-    static_assert(std::to_underlying(kMaxValue) < 64,
++    static_assert(to_underlying(kMaxValue) < 64,
+                   "The highest enum value must be < 64 for FromEnumBitmask ");
+-    static_assert(std::to_underlying(kMinValue) >= 0,
++    static_assert(to_underlying(kMinValue) >= 0,
+                   "The lowest enum value must be >= 0 for FromEnumBitmask ");
+-    return EnumSet(EnumBitSet(bitmask >> std::to_underlying(kMinValue)));
++    return EnumSet(EnumBitSet(bitmask >> to_underlying(kMinValue)));
+   }
+   // Returns a bitmask for the EnumSet.
+   uint64_t ToEnumBitmask() const {
+-    static_assert(std::to_underlying(kMaxValue) < 64,
++    static_assert(to_underlying(kMaxValue) < 64,
+                   "The highest enum value must be < 64 for ToEnumBitmask ");
+-    static_assert(std::to_underlying(kMinValue) >= 0,
++    static_assert(to_underlying(kMinValue) >= 0,
+                   "The lowest enum value must be >= 0 for FromEnumBitmask ");
+-    return enums_.to_ullong() << std::to_underlying(kMinValue);
++    return enums_.to_ullong() << to_underlying(kMinValue);
+   }
+ 
+   // Returns a uint64_t bit mask representing the values within the range
+   // [64*n, 64*n + 63] of the EnumSet.
+   std::optional<uint64_t> GetNth64bitWordBitmask(size_t n) const {
+     // If the EnumSet contains less than n 64-bit masks, return std::nullopt.
+-    if (std::to_underlying(kMaxValue) / 64 < n) {
++    if (to_underlying(kMaxValue) / 64 < n) {
+       return std::nullopt;
+     }
+ 
+     std::bitset<kValueCount> mask = ~uint64_t{0};
+     std::bitset<kValueCount> bits = enums_;
+-    if (std::to_underlying(kMinValue) < n * 64) {
+-      bits >>= n * 64 - std::to_underlying(kMinValue);
++    if (to_underlying(kMinValue) < n * 64) {
++      bits >>= n * 64 - to_underlying(kMinValue);
+     }
+     uint64_t result = (bits & mask).to_ullong();
+-    if (std::to_underlying(kMinValue) > n * 64) {
+-      result <<= std::to_underlying(kMinValue) - n * 64;
++    if (to_underlying(kMinValue) > n * 64) {
++      result <<= to_underlying(kMinValue) - n * 64;
+     }
+     return result;
+   }
+@@ -390,13 +391,13 @@ class EnumSet {
+   // Converts a value to/from an index into |enums_|.
+   static constexpr size_t ToIndex(E value) {
+     CHECK(InRange(value));
+-    return static_cast<size_t>(std::to_underlying(value)) -
+-           static_cast<size_t>(std::to_underlying(MinEnumValue));
++    return static_cast<size_t>(to_underlying(value)) -
++           static_cast<size_t>(to_underlying(MinEnumValue));
+   }
+ 
+   static E FromIndex(size_t i) {
+     DCHECK_LT(i, kValueCount);
+-    return static_cast<E>(std::to_underlying(MinEnumValue) + i);
++    return static_cast<E>(to_underlying(MinEnumValue) + i);
+   }
+ 
+   EnumBitSet enums_;
+diff --git a/base/functional/callback_internal.cc b/base/functional/callback_internal.cc
+index de55b8c340..27f6900728 100644
+--- a/base/functional/callback_internal.cc
++++ b/base/functional/callback_internal.cc
+@@ -4,10 +4,9 @@
+ 
+ #include "base/functional/callback_internal.h"
+ 
+-#include <utility>
+-
+ #include "base/check.h"
+ #include "base/notreached.h"
++#include "base/types/cxx23_to_underlying.h"
+ 
+ namespace base::internal {
+ 
+@@ -18,7 +17,7 @@ bool QueryCancellationTraitsForNonCancellables(
+     BindStateBase::CancellationQueryMode mode) {
+   // Non-cancellables are never cancelled and always valid, which means the
+   // response for each mode is the same as its underlying value.
+-  return std::to_underlying(mode);
++  return to_underlying(mode);
+ }
+ 
+ }  // namespace
+diff --git a/base/metrics/histogram_macros_internal.h b/base/metrics/histogram_macros_internal.h
+index 0a22535e60..09a9458fac 100644
+--- a/base/metrics/histogram_macros_internal.h
++++ b/base/metrics/histogram_macros_internal.h
+@@ -11,13 +11,13 @@
+ #include <limits>
+ #include <memory>
+ #include <type_traits>
+-#include <utility>
+ 
+ #include "base/dcheck_is_on.h"
+ #include "base/metrics/histogram.h"
+ #include "base/metrics/sparse_histogram.h"
+ #include "base/no_destructor.h"
+ #include "base/time/time.h"
++#include "base/types/cxx23_to_underlying.h"
+ 
+ // This is for macros and helpers internal to base/metrics. They should not be
+ // used outside of this directory. For writing to UMA histograms, see
+@@ -33,7 +33,7 @@ struct EnumSizeTraits {
+     if constexpr (requires { Enum::kMaxValue; }) {
+       // Since the UMA histogram macros expect a value one larger than the max
+       // defined enumerator value, add one.
+-      return static_cast<uintmax_t>(std::to_underlying(Enum::kMaxValue) + 1);
++      return static_cast<uintmax_t>(base::to_underlying(Enum::kMaxValue) + 1);
+     } else {
+       static_assert(
+           sizeof(Enum) == 0,
+diff --git a/base/task/thread_pool/priority_queue.cc b/base/task/thread_pool/priority_queue.cc
+index 3260516ed6..a576d75b09 100644
+--- a/base/task/thread_pool/priority_queue.cc
++++ b/base/task/thread_pool/priority_queue.cc
+@@ -9,6 +9,7 @@
+ #include "base/check_op.h"
+ #include "base/compiler_specific.h"
+ #include "base/memory/ptr_util.h"
++#include "base/types/cxx23_to_underlying.h"
+ 
+ namespace base::internal {
+ 
+@@ -211,12 +212,12 @@ void PriorityQueue::swap(PriorityQueue& other) {
+ }
+ 
+ void PriorityQueue::DecrementNumTaskSourcesForPriority(TaskPriority priority) {
+-  DCHECK_GT(num_task_sources_per_priority_[std::to_underlying(priority)], 0U);
+-  --num_task_sources_per_priority_[std::to_underlying(priority)];
++  DCHECK_GT(num_task_sources_per_priority_[base::to_underlying(priority)], 0U);
++  --num_task_sources_per_priority_[base::to_underlying(priority)];
+ }
+ 
+ void PriorityQueue::IncrementNumTaskSourcesForPriority(TaskPriority priority) {
+-  ++num_task_sources_per_priority_[std::to_underlying(priority)];
++  ++num_task_sources_per_priority_[base::to_underlying(priority)];
+ }
+ 
+ }  // namespace base::internal
+diff --git a/base/task/thread_pool/priority_queue.h b/base/task/thread_pool/priority_queue.h
+index cd902bc1db..35dabc5f94 100644
+--- a/base/task/thread_pool/priority_queue.h
++++ b/base/task/thread_pool/priority_queue.h
+@@ -8,13 +8,13 @@
+ #include <array>
+ #include <functional>
+ #include <memory>
+-#include <utility>
+ 
+ #include "base/base_export.h"
+ #include "base/containers/intrusive_heap.h"
+ #include "base/task/common/checked_lock.h"
+ #include "base/task/thread_pool/task_source.h"
+ #include "base/task/thread_pool/task_source_sort_key.h"
++#include "base/types/cxx23_to_underlying.h"
+ 
+ namespace base {
+ namespace internal {
+@@ -68,7 +68,7 @@ class BASE_EXPORT PriorityQueue {
+ 
+   // Returns the number of TaskSources with |priority|.
+   size_t GetNumTaskSourcesWithPriority(TaskPriority priority) const {
+-    return num_task_sources_per_priority_[std::to_underlying(priority)];
++    return num_task_sources_per_priority_[base::to_underlying(priority)];
+   }
+ 
+   // Set the PriorityQueue to empty all its TaskSources of Tasks when it is
+diff --git a/base/types/cxx23_to_underlying.h b/base/types/cxx23_to_underlying.h
+index 411f5290d0..8250bdd125 100644
+--- a/base/types/cxx23_to_underlying.h
++++ b/base/types/cxx23_to_underlying.h
+@@ -5,12 +5,18 @@
+ #ifndef BASE_TYPES_CXX23_TO_UNDERLYING_H_
+ #define BASE_TYPES_CXX23_TO_UNDERLYING_H_
+ 
+-#include <utility>
++#include <type_traits>
+ 
+ namespace base {
+ 
+-// TODO(crbug.com/470039537): Migrate usages and delete this alias.
+-using std::to_underlying;
++// Implementation of C++23's std::to_underlying.
++//
++// Reference: https://en.cppreference.com/w/cpp/utility/to_underlying
++template <typename EnumT>
++  requires(std::is_enum_v<EnumT>)
++constexpr std::underlying_type_t<EnumT> to_underlying(EnumT e) noexcept {
++  return static_cast<std::underlying_type_t<EnumT>>(e);
++}
+ 
+ }  // namespace base
+ 
+diff --git a/base/types/cxx23_to_underlying_unittest.cc b/base/types/cxx23_to_underlying_unittest.cc
+new file mode 100644
+index 0000000000..d0c507f6dd
+--- /dev/null
++++ b/base/types/cxx23_to_underlying_unittest.cc
+@@ -0,0 +1,35 @@
++// Copyright 2022 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/types/cxx23_to_underlying.h"
++
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace base {
++
++TEST(Cxx23ToUnderlying, Basic) {
++  enum Enum : int {
++    kOne = 1,
++    kTwo = 2,
++  };
++
++  enum class ScopedEnum : char {
++    kOne = 1,
++    kTwo = 2,
++  };
++
++  static_assert(std::is_same_v<decltype(to_underlying(kOne)), int>, "");
++  static_assert(std::is_same_v<decltype(to_underlying(kTwo)), int>, "");
++  static_assert(to_underlying(kOne) == 1, "");
++  static_assert(to_underlying(kTwo) == 2, "");
++
++  static_assert(std::is_same_v<decltype(to_underlying(ScopedEnum::kOne)), char>,
++                "");
++  static_assert(std::is_same_v<decltype(to_underlying(ScopedEnum::kTwo)), char>,
++                "");
++  static_assert(to_underlying(ScopedEnum::kOne) == 1, "");
++  static_assert(to_underlying(ScopedEnum::kTwo) == 2, "");
++}
++
++}  // namespace base
+diff --git a/mojo/golden/generated/c++/basic_struct.test-mojom.cc.golden b/mojo/golden/generated/c++/basic_struct.test-mojom.cc.golden
+index cf7326177d..001cd87695 100644
+--- a/mojo/golden/generated/c++/basic_struct.test-mojom.cc.golden
++++ b/mojo/golden/generated/c++/basic_struct.test-mojom.cc.golden
+@@ -21,6 +21,7 @@
+ #include "base/task/thread_pool/thread_pool_instance.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/typed_macros.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/lib/default_construct_tag_internal.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+diff --git a/mojo/golden/generated/c++/basic_union.test-mojom.cc.golden b/mojo/golden/generated/c++/basic_union.test-mojom.cc.golden
+index fb84398505..2ef472f802 100644
+--- a/mojo/golden/generated/c++/basic_union.test-mojom.cc.golden
++++ b/mojo/golden/generated/c++/basic_union.test-mojom.cc.golden
+@@ -21,6 +21,7 @@
+ #include "base/task/thread_pool/thread_pool_instance.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/typed_macros.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/lib/default_construct_tag_internal.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+diff --git a/mojo/golden/generated/c++/interface.test-mojom.cc.golden b/mojo/golden/generated/c++/interface.test-mojom.cc.golden
+index 906a0a57de..cab46e403b 100644
+--- a/mojo/golden/generated/c++/interface.test-mojom.cc.golden
++++ b/mojo/golden/generated/c++/interface.test-mojom.cc.golden
+@@ -21,6 +21,7 @@
+ #include "base/task/thread_pool/thread_pool_instance.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/typed_macros.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/lib/default_construct_tag_internal.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+@@ -145,7 +146,7 @@ void IFaceProxy::Method(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::IFace::kMethod), kFlags, estimated_payload_size);
++      base::to_underlying(messages::IFace::kMethod), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::IFace_Method_Params_Data> params(
+           message);
+@@ -262,7 +263,7 @@ void IFace_Method_ProxyToResponder::Run(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::IFace::kMethod), kFlags, estimated_payload_size);
++      base::to_underlying(messages::IFace::kMethod), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::IFace_Method_ResponseParams_Data> params(
+           message);
+diff --git a/mojo/golden/generated/c++/optional_primitives.test-mojom.cc.golden b/mojo/golden/generated/c++/optional_primitives.test-mojom.cc.golden
+index d7eb537519..a021cba781 100644
+--- a/mojo/golden/generated/c++/optional_primitives.test-mojom.cc.golden
++++ b/mojo/golden/generated/c++/optional_primitives.test-mojom.cc.golden
+@@ -21,6 +21,7 @@
+ #include "base/task/thread_pool/thread_pool_instance.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/typed_macros.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/lib/default_construct_tag_internal.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+diff --git a/mojo/golden/generated/c++/results.test-mojom.cc.golden b/mojo/golden/generated/c++/results.test-mojom.cc.golden
+index ac5516898f..a1d8f84408 100644
+--- a/mojo/golden/generated/c++/results.test-mojom.cc.golden
++++ b/mojo/golden/generated/c++/results.test-mojom.cc.golden
+@@ -21,6 +21,7 @@
+ #include "base/task/thread_pool/thread_pool_instance.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/typed_macros.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/lib/default_construct_tag_internal.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+@@ -412,7 +413,7 @@ void ResultInterfaceProxy::Method(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::ResultInterface::kMethod), kFlags, estimated_payload_size);
++      base::to_underlying(messages::ResultInterface::kMethod), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::ResultInterface_Method_Params_Data> params(
+           message);
+@@ -462,7 +463,7 @@ base::expected<
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::ResultInterface::kSyncMethod), kFlags, estimated_payload_size);
++      base::to_underlying(messages::ResultInterface::kSyncMethod), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::ResultInterface_SyncMethod_Params_Data> params(
+           message);
+@@ -520,7 +521,7 @@ void ResultInterfaceProxy::SyncMethod(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::ResultInterface::kSyncMethod), kFlags, estimated_payload_size);
++      base::to_underlying(messages::ResultInterface::kSyncMethod), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::ResultInterface_SyncMethod_Params_Data> params(
+           message);
+@@ -650,7 +651,7 @@ void ResultInterface_Method_ProxyToResponder::Run(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::ResultInterface::kMethod), kFlags, estimated_payload_size);
++      base::to_underlying(messages::ResultInterface::kMethod), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::ResultInterface_Method_ResponseParams_Data> params(
+           message);
+@@ -800,7 +801,7 @@ void ResultInterface_SyncMethod_ProxyToResponder::Run(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::ResultInterface::kSyncMethod), kFlags, estimated_payload_size);
++      base::to_underlying(messages::ResultInterface::kSyncMethod), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::ResultInterface_SyncMethod_ResponseParams_Data> params(
+           message);
+diff --git a/mojo/golden/generated/c++/typemap.test-mojom.cc.golden b/mojo/golden/generated/c++/typemap.test-mojom.cc.golden
+index f957bf1997..375fa93f22 100644
+--- a/mojo/golden/generated/c++/typemap.test-mojom.cc.golden
++++ b/mojo/golden/generated/c++/typemap.test-mojom.cc.golden
+@@ -21,6 +21,7 @@
+ #include "base/task/thread_pool/thread_pool_instance.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/typed_macros.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/lib/default_construct_tag_internal.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+@@ -197,7 +198,7 @@ void IFaceWithTypemapProxy::Echo(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::IFaceWithTypemap::kEcho), kFlags, estimated_payload_size);
++      base::to_underlying(messages::IFaceWithTypemap::kEcho), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::IFaceWithTypemap_Echo_Params_Data> params(
+           message);
+@@ -329,7 +330,7 @@ void IFaceWithTypemap_Echo_ProxyToResponder::Run(
+   const size_t estimated_payload_size =
+     0;
+   mojo::Message message(
+-      std::to_underlying(messages::IFaceWithTypemap::kEcho), kFlags, estimated_payload_size);
++      base::to_underlying(messages::IFaceWithTypemap::kEcho), kFlags, estimated_payload_size);
+   mojo::internal::MessageFragment<
+       ::golden::internal::IFaceWithTypemap_Echo_ResponseParams_Data> params(
+           message);
+diff --git a/mojo/public/cpp/bindings/tests/sync_method_unittest.cc b/mojo/public/cpp/bindings/tests/sync_method_unittest.cc
+index b564eb9392..dca77937c4 100644
+--- a/mojo/public/cpp/bindings/tests/sync_method_unittest.cc
++++ b/mojo/public/cpp/bindings/tests/sync_method_unittest.cc
+@@ -17,6 +17,7 @@
+ #include "base/threading/sequence_bound.h"
+ #include "base/threading/thread.h"
+ #include "base/time/time.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/associated_receiver.h"
+ #include "mojo/public/cpp/bindings/associated_receiver_set.h"
+ #include "mojo/public/cpp/bindings/associated_remote.h"
+@@ -1831,8 +1832,8 @@ class SyncFlagValidationTest : public ::testing::TestWithParam<uint32_t> {
+         // InterfaceEndpointClient requires this flag if sending a message with
+         // a responder.
+         Message::kFlagExpectsResponse | GetParam();
+-    Message message(std::to_underlying(mojom::messages::NoSync::kMethod), flags,
+-                    0, 0, nullptr);
++    Message message(base::to_underlying(mojom::messages::NoSync::kMethod),
++                    flags, 0, 0, nullptr);
+     ::mojo::internal::MessageFragment<
+         mojom::internal::NoSync_Method_Params_Data>
+         params(message);
+@@ -1847,7 +1848,7 @@ class SyncFlagValidationTest : public ::testing::TestWithParam<uint32_t> {
+         // InterfaceEndpointClient requires this flag if sending a message with
+         // a responder.
+         Message::kFlagExpectsResponse | GetParam();
+-    Message message(std::to_underlying(mojom::messages::OneSync::kMethod),
++    Message message(base::to_underlying(mojom::messages::OneSync::kMethod),
+                     flags, 0, 0, nullptr);
+     ::mojo::internal::MessageFragment<
+         mojom::internal::NoSync_Method_Params_Data>
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
+index fc403f98c5..09eb7097ef 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
+@@ -239,7 +239,7 @@ class {{class_name}}_{{method.name}}_ForwardToCallback
+ {%-   for method in interface.methods %}
+ {%-     if method.estimate_message_size %}
+ {%-       set message_name =
+-              "std::to_underlying(messages::%s::k%s)"|format(interface.name, method.name) %}
++              "base::to_underlying(messages::%s::k%s)"|format(interface.name, method.name) %}
+   size_estimator_.EnablePredictiveAllocation({{message_name}});
+ {%-     endif %}
+ {%-   endfor %}
+@@ -250,7 +250,7 @@ class {{class_name}}_{{method.name}}_ForwardToCallback
+ 
+ {%- for method in interface.methods %}
+ {%-   set message_name =
+-          "std::to_underlying(messages::%s::k%s)"|format(interface.name, method.name) %}
++          "base::to_underlying(messages::%s::k%s)"|format(interface.name, method.name) %}
+ {%-   set params_struct = method.param_struct %}
+ {%-   set params_description =
+           "%s.%s request"|format(interface.name, method.name) %}
+@@ -371,7 +371,7 @@ void {{proxy_name}}::{{method.name}}(
+ {%- for method in interface.methods -%}
+ {%-   if method.response_parameters != None %}
+ {%-     set message_name =
+-            "std::to_underlying(messages::%s::k%s)"|format(interface.name, method.name) %}
++            "base::to_underlying(messages::%s::k%s)"|format(interface.name, method.name) %}
+ {%-     set response_params_struct = method.response_param_struct %}
+ {%-     set params_description =
+             "%s.%s response"|format(interface.name, method.name) %}
+@@ -646,7 +646,7 @@ static const mojo::internal::GenericValidationInfo k{{class_name}}ValidationInfo
+ {%- elif interface.methods %}
+ static const std::pair<uint32_t, mojo::internal::GenericValidationInfo> k{{class_name}}ValidationInfo[] = {
+ {%-   for method in interface.methods %}
+-    {std::to_underlying(messages::{{class_name}}::k{{method.name}}),
++    {base::to_underlying(messages::{{class_name}}::k{{method.name}}),
+      { {{request_validator(class_name, method)}},
+ {%-     if method.response_parameters != None %}
+       &internal::{{class_name}}_{{method.name}}_ResponseParams_Data::Validate}},
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
+index ef0986dd5f..828158df5d 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/module.cc.tmpl
+@@ -23,6 +23,7 @@
+ #include "base/task/thread_pool/thread_pool_instance.h"
+ #include "base/trace_event/trace_event.h"
+ #include "base/trace_event/typed_macros.h"
++#include "base/types/cxx23_to_underlying.h"
+ #include "mojo/public/cpp/bindings/lib/default_construct_tag_internal.h"
+ #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
+ #include "mojo/public/cpp/bindings/lib/message_internal.h"
+-- 
+2.52.0.351.gbe84eed79e-goog
+
