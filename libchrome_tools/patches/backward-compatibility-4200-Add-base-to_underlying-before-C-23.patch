@@ -1,9 +1,12 @@
-From b3fd91a8ead2fae93cb874d5497b4a270cc749d9 Mon Sep 17 00:00:00 2001
+From 5d9e1ab99ef40b7d27111d5bde86d60cff0a0156 Mon Sep 17 00:00:00 2001
 From: Wei-Luan Wang <weiluanwang@google.com>
-Date: Wed, 24 Dec 2025 02:41:25 +0000
+Date: Fri, 26 Dec 2025 00:55:32 +0000
 Subject: [PATCH] Add base::to_underlying before C++23
 
 std::to_underlying is not available for C++20.
+
+Revert "Delete unused base/types/cxx23_to_underlying.h"
+This reverts commit ef6e4802342840470b667df82e81af4c68819d4c.
 
 Revert "Migrate usages of base::to_underlying in //mojo"
 This reverts commit 4ccea9cc3ff36be9a4d0d9b8b02d6b8caec84c0f.
@@ -21,7 +24,7 @@ This reverts commit 23c18f85275491a21335d2a260a8379c84cf50b5.
  base/metrics/histogram_macros_internal.h      |  4 +--
  base/task/thread_pool/priority_queue.cc       |  7 ++--
  base/task/thread_pool/priority_queue.h        |  4 +--
- base/types/cxx23_to_underlying.h              | 12 +++++--
+ base/types/cxx23_to_underlying.h              | 23 ++++++++++++
  base/types/cxx23_to_underlying_unittest.cc    | 35 +++++++++++++++++++
  .../c++/basic_struct.test-mojom.cc.golden     |  1 +
  .../c++/basic_union.test-mojom.cc.golden      |  1 +
@@ -32,7 +35,8 @@ This reverts commit 23c18f85275491a21335d2a260a8379c84cf50b5.
  .../bindings/tests/sync_method_unittest.cc    |  7 ++--
  .../cpp_templates/interface_definition.tmpl   |  8 ++---
  .../generators/cpp_templates/module.cc.tmpl   |  1 +
- 18 files changed, 98 insertions(+), 47 deletions(-)
+ 18 files changed, 112 insertions(+), 44 deletions(-)
+ create mode 100644 base/types/cxx23_to_underlying.h
  create mode 100644 base/types/cxx23_to_underlying_unittest.cc
 
 diff --git a/base/apple/mach_port_rendezvous.cc b/base/apple/mach_port_rendezvous.cc
@@ -282,20 +286,22 @@ index cd902bc1db..35dabc5f94 100644
  
    // Set the PriorityQueue to empty all its TaskSources of Tasks when it is
 diff --git a/base/types/cxx23_to_underlying.h b/base/types/cxx23_to_underlying.h
-index 411f5290d0..8250bdd125 100644
---- a/base/types/cxx23_to_underlying.h
+new file mode 100644
+index 0000000000..8250bdd125
+--- /dev/null
 +++ b/base/types/cxx23_to_underlying.h
-@@ -5,12 +5,18 @@
- #ifndef BASE_TYPES_CXX23_TO_UNDERLYING_H_
- #define BASE_TYPES_CXX23_TO_UNDERLYING_H_
- 
--#include <utility>
+@@ -0,0 +1,23 @@
++// Copyright 2022 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_TYPES_CXX23_TO_UNDERLYING_H_
++#define BASE_TYPES_CXX23_TO_UNDERLYING_H_
++
 +#include <type_traits>
- 
- namespace base {
- 
--// TODO(crbug.com/470039537): Migrate usages and delete this alias.
--using std::to_underlying;
++
++namespace base {
++
 +// Implementation of C++23's std::to_underlying.
 +//
 +// Reference: https://en.cppreference.com/w/cpp/utility/to_underlying
@@ -304,9 +310,10 @@ index 411f5290d0..8250bdd125 100644
 +constexpr std::underlying_type_t<EnumT> to_underlying(EnumT e) noexcept {
 +  return static_cast<std::underlying_type_t<EnumT>>(e);
 +}
- 
- }  // namespace base
- 
++
++}  // namespace base
++
++#endif  // BASE_TYPES_CXX23_TO_UNDERLYING_H_
 diff --git a/base/types/cxx23_to_underlying_unittest.cc b/base/types/cxx23_to_underlying_unittest.cc
 new file mode 100644
 index 0000000000..d0c507f6dd
