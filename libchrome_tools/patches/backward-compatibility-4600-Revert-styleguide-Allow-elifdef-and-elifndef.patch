@@ -1,0 +1,42 @@
+From 3ce3b68694a124d2c47ac2ab678ffd49b8501bbf Mon Sep 17 00:00:00 2001
+From: Nathan Muggli <nmuggli@google.com>
+Date: Wed, 7 Jan 2026 10:02:04 -0700
+Subject: [PATCH] Revert "[styleguide] Allow #elifdef and #elifndef"
+
+This reverts commit 3d5e75eaaf837c18b54f41b0983781d5452b18f5.
+---
+ base/threading/platform_thread_linux_base.cc | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/base/threading/platform_thread_linux_base.cc b/base/threading/platform_thread_linux_base.cc
+index 649cb66c17..1f1367792d 100644
+--- a/base/threading/platform_thread_linux_base.cc
++++ b/base/threading/platform_thread_linux_base.cc
+@@ -9,18 +9,18 @@
+ namespace base {
+ 
+ size_t GetDefaultThreadStackSize(const pthread_attr_t& attributes) {
+-#ifdef THREAD_SANITIZER
+-  // ThreadSanitizer bloats the stack heavily. Evidence has been that the
+-  // default stack size isn't enough for some browser tests.
+-  return 2 * (1 << 23);  // 2 times 8192K (the default stack size on Linux).
+-#elifdef __GLIBC__
++#if !defined(THREAD_SANITIZER) && defined(__GLIBC__)
+   // Generally glibc sets ample default stack sizes, so use the default there.
+   return 0;
+-#else
++#elif !defined(THREAD_SANITIZER)
+   // Other libcs (uclibc, musl, etc) tend to use smaller stacks, often too small
+   // for chromium. Make sure we have enough space to work with here. Note that
+   // for comparison glibc stacks are generally around 8MB.
+   return 2 * (1 << 20);
++#else
++  // ThreadSanitizer bloats the stack heavily. Evidence has been that the
++  // default stack size isn't enough for some browser tests.
++  return 2 * (1 << 23);  // 2 times 8192K (the default stack size on Linux).
+ #endif
+ }
+ 
+-- 
+2.52.0.351.gbe84eed79e-goog
+
