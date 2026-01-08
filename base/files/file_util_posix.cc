@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/390223051): Remove C-library calls to fix the errors.
-#pragma allow_unsafe_libc_calls
-#endif
-
 #include "base/files/file_util.h"
 
 #include <dirent.h>
@@ -35,8 +30,8 @@
 #include "base/base_switches.h"
 #include "base/bits.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/containers/adapters.h"
-#include "base/containers/contains.h"
 #include "base/containers/heap_array.h"
 #include "base/containers/stack.h"
 #include "base/environment.h"
@@ -111,8 +106,7 @@ bool VerifySpecificPathControlledByUser(const FilePath& path,
     return false;
   }
 
-  if ((stat_info.st_mode & S_IWGRP) &&
-      !Contains(group_gids, stat_info.st_gid)) {
+  if ((stat_info.st_mode & S_IWGRP) && !group_gids.contains(stat_info.st_gid)) {
     DLOG(ERROR) << "Path " << path.value()
                 << " is writable by an unprivileged group.";
     return false;
@@ -1058,9 +1052,9 @@ bool GetFileInfo(const FilePath& file_path, File::Info* results) {
 FILE* OpenFile(const FilePath& filename, const char* mode) {
   // 'e' is unconditionally added below, so be sure there is not one already
   // present before a comma in |mode|.
-  DCHECK(
-      strchr(mode, 'e') == nullptr ||
-      (strchr(mode, ',') != nullptr && strchr(mode, 'e') > strchr(mode, ',')));
+  DCHECK(UNSAFE_TODO(strchr(mode, 'e')) == nullptr ||
+         (UNSAFE_TODO(strchr(mode, ',')) != nullptr &&
+          UNSAFE_TODO(strchr(mode, 'e')) > UNSAFE_TODO(strchr(mode, ','))));
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
   FILE* result = nullptr;
 #if BUILDFLAG(IS_ANDROID)
