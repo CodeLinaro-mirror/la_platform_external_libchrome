@@ -505,6 +505,8 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   PA_NOINLINE void* AlignedAlloc(size_t alignment, size_t requested_size) {
     return AlignedAllocInline<flags>(alignment, requested_size);
   }
+  PA_ALWAYS_INLINE size_t GetAdjustedSizeForAlignment(size_t alignment,
+                                                      size_t requested_size);
   template <AllocFlags flags = AllocFlags::kNone>
   PA_ALWAYS_INLINE void* AlignedAllocInline(size_t alignment,
                                             size_t requested_size);
@@ -563,6 +565,10 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   PA_ALWAYS_INLINE void FreeInline(void* object);
   template <FreeFlags flags = FreeFlags::kNone>
   PA_ALWAYS_INLINE void FreeWithSizeInline(void* object, size_t size);
+  template <FreeFlags flags = FreeFlags::kNone>
+  PA_ALWAYS_INLINE void FreeWithSizeAndAlignmentInline(void* object,
+                                                       size_t size,
+                                                       size_t alignment);
   // |object| must be a non-null pointer.
   PA_ALWAYS_INLINE std::pair<internal::SlotStart, internal::SlotSpanMetadata*>
   GetSlotStartAndSlotSpanFromAddress(void* object);
@@ -576,6 +582,11 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   template <FreeFlags flags = FreeFlags::kNone>
   PA_ALWAYS_INLINE static void FreeWithSizeInlineInUnknownRoot(void* object,
                                                                size_t size);
+  template <FreeFlags flags = FreeFlags::kNone>
+  PA_ALWAYS_INLINE static void FreeWithSizeAndAlignmentInlineInUnknownRoot(
+      void* object,
+      size_t size,
+      size_t alignment);
   // |object| must be a non-null pointer.
   PA_ALWAYS_INLINE static PartitionRoot* GetRootFromAddressInFirstSuperpage(
       void* object);
@@ -689,12 +700,7 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
                                 SlotSpanMetadata* slot_span)
       PA_LOCKS_EXCLUDED(internal::PartitionRootLock(this));
 
-  // TODO(ayumiohno): Remove this once FreeAfterBRPQuarantine creates
-  // `size_details` and uses RawFreeWithThreadCacheWithSize.
-  PA_ALWAYS_INLINE void RawFreeWithThreadCache(internal::SlotStart slot_start,
-                                               SlotSpanMetadata* slot_span);
-
-  PA_ALWAYS_INLINE void RawFreeWithThreadCacheWithSize(
+  PA_ALWAYS_INLINE void RawFreeWithThreadCache(
       internal::SlotStart slot_start,
       const internal::BucketSizeDetails& size_details,
       SlotSpanMetadata* slot_span);
@@ -1458,6 +1464,24 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeWithSizeInlineInUnknownRoot(
   root->FreeWithSizeInline<flags | FreeFlags::kNoHooks>(object, size);
 }
 
+// static
+template <FreeFlags flags>
+PA_ALWAYS_INLINE void
+PartitionRoot::FreeWithSizeAndAlignmentInlineInUnknownRoot(void* object,
+                                                           size_t size,
+                                                           size_t alignment) {
+  bool early_return = FreeProlog<flags>(object, nullptr);
+  if (early_return) {
+    return;
+  }
+  // FreeProlog ensures the object is not nullptr.
+  PA_DCHECK(object);
+
+  auto* root = GetRootFromAddressInFirstSuperpage(object);
+  root->FreeWithSizeAndAlignmentInline<flags | FreeFlags::kNoHooks>(
+      object, size, alignment);
+}
+
 PA_ALWAYS_INLINE std::pair<internal::SlotStart, internal::SlotSpanMetadata*>
 PartitionRoot::GetSlotStartAndSlotSpanFromAddress(void* object) {
   PA_DCHECK(object);
@@ -1529,6 +1553,34 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeWithSizeInline(void* object,
   PA_PREFETCH_FOR_WRITE(object);
   auto [slot_start, slot_span] = GetSlotStartAndSlotSpanFromAddress(object);
   FreeWithSizeNoHooksImmediate<flags>(slot_start, slot_span, size);
+}
+
+template <FreeFlags flags>
+PA_ALWAYS_INLINE void PartitionRoot::FreeWithSizeAndAlignmentInline(
+    void* object,
+    size_t size,
+    size_t alignment) {
+  if (!settings.enable_free_with_size) {
+    FreeInline<flags>(object);
+    return;
+  }
+  // The correct PartitionRoot might not be deducible if the |object| originates
+  // from an override hook.
+  bool early_return = FreeProlog<flags>(object, this);
+  if (early_return) {
+    return;
+  }
+  // FreeProlog ensures the object is not nullptr.
+  PA_DCHECK(object);
+
+  // Almost all calls to FreeWithSizeNoHooks() will end up writing to |*object|.
+  PA_PREFETCH_FOR_WRITE(object);
+  auto [slot_start, slot_span] = GetSlotStartAndSlotSpanFromAddress(object);
+
+  auto adjusted_size = GetAdjustedSizeForAlignment(alignment, size);
+  // Overflow check. adjusted_size must be larger or equal to the original size.
+  PA_CHECK(adjusted_size >= size);
+  FreeWithSizeNoHooksImmediate<flags>(slot_start, slot_span, adjusted_size);
 }
 
 template <FreeFlags flags>
@@ -1619,23 +1671,22 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeNoHooksImmediateInternal(
   if constexpr (ContainsFlags(flags, FreeFlags::kSchedulerLoopQuarantine)) {
     ThreadCache* thread_cache = GetThreadCache();
     if (ThreadCache::IsValid(thread_cache)) [[likely]] {
-      thread_cache->GetSchedulerLoopQuarantineBranch().QuarantineWithSize(
+      thread_cache->GetSchedulerLoopQuarantineBranch().Quarantine(
           slot_start, slot_span, size_details);
     } else {
-      scheduler_loop_quarantine.QuarantineWithSize(slot_start, slot_span,
-                                                   size_details);
+      scheduler_loop_quarantine.Quarantine(slot_start, slot_span, size_details);
     }
     return;
   } else if constexpr (
       ContainsFlags(
           flags,
           FreeFlags::kSchedulerLoopQuarantineForAdvancedMemorySafetyChecks)) {
-    scheduler_loop_quarantine_for_advanced_memory_safety_checks
-        .QuarantineWithSize(slot_start, slot_span, size_details);
+    scheduler_loop_quarantine_for_advanced_memory_safety_checks.Quarantine(
+        slot_start, slot_span, size_details);
     return;
   }
 
-  RawFreeWithThreadCacheWithSize(slot_start, size_details, slot_span);
+  RawFreeWithThreadCache(slot_start, size_details, slot_span);
 }
 
 template <FreeFlags flags>
@@ -1690,6 +1741,12 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeAfterBRPQuarantine(
 
   internal::InSlotMetadata* metadata =
       internal::InSlotMetadataPointer(slot_start.value(), slot_size);
+  auto size_details = internal::BucketSizeDetails{
+      .bucket_index =
+          SizeToBucketIndex(slot_size, root->GetBucketDistribution()),
+      .slot_size = slot_size,
+  };
+  PA_DCHECK(slot_size == slot_span->bucket->slot_size);
 
   // `FreeFlags::kSchedulerLoopQuarantine` was used for the original `Free()`
   // call. Send the allocation to yet another quarantine.
@@ -1697,12 +1754,13 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeAfterBRPQuarantine(
     ThreadCache* thread_cache = root->GetThreadCache();
     if (ThreadCache::IsValid(thread_cache)) [[likely]] {
       thread_cache->GetSchedulerLoopQuarantineBranch().Quarantine(
-          slot_start.Tag(), slot_span);
+          slot_start.Tag(), slot_span, size_details);
     } else {
-      root->scheduler_loop_quarantine.Quarantine(slot_start.Tag(), slot_span);
+      root->scheduler_loop_quarantine.Quarantine(slot_start.Tag(), slot_span,
+                                                 size_details);
     }
   } else {
-    root->RawFreeWithThreadCache(slot_start.Tag(), slot_span);
+    root->RawFreeWithThreadCache(slot_start.Tag(), size_details, slot_span);
   }
 }
 #endif  // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
@@ -1811,13 +1869,6 @@ PA_ALWAYS_INLINE void PartitionRoot::RetagSlotIfNeeded(
 #endif  // PA_BUILDFLAG(HAS_MEMORY_TAGGING)
 
 PA_ALWAYS_INLINE void PartitionRoot::RawFreeWithThreadCache(
-    internal::SlotStart slot_start,
-    SlotSpanMetadata* slot_span) {
-  auto size_details = SlotSpanToBucketSizeDetails(slot_span);
-  RawFreeWithThreadCacheWithSize(slot_start, size_details, slot_span);
-}
-
-PA_ALWAYS_INLINE void PartitionRoot::RawFreeWithThreadCacheWithSize(
     internal::SlotStart slot_start,
     const internal::BucketSizeDetails& size_details,
     SlotSpanMetadata* slot_span) {
@@ -2447,10 +2498,9 @@ PA_ALWAYS_INLINE internal::UntaggedSlotStart PartitionRoot::RawAlloc(
   return slot_start;
 }
 
-template <AllocFlags flags>
-PA_ALWAYS_INLINE void* PartitionRoot::AlignedAllocInline(
-    size_t alignment,
-    size_t requested_size) {
+PA_ALWAYS_INLINE size_t
+PartitionRoot::GetAdjustedSizeForAlignment(size_t alignment,
+                                           size_t requested_size) {
   // Aligned allocation support relies on the natural alignment guarantees of
   // PartitionAlloc. Specifically, it relies on the fact that slots within a
   // slot span are aligned to slot size, from the beginning of the span.
@@ -2480,6 +2530,13 @@ PA_ALWAYS_INLINE void* PartitionRoot::AlignedAllocInline(
   PA_CHECK(internal::base::bits::HasSingleBit(alignment));
   // Catch unsupported alignment requests early.
   PA_CHECK(alignment <= internal::kMaxSupportedAlignment);
+
+  // Memory returned by the regular allocator *always* respects |kAlignment|,
+  // which is a power of two, and any valid alignment is also a power of two.
+  // So we can use the requested_size as is.
+  if (alignment <= internal::kAlignment) {
+    return requested_size;
+  }
   size_t raw_size = AdjustSizeForExtrasAdd(requested_size);
 
   size_t adjusted_size = requested_size;
@@ -2501,19 +2558,27 @@ PA_ALWAYS_INLINE void* PartitionRoot::AlignedAllocInline(
     PA_DCHECK(internal::base::bits::HasSingleBit(raw_size));
     // Adjust back, because AllocInternalNoHooks/Alloc will adjust it again.
     adjusted_size = AdjustSizeForExtrasSubtract(raw_size);
+  }
+  return adjusted_size;
+}
 
-    // Overflow check. adjusted_size must be larger or equal to requested_size.
-    if (adjusted_size < requested_size) [[unlikely]] {
-      if constexpr (ContainsFlags(flags, AllocFlags::kReturnNull)) {
-        return nullptr;
-      }
-      // OutOfMemoryDeathTest.AlignedAlloc requires
-      // base::TerminateBecauseOutOfMemory (invoked by
-      // PartitionExcessiveAllocationSize).
-      internal::PartitionExcessiveAllocationSize(requested_size);
-      // internal::PartitionExcessiveAllocationSize(size) causes OOM_CRASH.
-      PA_NOTREACHED();
+template <AllocFlags flags>
+PA_ALWAYS_INLINE void* PartitionRoot::AlignedAllocInline(
+    size_t alignment,
+    size_t requested_size) {
+  auto adjusted_size = GetAdjustedSizeForAlignment(alignment, requested_size);
+
+  // Overflow check. adjusted_size must be larger or equal to requested_size.
+  if (adjusted_size < requested_size) [[unlikely]] {
+    if constexpr (ContainsFlags(flags, AllocFlags::kReturnNull)) {
+      return nullptr;
     }
+    // OutOfMemoryDeathTest.AlignedAlloc requires
+    // base::TerminateBecauseOutOfMemory (invoked by
+    // PartitionExcessiveAllocationSize).
+    internal::PartitionExcessiveAllocationSize(requested_size);
+    // internal::PartitionExcessiveAllocationSize(size) causes OOM_CRASH.
+    PA_NOTREACHED();
   }
 
   // Slot spans are naturally aligned on partition page size, but make sure you
