@@ -302,6 +302,16 @@ public interface AconfigFlaggedApiDelegate {
     default void clearSelection(AccessibilityNodeInfoCompat info) {}
 
     /**
+     * @return True if requirements for processing ACTION_SET_EXTENDED_SELECTION are supported by
+     *     the platform.
+     */
+    default boolean isActionSetExtendedSelectionSupported() {
+        return false;
+    }
+
+    /**
+     * TODO(crbug.com/443078007): Deprecated, remove after internal implementation is updated.
+     *
      * @return Id of
      *     androidx.core.view.accessibility.AccessibilityNodeInfo.AccessibilityActionCompat.ACTION_SET_EXTENDED_SELECTION
      */
@@ -362,5 +372,23 @@ public interface AconfigFlaggedApiDelegate {
             Runnable installCancelledCallback) {
         installFailedCallback.run();
         return false;
+    }
+
+    /** Whether the feature to split the Android setting 'Show passwords' is enabled. */
+    default boolean isShowPasswordsSplitEnabled() {
+        return false;
+    }
+
+    /**
+     * Constructs {@link WebAppQueryRequest} and calls {@link
+     * android.content.pm.webapp.WebAppManager#query(@NonNull WebAppQueryRequest
+     * request, @NonNull @CallbackExecutor Executor executor, @NonNull IntConsumer callback)} with
+     * it if supported.
+     *
+     * @param title The title of the web app to query.
+     * @return A promise fulfilled with true if the TWA is installed, false otherwise.
+     */
+    default Promise<Boolean> isInstalled(String title) {
+        return Promise.fulfilled(false);
     }
 }

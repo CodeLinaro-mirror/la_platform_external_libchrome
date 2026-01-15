@@ -1,0 +1,100 @@
+From 6bf4a421061278c02d85046cb541f2aff1fc88e3 Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Thu, 15 Jan 2026 02:00:41 +0000
+Subject: [PATCH] Revert "Disallow base::Contains() when contains() or find()
+ methods available"
+
+This reverts commit daa0c18d216d5e71eb978607ab898b5d15c2d7e0.
+---
+ base/containers/contains.h           | 19 ++++++++---------
+ base/containers/contains_unittest.cc | 32 ++++++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+), 10 deletions(-)
+
+diff --git a/base/containers/contains.h b/base/containers/contains.h
+index a6d3fcff93..06cb999ff9 100644
+--- a/base/containers/contains.h
++++ b/base/containers/contains.h
+@@ -17,21 +17,19 @@
+ 
+ namespace base {
+ 
+-// TODO(crbug.com/470391351): This is an alias to std::ranges::contains() now,
+-// migrate callers and delete.
++// A general purpose utility to check whether `container` contains `value`. This
++// will probe whether a `contains` or `find` member function on `container`
++// exists, and fall back to a generic linear search over `container`.
+ template <typename Container, typename Value>
+ constexpr bool Contains(const Container& container, const Value& value) {
+   if constexpr (requires {
+                   { container.contains(value) } -> std::same_as<bool>;
+                 }) {
+-    static_assert(
+-        false, "Error: Use .contains() directly instead of base::Contains()");
++    return container.contains(value);
+   } else if constexpr (requires { container.find(value) != Container::npos; }) {
+-    static_assert(false,
+-                  "Error: Use .find() directly instead of base::Contains()");
++    return container.find(value) != Container::npos;
+   } else if constexpr (requires { container.find(value) != container.end(); }) {
+-    static_assert(false,
+-                  "Error: Use .find() directly instead of base::Contains()");
++    return container.find(value) != container.end();
+   } else {
+     static_assert(
+         !requires { typename Container::key_type; },
+@@ -42,8 +40,9 @@ constexpr bool Contains(const Container& container, const Value& value) {
+   }
+ }
+ 
+-// TODO(crbug.com/470391351): This is an alias to std::ranges::contains() now,
+-// migrate callers and delete.
++// Overload that allows callers to provide an additional projection invocable.
++// This projection will be applied to every element in `container` before
++// comparing it with `value`. This will always perform a linear search.
+ template <typename Container, typename Value, typename Proj>
+ constexpr bool Contains(const Container& container,
+                         const Value& value,
+diff --git a/base/containers/contains_unittest.cc b/base/containers/contains_unittest.cc
+index e0781d79b6..10fd32f6b1 100644
+--- a/base/containers/contains_unittest.cc
++++ b/base/containers/contains_unittest.cc
+@@ -35,4 +35,36 @@ TEST(ContainsTest, GenericContainsWithProjection) {
+   EXPECT_FALSE(Contains(allowed_chars, 0, &ToLowerASCII<char>));
+ }
+ 
++TEST(ContainsTest, GenericSetContainsWithProjection) {
++  constexpr std::string_view kFoo = "foo";
++  std::set<std::string> set = {"foo", "bar", "baz"};
++
++  // Opt into a linear search by explicitly providing a projection:
++  EXPECT_TRUE(Contains(set, kFoo, std::identity{}));
++}
++
++TEST(ContainsTest, ContainsWithFindAndNpos) {
++  std::string str = "abcd";
++
++  EXPECT_TRUE(Contains(str, 'a'));
++  EXPECT_FALSE(Contains(str, 'z'));
++  EXPECT_FALSE(Contains(str, 0));
++}
++
++TEST(ContainsTest, ContainsWithFindAndEnd) {
++  std::set<int> set = {1, 2, 3, 4};
++
++  EXPECT_TRUE(Contains(set, 1));
++  EXPECT_FALSE(Contains(set, 5));
++  EXPECT_FALSE(Contains(set, 0));
++}
++
++TEST(ContainsTest, ContainsWithContains) {
++  flat_set<int> set = {1, 2, 3, 4};
++
++  EXPECT_TRUE(Contains(set, 1));
++  EXPECT_FALSE(Contains(set, 5));
++  EXPECT_FALSE(Contains(set, 0));
++}
++
+ }  // namespace base
+-- 
+2.52.0.457.g6b5491de43-goog
+

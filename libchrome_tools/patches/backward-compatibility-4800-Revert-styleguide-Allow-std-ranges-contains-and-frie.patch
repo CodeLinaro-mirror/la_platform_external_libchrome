@@ -1,0 +1,37 @@
+From 8843ad8b6d6ca0b1f3e314ffaaa077875dce6bc3 Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Fri, 16 Jan 2026 00:45:02 +0000
+Subject: [PATCH] Revert "[styleguide] Allow std::ranges::contains() and
+ friends"
+
+This reverts commit 23de6fe521e481f2b591f3ce0c043d1fe5f40b7c.
+---
+ base/containers/contains.h | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/base/containers/contains.h b/base/containers/contains.h
+index a6d3fcff93..4422708aa3 100644
+--- a/base/containers/contains.h
++++ b/base/containers/contains.h
+@@ -38,7 +38,7 @@ constexpr bool Contains(const Container& container, const Value& value) {
+         "Error: About to perform linear search on an associative container. "
+         "Either use a more generic comparator (e.g. std::less<>) or, if a "
+         "linear search is desired, provide an explicit projection parameter.");
+-    return std::ranges::contains(container, value);
++    return std::ranges::find(container, value) != std::ranges::end(container);
+   }
+ }
+ 
+@@ -48,7 +48,8 @@ template <typename Container, typename Value, typename Proj>
+ constexpr bool Contains(const Container& container,
+                         const Value& value,
+                         Proj proj) {
+-  return std::ranges::contains(container, value, std::move(proj));
++  return std::ranges::find(container, value, std::move(proj)) !=
++         std::ranges::end(container);
+ }
+ 
+ }  // namespace base
+-- 
+2.52.0.457.g6b5491de43-goog
+
