@@ -27,7 +27,7 @@ import java.util.function.Supplier;
 @NullMarked
 // TODO(455874046): Supplier<T> -> Supplier<@Nullable T>
 @SuppressWarnings("NullAway") // Remove "T extends @Nullable Object"
-public interface ObservableSupplier<T extends @Nullable Object>
+public interface MonotonicObservableSupplier<T extends @Nullable Object>
         extends Supplier<T>, NullableObservableSupplier<T> {
 
     /** Defines the behavior of the notification when an observer is added. */
@@ -85,13 +85,13 @@ public interface ObservableSupplier<T extends @Nullable Object>
      * Creates an ObservableSupplier that tracks an ObservableSupplier of this ObservableSupplier.
      */
     @SuppressWarnings("Unchecked")
-    default <ChildT, FuncT extends ObservableSupplier<ChildT>>
-            SettableObservableSupplier<ChildT> createTransitiveMonotonic(
+    default <ChildT, FuncT extends MonotonicObservableSupplier<ChildT>>
+            SettableMonotonicObservableSupplier<ChildT> createTransitiveMonotonic(
                     Function<T, FuncT> unwrapFunction) {
         return new TransitiveObservableSupplier<>(
                 this,
                 (Function) unwrapFunction,
-                /* initialValue= */ null,
+                /* defaultValue= */ null,
                 /* allowSetToNull= */ false);
     }
 
@@ -106,23 +106,8 @@ public interface ObservableSupplier<T extends @Nullable Object>
         return new TransitiveObservableSupplier<>(
                         (NullableObservableSupplier) this,
                         unwrapFunction,
-                        /* initialValue= */ null,
+                        /* defaultValue= */ null,
                         /* allowSetToNull= */ false)
                 .asNonNull();
-    }
-
-    /**
-     * Creates an ObservableSupplier that tracks an ObservableSupplier of this ObservableSupplier.
-     * If either supplier has not yet been initialized, uses the given default value. The current
-     * and transitive suppliers must both be non-null or monotonic.
-     */
-    @SuppressWarnings("Unchecked")
-    default <ChildT> SettableNonNullObservableSupplier<ChildT> createTransitiveNonNull(
-            ChildT initialValue, Function<T, NonNullObservableSupplier<ChildT>> unwrapFunction) {
-        return new TransitiveObservableSupplier<>(
-                (NullableObservableSupplier) this,
-                unwrapFunction,
-                initialValue,
-                /* allowSetToNull= */ false);
     }
 }

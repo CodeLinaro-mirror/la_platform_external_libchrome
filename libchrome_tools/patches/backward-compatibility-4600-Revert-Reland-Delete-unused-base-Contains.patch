@@ -1,0 +1,186 @@
+From fc27f49fe8fcbb899488504264667635792e7052 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Tue, 20 Jan 2026 05:17:16 +0000
+Subject: [PATCH] Revert "Reland "Delete unused base::Contains()""
+
+This reverts commit 98fe85ba8563eab82a6e28ddc0f920588a45fc2c.
+---
+ base/containers/contains.h            | 56 +++++++++++++++++++++++++++
+ base/containers/contains_nocompile.nc | 31 +++++++++++++++
+ base/containers/contains_unittest.cc  | 38 ++++++++++++++++++
+ base/stl_util.h                       |  1 +
+ base/logging.h                        |  1 +
+ 5 files changed, 127 insertions(+)
+ create mode 100644 base/containers/contains.h
+ create mode 100644 base/containers/contains_nocompile.nc
+ create mode 100644 base/containers/contains_unittest.cc
+
+diff --git a/base/containers/contains.h b/base/containers/contains.h
+new file mode 100644
+index 0000000000..a6d3fcff93
+--- /dev/null
++++ b/base/containers/contains.h
+@@ -0,0 +1,56 @@
++// Copyright 2020 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_CONTAINERS_CONTAINS_H_
++#define BASE_CONTAINERS_CONTAINS_H_
++
++// Provides `Contains()`, a general purpose utility to check whether a container
++// contains a value. This will probe whether a `contains` or `find` member
++// function on `container` exists, and fall back to a generic linear search over
++// `container`.
++
++#include <algorithm>
++#include <concepts>
++#include <ranges>
++#include <utility>
++
++namespace base {
++
++// TODO(crbug.com/470391351): This is an alias to std::ranges::contains() now,
++// migrate callers and delete.
++template <typename Container, typename Value>
++constexpr bool Contains(const Container& container, const Value& value) {
++  if constexpr (requires {
++                  { container.contains(value) } -> std::same_as<bool>;
++                }) {
++    static_assert(
++        false, "Error: Use .contains() directly instead of base::Contains()");
++  } else if constexpr (requires { container.find(value) != Container::npos; }) {
++    static_assert(false,
++                  "Error: Use .find() directly instead of base::Contains()");
++  } else if constexpr (requires { container.find(value) != container.end(); }) {
++    static_assert(false,
++                  "Error: Use .find() directly instead of base::Contains()");
++  } else {
++    static_assert(
++        !requires { typename Container::key_type; },
++        "Error: About to perform linear search on an associative container. "
++        "Either use a more generic comparator (e.g. std::less<>) or, if a "
++        "linear search is desired, provide an explicit projection parameter.");
++    return std::ranges::contains(container, value);
++  }
++}
++
++// TODO(crbug.com/470391351): This is an alias to std::ranges::contains() now,
++// migrate callers and delete.
++template <typename Container, typename Value, typename Proj>
++constexpr bool Contains(const Container& container,
++                        const Value& value,
++                        Proj proj) {
++  return std::ranges::contains(container, value, std::move(proj));
++}
++
++}  // namespace base
++
++#endif  // BASE_CONTAINERS_CONTAINS_H_
+diff --git a/base/containers/contains_nocompile.nc b/base/containers/contains_nocompile.nc
+new file mode 100644
+index 0000000000..4a95c93286
+--- /dev/null
++++ b/base/containers/contains_nocompile.nc
+@@ -0,0 +1,31 @@
++// Copyright 2020 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// This is a "No Compile Test" suite.
++// https://dev.chromium.org/developers/testing/no-compile-tests
++
++#include <set>
++#include <string_view>
++#include <string>
++
++#include "base/containers/contains.h"
++
++namespace base {
++
++// The following code would perform a linear search through the set which is
++// likely unexpected and not intended. This is because the expression
++// `set.find(kFoo)` is ill-formed, since there is no implimit conversion from
++// std::string_view to `std::string`. This means Contains would fall back to the
++// general purpose `std::ranges::find(set, kFoo)` linear search.
++// To fix this clients can either use a more generic comparator like std::less<>
++// (in this case `set.find()` accepts any type that is comparable to a
++// std::string), or pass an explicit projection parameter to Contains, at which
++// point it will always perform a linear search.
++void UnexpectedLinearSearch() {
++  constexpr std::string_view kFoo = "foo";
++  std::set<std::string> set = {"foo", "bar", "baz"};
++  Contains(set, kFoo);  // expected-error@*:* {{About to perform linear search on an associative container}}
++}
++
++}  // namespace base
+diff --git a/base/containers/contains_unittest.cc b/base/containers/contains_unittest.cc
+new file mode 100644
+index 0000000000..e0781d79b6
+--- /dev/null
++++ b/base/containers/contains_unittest.cc
+@@ -0,0 +1,38 @@
++// Copyright 2020 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "base/containers/contains.h"
++
++#include <functional>
++#include <set>
++#include <string>
++#include <string_view>
++
++#include "base/containers/flat_set.h"
++#include "base/strings/string_util.h"
++#include "testing/gmock/include/gmock/gmock.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace base {
++
++TEST(ContainsTest, GenericContains) {
++  constexpr char allowed_chars[] = {'a', 'b', 'c', 'd'};
++
++  static_assert(Contains(allowed_chars, 'a'), "");
++  static_assert(!Contains(allowed_chars, 'z'), "");
++  static_assert(!Contains(allowed_chars, 0), "");
++
++  constexpr char allowed_chars_including_nul[] = "abcd";
++  static_assert(Contains(allowed_chars_including_nul, 0), "");
++}
++
++TEST(ContainsTest, GenericContainsWithProjection) {
++  const char allowed_chars[] = {'A', 'B', 'C', 'D'};
++
++  EXPECT_TRUE(Contains(allowed_chars, 'a', &ToLowerASCII<char>));
++  EXPECT_FALSE(Contains(allowed_chars, 'z', &ToLowerASCII<char>));
++  EXPECT_FALSE(Contains(allowed_chars, 0, &ToLowerASCII<char>));
++}
++
++}  // namespace base
++diff --git a/base/stl_util.h b/base/stl_util.h
+index b73e66052e..6930062a40 100644
+--- a/base/stl_util.h
++++ b/base/stl_util.h
+@@ -11,6 +11,7 @@
+ #include <iterator>
+ 
+ #include "base/check.h"
++#include "base/containers/contains.h"
+ 
+ namespace base {
+ 
+diff --git a/base/logging.h b/base/logging.h
+index 6930062a40..b73e66052e 100644
+--- a/base/logging.h
++++ b/base/logging.h
+@@ -21,6 +21,7 @@
+ #include "base/functional/callback_forward.h"
+ #include "base/logging/log_severity.h"
+ #include "base/strings/utf_ostream_operators.h"
++#include "base/containers/contains.h"
+ #include "build/build_config.h"
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+-- 
+2.52.0.457.g6b5491de43-goog
