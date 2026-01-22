@@ -1,0 +1,113 @@
+From aa8a4976ad5924ab1f66bb45e57dd6c4cbe6a3bd Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Thu, 22 Jan 2026 18:54:33 +0000
+Subject: [PATCH] Revert "metrics: drop AddScaled() and helpers"
+
+This reverts commit 1fcfe87b673193598c772090838d94ffbd230c54.
+---
+ base/metrics/histogram_base.cc          | 26 +++++++++++++++++++++
+ base/metrics/histogram_base.h           |  9 ++++++++
+ base/metrics/histogram_base_unittest.cc | 30 +++++++++++++++++++++++++
+ 3 files changed, 65 insertions(+)
+
+diff --git a/base/metrics/histogram_base.cc b/base/metrics/histogram_base.cc
+index 2d1f821ed1..6381d3ac93 100644
+--- a/base/metrics/histogram_base.cc
++++ b/base/metrics/histogram_base.cc
+@@ -116,6 +116,32 @@ bool HistogramBase::HasFlags(int32_t flags) const {
+   return (this->flags() & flags) == flags;
+ }
+ 
++void HistogramBase::AddScaled(Sample32 value, int count, int scale) {
++  DCHECK_GT(scale, 0);
++
++  // Convert raw count and probabilistically round up/down if the remainder
++  // is more than a random number [0, scale). This gives a more accurate
++  // count when there are a large number of records. RandInt is "inclusive",
++  // hence the -1 for the max value.
++  int count_scaled = count / scale;
++  if (count - (count_scaled * scale) > base::RandInt(0, scale - 1)) {
++    ++count_scaled;
++  }
++  if (count_scaled <= 0) {
++    return;
++  }
++
++  AddCount(value, count_scaled);
++}
++
++void HistogramBase::AddKilo(Sample32 value, int count) {
++  AddScaled(value, count, 1000);
++}
++
++void HistogramBase::AddKiB(Sample32 value, int count) {
++  AddScaled(value, count, 1024);
++}
++
+ void HistogramBase::AddTimeMillisecondsGranularity(const TimeDelta& time) {
+   Add(saturated_cast<Sample32>(time.InMilliseconds()));
+ }
+diff --git a/base/metrics/histogram_base.h b/base/metrics/histogram_base.h
+index fe302ddec5..41886cb953 100644
+--- a/base/metrics/histogram_base.h
++++ b/base/metrics/histogram_base.h
+@@ -191,6 +191,15 @@ class BASE_EXPORT HistogramBase {
+   // than or equal to 1.
+   virtual void AddCount(Sample32 value, int count) = 0;
+ 
++  // Similar to above but divides |count| by the |scale| amount. Probabilistic
++  // rounding is used to yield a reasonably accurate total when many samples
++  // are added. Methods for common cases of scales 1000 and 1024 are included.
++  // The ScaledLinearHistogram (which can also used be for enumerations) may be
++  // a better (and faster) solution.
++  void AddScaled(Sample32 value, int count, int scale);
++  void AddKilo(Sample32 value, int count);  // scale=1000
++  void AddKiB(Sample32 value, int count);   // scale=1024
++
+   // Convenient functions that call Add(Sample32).
+   void AddTime(const TimeDelta& time) { AddTimeMillisecondsGranularity(time); }
+   void AddTimeMillisecondsGranularity(const TimeDelta& time);
+diff --git a/base/metrics/histogram_base_unittest.cc b/base/metrics/histogram_base_unittest.cc
+index ac01972641..4724e12b00 100644
+--- a/base/metrics/histogram_base_unittest.cc
++++ b/base/metrics/histogram_base_unittest.cc
+@@ -159,6 +159,36 @@ TEST_F(HistogramBaseTest, DeserializeSparseHistogram) {
+   EXPECT_EQ(0, deserialized->flags());
+ }
+ 
++TEST_F(HistogramBaseTest, AddKilo) {
++  HistogramBase* histogram =
++      LinearHistogram::FactoryGet("TestAddKiloHistogram", 1, 1000, 100, 0);
++
++  histogram->AddKilo(100, 1000);
++  histogram->AddKilo(200, 2000);
++  histogram->AddKilo(300, 1500);
++
++  std::unique_ptr<HistogramSamples> samples = histogram->SnapshotSamples();
++  EXPECT_EQ(1, samples->GetCount(100));
++  EXPECT_EQ(2, samples->GetCount(200));
++  EXPECT_LE(1, samples->GetCount(300));
++  EXPECT_GE(2, samples->GetCount(300));
++}
++
++TEST_F(HistogramBaseTest, AddKiB) {
++  HistogramBase* histogram =
++      LinearHistogram::FactoryGet("TestAddKiBHistogram", 1, 1000, 100, 0);
++
++  histogram->AddKiB(100, 1024);
++  histogram->AddKiB(200, 2048);
++  histogram->AddKiB(300, 1536);
++
++  std::unique_ptr<HistogramSamples> samples = histogram->SnapshotSamples();
++  EXPECT_EQ(1, samples->GetCount(100));
++  EXPECT_EQ(2, samples->GetCount(200));
++  EXPECT_LE(1, samples->GetCount(300));
++  EXPECT_GE(2, samples->GetCount(300));
++}
++
+ TEST_F(HistogramBaseTest, AddTimeMillisecondsGranularityOverflow) {
+   const HistogramBase::Sample32 sample_max =
+       std::numeric_limits<HistogramBase::Sample32>::max() / 2;
+-- 
+2.52.0.457.g6b5491de43-goog
+
