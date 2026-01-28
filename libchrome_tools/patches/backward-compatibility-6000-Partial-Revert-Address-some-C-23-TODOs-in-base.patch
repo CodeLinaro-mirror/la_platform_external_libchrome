@@ -1,0 +1,32 @@
+From 61a5af364cd92b17805cd684222109b71d87cdcd Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Thu, 29 Jan 2026 07:22:26 -0700
+Subject: [PATCH] Partial Revert Address some C++23 TODOs in //base
+
+This reverts a single change from
+https://chromium-review.googlesource.com/c/chromium/src/+/7510936
+
+Change-Id: I5147d1acd96f463bfdf9abd99d98a586bd99d09e
+---
+ base/metrics/sample_vector.cc | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/base/metrics/sample_vector.cc b/base/metrics/sample_vector.cc
+index b06968aaba..ffed6e2f2a 100644
+--- a/base/metrics/sample_vector.cc
++++ b/base/metrics/sample_vector.cc
+@@ -183,7 +183,10 @@ Count32 SampleVectorBase::TotalCount() const {
+   // Handle the multi-sample case.
+   if (counts().has_value() || MountExistingCountsStorage()) {
+     Count32 count = 0;
+-    for (const HistogramBase::AtomicCount& c : counts().value()) {
++    // TODO(danakj): In C++23 we can skip the `counts_span` lvalue and iterate
++    // over `counts().value()` directly without creating a dangling reference.
++    span<const HistogramBase::AtomicCount> counts_span = counts().value();
++    for (const HistogramBase::AtomicCount& c : counts_span) {
+       count += subtle::NoBarrier_Load(&c);
+     }
+     return count;
+-- 
+2.53.0.rc1.217.geba53bf80e-goog
+

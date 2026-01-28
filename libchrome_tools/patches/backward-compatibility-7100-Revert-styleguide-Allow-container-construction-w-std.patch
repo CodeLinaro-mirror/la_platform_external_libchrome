@@ -1,0 +1,206 @@
+From 26d2e8ede5a83b209b823cfc5b976c714904e6c7 Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Thu, 29 Jan 2026 13:02:48 -0700
+Subject: [PATCH] Revert "[styleguide] Allow container construction w/
+ std::from_range"
+
+This reverts commit 01f07f10132cd408dc77e64be01938564b214bdd.
+---
+ base/containers/circular_deque.h              |  8 +++---
+ base/containers/circular_deque_unittest.cc    |  8 +++---
+ base/containers/intrusive_heap.h              |  4 +--
+ base/containers/intrusive_heap_unittest.cc    |  5 ++--
+ .../sampling_heap_profiler.cc                 |  2 +-
+ base/types/cxx23_from_range.h                 | 25 +++++++++++++++++++
+ 6 files changed, 37 insertions(+), 15 deletions(-)
+ create mode 100644 base/types/cxx23_from_range.h
+
+diff --git a/base/containers/circular_deque.h b/base/containers/circular_deque.h
+index 3da35b6a72..bb3c53485a 100644
+--- a/base/containers/circular_deque.h
++++ b/base/containers/circular_deque.h
+@@ -8,7 +8,6 @@
+ #include <algorithm>
+ #include <cstddef>
+ #include <iterator>
+-#include <ranges>
+ #include <utility>
+ 
+ #include "base/check.h"
+@@ -18,6 +17,7 @@
+ #include "base/memory/raw_ptr_exclusion.h"
+ #include "base/numerics/checked_math.h"
+ #include "base/numerics/safe_conversions.h"
++#include "base/types/cxx23_from_range.h"
+ 
+ #if DCHECK_IS_ON()
+ #include <ostream>
+@@ -48,7 +48,7 @@
+ //   circular_deque(size_t count);
+ //   circular_deque(size_t count, const T& value);
+ //   circular_deque(InputIterator first, InputIterator last);
+-//   circular_deque(std::from_range_t, Range range);
++//   circular_deque(base::from_range_t, Range range);
+ //   circular_deque(const circular_deque&);
+ //   circular_deque(circular_deque&&);
+ //   circular_deque(std::initializer_list<value_type>);
+@@ -518,11 +518,11 @@ class circular_deque {
+   // Example:
+   // ```
+   // int values[] = {1, 3};
+-  // circular_deque<int> deq(std::from_range, values);
++  // circular_deque<int> deq(base::from_range, values);
+   // ```
+   template <typename Range>
+     requires(std::ranges::input_range<Range>)
+-  circular_deque(std::from_range_t, Range&& value) : circular_deque() {
++  circular_deque(base::from_range_t, Range&& value) : circular_deque() {
+     assign_range(std::forward<Range>(value));
+   }
+ 
+diff --git a/base/containers/circular_deque_unittest.cc b/base/containers/circular_deque_unittest.cc
+index c26b08eb0a..b18672daad 100644
+--- a/base/containers/circular_deque_unittest.cc
++++ b/base/containers/circular_deque_unittest.cc
+@@ -4,8 +4,6 @@
+ 
+ #include "base/containers/circular_deque.h"
+ 
+-#include <ranges>
+-
+ #include "base/memory/raw_ptr.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/test/copy_only_int.h"
+@@ -115,7 +113,7 @@ TEST(CircularDeque, IteratorConstructor) {
+ 
+ TEST(CircularDeque, MoveConstructor) {
+   int values[] = {1, 2, 3, 4, 5, 6};
+-  circular_deque<MoveOnlyInt> first(std::from_range, values);
++  circular_deque<MoveOnlyInt> first(base::from_range, values);
+ 
+   circular_deque<MoveOnlyInt> second(std::move(first));
+   EXPECT_TRUE(first.empty());  // NOLINT(bugprone-use-after-move)
+@@ -137,7 +135,7 @@ TEST(CircularDeque, InitializerListConstructor) {
+ }
+ 
+ TEST(CircularDeque, RangeConstructor) {
+-  circular_deque<CopyOnlyInt> deq(std::from_range,
++  circular_deque<CopyOnlyInt> deq(base::from_range,
+                                   std::vector({1, 2, 3, 4, 5, 6}));
+   EXPECT_EQ(6u, deq.size());
+   for (int i = 0; i < 6; i++) {
+@@ -905,7 +903,7 @@ TEST(CircularDeque, InsertEraseRange) {
+ 
+ TEST(CircularDeque, EmplaceMoveOnly) {
+   int values[] = {1, 3};
+-  circular_deque<MoveOnlyInt> q(std::from_range, values);
++  circular_deque<MoveOnlyInt> q(base::from_range, values);
+ 
+   q.emplace(q.begin(), MoveOnlyInt(0));
+   q.emplace(q.begin() + 2, MoveOnlyInt(2));
+diff --git a/base/containers/intrusive_heap.h b/base/containers/intrusive_heap.h
+index a9ffe303fa..d0a60ed748 100644
+--- a/base/containers/intrusive_heap.h
++++ b/base/containers/intrusive_heap.h
+@@ -135,7 +135,6 @@
+ #include <iterator>
+ #include <limits>
+ #include <memory>
+-#include <ranges>
+ #include <type_traits>
+ #include <utility>
+ #include <vector>
+@@ -145,6 +144,7 @@
+ #include "base/check_op.h"
+ #include "base/compiler_specific.h"
+ #include "base/memory/ptr_util.h"
++#include "base/types/cxx23_from_range.h"
+ #include "third_party/abseil-cpp/absl/container/inlined_vector.h"
+ 
+ namespace base {
+@@ -255,7 +255,7 @@ class IntrusiveHeap {
+   // Constructs a heap containing all elements in the `range`.
+   template <class Range>
+     requires(std::ranges::input_range<Range>)
+-  IntrusiveHeap(std::from_range_t,
++  IntrusiveHeap(base::from_range_t,
+                 Range&& range,
+                 const value_compare& comp = value_compare(),
+                 const heap_handle_accessor& access = heap_handle_accessor())
+diff --git a/base/containers/intrusive_heap_unittest.cc b/base/containers/intrusive_heap_unittest.cc
+index 32d60f7be5..42be3d2a40 100644
+--- a/base/containers/intrusive_heap_unittest.cc
++++ b/base/containers/intrusive_heap_unittest.cc
+@@ -5,7 +5,6 @@
+ #include "base/containers/intrusive_heap.h"
+ 
+ #include <array>
+-#include <ranges>
+ 
+ #include "base/check_op.h"
+ #include "base/functional/callback_helpers.h"
+@@ -364,7 +363,7 @@ void CopyStressTest() {
+ template <typename T>
+ void GeneralStressTest() {
+   std::vector<int> vector{2, 4, 6, 8};
+-  IntrusiveHeap<T> heap(std::from_range, vector);
++  IntrusiveHeap<T> heap(base::from_range, vector);
+   EXPECT_EQ(4u, heap.size());
+   EXPECT_FALSE(heap.empty());
+   ExpectHeap(heap);
+@@ -573,7 +572,7 @@ TEST(IntrusiveHeapTest, Constructors) {
+   {
+     // Constructor from range.
+     std::vector<int> ints{CANONICAL_ELEMENTS};
+-    IntrusiveHeapInt heap(std::from_range, ints);
++    IntrusiveHeapInt heap(base::from_range, ints);
+     ExpectCanonical(heap);
+ 
+     // Move constructor.
+diff --git a/base/sampling_heap_profiler/sampling_heap_profiler.cc b/base/sampling_heap_profiler/sampling_heap_profiler.cc
+index 8310716c9a..734f95969f 100644
+--- a/base/sampling_heap_profiler/sampling_heap_profiler.cc
++++ b/base/sampling_heap_profiler/sampling_heap_profiler.cc
+@@ -297,7 +297,7 @@ std::vector<SamplingHeapProfiler::Sample> SamplingHeapProfiler::GetSamples(
+ std::vector<const char*> SamplingHeapProfiler::GetStrings() {
+   PoissonAllocationSampler::ScopedMuteThreadSamples no_samples_scope;
+   AutoLock lock(mutex_);
+-  return std::vector<const char*>(std::from_range, strings_);
++  return std::vector<const char*>(strings_.begin(), strings_.end());
+ }
+ 
+ // static
+diff --git a/base/types/cxx23_from_range.h b/base/types/cxx23_from_range.h
+new file mode 100644
+index 0000000000..dc152fc0bb
+--- /dev/null
++++ b/base/types/cxx23_from_range.h
+@@ -0,0 +1,25 @@
++// Copyright 2024 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_TYPES_CXX23_FROM_RANGE_H_
++#define BASE_TYPES_CXX23_FROM_RANGE_H_
++
++namespace base {
++
++// A marker type for constructors from a range. This is a backport of
++// `std::from_range_t` in C++23, and will be relaced with the std version one
++// day.
++//
++// https://en.cppreference.com/w/cpp/ranges/from_range
++struct from_range_t {
++  from_range_t() = default;
++};
++
++// The instantiation of `from_range_t`, to be passed to constructors taking the
++// marker type `from_range_t`.
++constexpr inline from_range_t from_range;
++
++}  // namespace base
++
++#endif  // BASE_TYPES_CXX23_FROM_RANGE_H_
+-- 
+2.53.0.rc1.225.gd81095ad13-goog
+

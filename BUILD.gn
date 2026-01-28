@@ -212,6 +212,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "USE_RAW_PTR_BACKUP_REF_IMPL=false",
     "USE_RAW_PTR_HOOKABLE_IMPL=false",
     "USE_ALLOCATOR_SHIM=$use_allocator_shim",
+    "SHIM_SUPPORTS_ALLOC_TOKEN=false",
     "BACKUP_REF_PTR_POISON_OOB_PTR=false",
     "ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=false",
     "ENABLE_BACKUP_REF_PTR_SUPPORT=false",
