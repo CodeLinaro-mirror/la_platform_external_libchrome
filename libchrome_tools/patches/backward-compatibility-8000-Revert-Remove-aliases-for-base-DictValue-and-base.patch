@@ -1,0 +1,30 @@
+From 3f5dddeb0f6eb9c37f4d9fabfd8c767a13346335 Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Fri, 30 Jan 2026 08:09:02 -0700
+Subject: [PATCH] Revert "Remove aliases for base::DictValue and
+ base::ListValue"
+
+This reverts commit 592f77eac62a435436625ca6d890b9f2464a9ffc.
+---
+ base/values.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/base/values.h b/base/values.h
+index 3624cfdad7..70ef6b88d2 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -687,6 +687,11 @@ class BASE_EXPORT GSL_OWNER Value {
+  public:
+   using BlobStorage = BlobStorage;
+ 
++  // These aliases exist for migration; do not use them.
++  // TODO(https://crbug.com/478100525): Remove.
++  using Dict = DictValue;
++  using List = ListValue;
++
+   enum class Type : unsigned char {
+     NONE = 0,
+     BOOLEAN,
+-- 
+2.53.0.rc1.225.gd81095ad13-goog
+

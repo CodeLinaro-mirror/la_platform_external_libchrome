@@ -8,7 +8,7 @@ use std::ffi::c_void;
 use std::ptr;
 
 chromium::import! {
-  pub "//mojo/public/rust:mojo_ffi";
+  "//mojo/public/rust/system:mojo_ffi";
 }
 
 bitflags::bitflags! {
@@ -60,6 +60,10 @@ pub struct DataPipeConsumerHandle {
 impl Handle for DataPipeConsumerHandle {
     fn get_native_handle(&self) -> MojoHandle {
         self.handle.get_native_handle()
+    }
+
+    fn from_untyped(handle: UntypedHandle) -> Self {
+        Self { handle }
     }
 }
 
@@ -117,6 +121,10 @@ pub struct DataPipeProducerHandle {
 impl Handle for DataPipeProducerHandle {
     fn get_native_handle(&self) -> MojoHandle {
         self.handle.get_native_handle()
+    }
+
+    fn from_untyped(handle: UntypedHandle) -> Self {
+        Self { handle }
     }
 }
 

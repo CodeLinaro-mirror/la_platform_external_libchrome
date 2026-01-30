@@ -7,9 +7,11 @@ use rust_gtest_interop::prelude::*;
 use std::sync::{Arc, Condvar, LazyLock, Mutex};
 
 chromium::import! {
-    pub "//mojo/public/rust:mojo_rust_system_api" as system;
-    pub "//mojo/public/rust/test_support:test_util" as test_util;
+    "//mojo/public/rust/system";
+    "//mojo/public/rust/system/test_util";
 }
+
+use system::mojo_types::Handle;
 
 // Mimics the tests in //mojo/public/c/system/tests/core_api_unittests.cc,
 // but testing the Rust API's guarantees for that functionality rather
@@ -28,19 +30,31 @@ fn test_basic_message_write_and_send() {
     // In the Rust API you should never directly touch an invalid MojoHandle.
     // The MojoHandles are created under the hood here.
     let (endpoint_a, endpoint_b) = system::message_pipe::MessageEndpoint::create_pipe().unwrap();
+    let (dummy_handle, _) = system::message_pipe::MessageEndpoint::create_pipe().unwrap();
 
-    // In the C API this looks like:
-    //   MojoMessageHandle message;
-    //   MojoResult result = MojoCreateMessage(nullptr, &message);
-    //   result = MojoWriteMessage(endpoint, message, nullptr);
-    // We simplify all this logic into the `write` function on the endpoint.
-    let hello = system::message_pipe::RawMojoMessage::new_with_bytes(b"hello").unwrap();
+    let hello = system::message_pipe::RawMojoMessage::new_with_data(
+        b"hello",
+        vec![dummy_handle.into_untyped()],
+    )
+    .unwrap();
+
     let write_result = endpoint_b.write(hello);
     expect_true!(write_result.is_ok());
 
     // Attempt to read the result.
-    let (hello_data, _) = endpoint_a.read().expect("failed to read from endpoint_a");
-    expect_eq!(String::from_utf8(hello_data), Ok("hello".to_string()));
+    let hello_msg = endpoint_a.read().expect("failed to read from endpoint_a");
+    expect_eq!(
+        String::from_utf8(hello_msg.read_bytes().unwrap().to_vec()),
+        Ok("hello".to_string())
+    );
+    // Call the other read function just so we have some coverage of it
+    // The function may only be called once per message, so the second call should
+    // fail.
+    let (_, _) = hello_msg.read_data().unwrap();
+    expect_true!(hello_msg.read_data().is_err());
+    // Calling read_bytes is independent of read_data and can be done many times.
+    let _ = hello_msg.read_bytes().unwrap();
+    let _ = hello_msg.read_bytes().unwrap();
 
     // Additional C++ unit tests include:
     // * core
@@ -207,7 +221,7 @@ fn test_raw_trap_signal_on_readable() {
     clear_trap_events(1);
 
     // Read the data so we don't receive the same event again.
-    let (_, _) = endpoint_a.read().expect("failed to read from endpoint_a");
+    let _ = endpoint_a.read().expect("failed to read from endpoint_a");
 
     match trap.arm(Some(&mut blocking_events_buf)) {
         system::raw_trap::ArmResult::Armed => (),
@@ -541,4 +555,22 @@ fn test_make_regular_trap() {
     test_util::init_mojo_if_needed();
 
     let _trap = system::trap::Trap::new().unwrap();
+}
+
+#[gtest(RustSystemAPITestSuite, ReportBadMessage)]
+fn test_report_bad_message() {
+    let msg = system::message_pipe::RawMojoMessage::new_with_bytes(b"moist").unwrap();
+
+    let err_msg: Arc<Mutex<String>> = Arc::new(Mutex::new("".to_string()));
+    let err_msg_clone = err_msg.clone();
+    test_util::set_default_process_error_handler(move |msg: &str| {
+        *err_msg_clone.try_lock().unwrap() = msg.to_string()
+    });
+
+    let _ = msg.report_bad_message("OH NO!");
+
+    // SAFETY: We're single-threaded so this isn't racy
+    expect_eq!("OH NO!".to_string(), (*err_msg.try_lock().unwrap()).clone());
+
+    test_util::set_default_process_error_handler(|_| {});
 }
