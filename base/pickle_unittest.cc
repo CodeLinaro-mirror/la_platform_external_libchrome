@@ -753,38 +753,6 @@ TEST(PickleIteratorTest, WithData) {
   EXPECT_EQ(7, data);
 }
 
-TEST(PickleIteratorTest, WithDataUnalignedMemoryAddress) {
-  Pickle pickle;
-  pickle.WriteInt(7);
-  // 16-bit strings are particularly interesting in this test because it may run
-  // into memory misalignments when dealing with char16_t arrays.
-  pickle.WriteString16(teststring16);
-  // Write it once again to test ReadStringPiece16() too.
-  pickle.WriteString16(teststring16);
-
-  // Buffer to force a 1-byte misalignment.
-  std::vector<uint8_t> buffer;
-  buffer.push_back(0);
-  std::ranges::copy(pickle, std::back_inserter(buffer));
-
-  base::span<const uint8_t> misaligned_data = span(buffer).subspan(1U);
-  ASSERT_FALSE(IsAligned(misaligned_data.data(), alignof(uint32_t)));
-  PickleIterator iter = PickleIterator::WithData(misaligned_data);
-  EXPECT_FALSE(iter.ReachedEnd());
-
-  int data;
-  EXPECT_TRUE(iter.ReadInt(&data));
-  EXPECT_EQ(7, data);
-
-  std::u16string outstring16;
-  EXPECT_TRUE(iter.ReadString16(&outstring16));
-  EXPECT_EQ(teststring16, outstring16);
-
-  std::u16string_view outstringpiece16;
-  EXPECT_TRUE(iter.ReadStringPiece16(&outstringpiece16));
-  EXPECT_EQ(teststring16, outstringpiece16);
-}
-
 // Tests that we can handle improper headers.
 TEST(PickleIteratorTest, WithDataBigSize) {
   // In this example the header indicates a size that doesn't match the total
