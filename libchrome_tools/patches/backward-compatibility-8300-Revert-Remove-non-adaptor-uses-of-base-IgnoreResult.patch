@@ -1,0 +1,31 @@
+From 9af472855b72ff7a53485caba9b2bad0e71ceeb3 Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Mon, 23 Feb 2026 15:10:05 +0000
+Subject: [PATCH] Revert "Remove non-adaptor uses of base::IgnoreResult"
+
+This reverts commit a37c1e7311157e1452413d8e3cd44de4ed49fa40.
+
+Change-Id: I0eaa808b1051519c366e2ae3c7d01eb71f6e16d5
+---
+ base/functional/bind.h | 5 +----
+ 1 file changed, 1 insertion(+), 4 deletions(-)
+
+diff --git a/base/functional/bind.h b/base/functional/bind.h
+index 644646e766..3d9544b974 100644
+--- a/base/functional/bind.h
++++ b/base/functional/bind.h
+@@ -427,10 +427,7 @@ inline internal::PassedWrapper<T> Passed(T* scoper) {
+ //   // Prints "2" on |ml|.
+ //   ml->PostTask(FROM_HERE, BindOnce(IgnoreResult(&DoSomething), 2);
+ template <typename T>
+-[[nodiscard(
+-    "base::IgnoreResult adapts functions or callbacks; did you mean to use "
+-    "std::ignore instead?")]] inline internal::IgnoreResultHelper<T>
+-IgnoreResult(T data) {
++inline internal::IgnoreResultHelper<T> IgnoreResult(T data) {
+   return internal::IgnoreResultHelper<T>(std::move(data));
+ }
+ 
+-- 
+2.53.0.345.g96ddfc5eaa-goog
+

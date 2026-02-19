@@ -286,7 +286,9 @@ public class ChildProcessService {
         // lifecycle events, and create a separate thread to serve as the main renderer. This
         // affects the thread stack size: instead of getting the kernel default we get the Java
         // default, which can be much smaller. So, explicitly set up a larger stack here.
+        // LINT.IfChange
         long stackSize = ContextUtils.isProcess64Bit() ? 8 * 1024 * 1024 : 4 * 1024 * 1024;
+        // LINT.ThenChange(//content/app/android/javaless_child_process_service.cc)
 
         mMainThread =
                 new Thread(
@@ -330,6 +332,7 @@ public class ChildProcessService {
                 mLibraryInitialized = true;
                 mLibraryInitializedLock.notifyAll();
             }
+            RecordHistogram.recordBooleanHistogram("Android.ChildProcess.JavalessStarted", false);
             sendBuildInfoToNative();
             SparseArray<String> idsToKeys = mDelegate.getFileDescriptorsIdsToKeys();
 
@@ -358,9 +361,7 @@ public class ChildProcessService {
         } catch (Throwable e) {
             try {
                 mParentProcess.reportExceptionInInit(
-                        ChildProcessService.class.getName()
-                                + "\n"
-                                + android.util.Log.getStackTraceString(e));
+                        ChildProcessService.class.getName() + "\n" + Log.getStackTraceString(e));
             } catch (RemoteException re) {
                 Log.e(TAG, "Failed to call reportExceptionInInit.", re);
             }
@@ -448,9 +449,8 @@ public class ChildProcessService {
     interface Natives {
         /**
          * Helper for registering FileDescriptorInfo objects with GlobalFileDescriptors or
-         * FileDescriptorStore.
-         * This includes the IPC channel, the crash dump signals and resource related
-         * files.
+         * FileDescriptorStore. This includes the IPC channel, the crash dump signals and resource
+         * related files.
          */
         void registerFileDescriptors(String[] keys, int[] id, int[] fd, long[] offset, long[] size);
 

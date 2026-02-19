@@ -106,10 +106,9 @@ void UmaHistogramRetryCountWithSuffix(std::string_view histogram_suffix,
 }
 #endif
 
-void UmaHistogramTimesWithSuffix(const char* histogram_name,
+void UmaHistogramTimesWithSuffix(std::string_view histogram_name,
                                  std::string_view histogram_suffix,
                                  base::TimeDelta sample) {
-  DCHECK(histogram_name);
   // Log with the given suffix and the aggregated ".All" suffix.
   if (histogram_suffix.empty()) {
     UmaHistogramTimes(histogram_name, sample);
@@ -118,6 +117,19 @@ void UmaHistogramTimesWithSuffix(const char* histogram_name,
                       sample);
   }
   UmaHistogramTimes(base::JoinString({histogram_name, "All"}, "."), sample);
+}
+
+void UmaHistogramCounts10MWithSuffix(std::string_view histogram_name,
+                                     std::string_view histogram_suffix,
+                                     int sample) {
+  // Log with the given suffix and the aggregated ".All" suffix.
+  if (histogram_suffix.empty()) {
+    UmaHistogramCounts10M(histogram_name, sample);
+  } else {
+    UmaHistogramCounts10M(
+        base::JoinString({histogram_name, histogram_suffix}, "."), sample);
+  }
+  UmaHistogramCounts10M(base::JoinString({histogram_name, "All"}, "."), sample);
 }
 
 // Deletes the file named |tmp_file_path| (which may be open as |tmp_file|),
@@ -255,18 +267,17 @@ bool ImportantFileWriter::WriteFileAtomicallyImpl(
   // Don't write all of the data at once because this can lead to kernel
   // address-space exhaustion on 32-bit Windows (see https://crbug.com/1001022
   // for details).
-  constexpr ptrdiff_t kMaxWriteAmount = 8 * 1024 * 1024;
-  int bytes_written = 0;
-  for (const char *scan = data.data(), *const end =
-                                           UNSAFE_TODO(scan + data.length());
-       scan < end; UNSAFE_TODO(scan += bytes_written)) {
-    const int write_amount =
-        static_cast<int>(std::min(kMaxWriteAmount, end - scan));
-    bytes_written = UNSAFE_TODO(tmp_file.WriteAtCurrentPos(scan, write_amount));
-    if (bytes_written != write_amount) {
-      DPLOG(WARNING) << "Failed to write " << write_amount << " bytes to temp "
-                     << "file to update " << path
-                     << " (bytes_written=" << bytes_written << ")";
+  constexpr size_t kMaxWriteAmount = 8 * 1024 * 1024;
+  base::span<const uint8_t> remaining = base::as_byte_span(data);
+  while (!remaining.empty()) {
+    const size_t to_write_size = std::min(kMaxWriteAmount, remaining.size());
+    const base::span<const uint8_t> to_write =
+        remaining.take_first(to_write_size);
+    const std::optional<size_t> result = tmp_file.WriteAtCurrentPos(to_write);
+    if (!result || *result != to_write_size) {
+      DPLOG(WARNING) << "Failed to write " << to_write_size << " bytes to temp "
+                     << "file to update " << path << " (bytes_written="
+                     << (result ? static_cast<int64_t>(*result) : -1) << ")";
       DeleteTmpFileWithRetry(std::move(tmp_file), tmp_file_path);
       return false;
     }
@@ -457,6 +468,10 @@ void ImportantFileWriter::DoScheduledWrite() {
     }
 
     previous_data_size_ = data->size();
+    UmaHistogramCounts10MWithSuffix("ImportantFile.SerializationSize",
+                                    histogram_suffix_,
+                                    static_cast<int>(previous_data_size_));
+
     data_producer_for_background_sequence = base::BindOnce(
         [](std::string data) { return std::make_optional(std::move(data)); },
         std::move(data).value());

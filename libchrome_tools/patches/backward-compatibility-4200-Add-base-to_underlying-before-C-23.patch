@@ -1,4 +1,4 @@
-From 5d9e1ab99ef40b7d27111d5bde86d60cff0a0156 Mon Sep 17 00:00:00 2001
+From 3bb909d1cb6a50be87c7b7afea124c737a35d339 Mon Sep 17 00:00:00 2001
 From: Wei-Luan Wang <weiluanwang@google.com>
 Date: Fri, 26 Dec 2025 00:55:32 +0000
 Subject: [PATCH] Add base::to_underlying before C++23
@@ -13,17 +13,19 @@ This reverts commit 4ccea9cc3ff36be9a4d0d9b8b02d6b8caec84c0f.
 
 Revert "Migrate usages of base::to_underlying in //base"
 This reverts commit 86dec152c75a4a3f01802e7f57dad3866badd5cd.
+- Changes in base/task/thread_pool/priority_queue.{h|cc} are not needed
+  after crrev.com/c/7545201.
 
 Revert "Make base::to_underlying an alias to std::to_underlying"
 This reverts commit 23c18f85275491a21335d2a260a8379c84cf50b5.
+
+Change-Id: I450dd0370048ac435c740e7a49193aec2e130128
 ---
  base/apple/mach_port_rendezvous.cc            |  1 +
  base/check.cc                                 |  6 ++--
  base/containers/enum_set.h                    | 31 ++++++++--------
  base/functional/callback_internal.cc          |  5 ++-
  base/metrics/histogram_macros_internal.h      |  4 +--
- base/task/thread_pool/priority_queue.cc       |  7 ++--
- base/task/thread_pool/priority_queue.h        |  4 +--
  base/types/cxx23_to_underlying.h              | 23 ++++++++++++
  base/types/cxx23_to_underlying_unittest.cc    | 35 +++++++++++++++++++
  .../c++/basic_struct.test-mojom.cc.golden     |  1 +
@@ -35,7 +37,7 @@ This reverts commit 23c18f85275491a21335d2a260a8379c84cf50b5.
  .../bindings/tests/sync_method_unittest.cc    |  7 ++--
  .../cpp_templates/interface_definition.tmpl   |  8 ++---
  .../generators/cpp_templates/module.cc.tmpl   |  1 +
- 18 files changed, 112 insertions(+), 44 deletions(-)
+ 16 files changed, 106 insertions(+), 39 deletions(-)
  create mode 100644 base/types/cxx23_to_underlying.h
  create mode 100644 base/types/cxx23_to_underlying_unittest.cc
 
@@ -229,62 +231,6 @@ index 0a22535e60..09a9458fac 100644
      } else {
        static_assert(
            sizeof(Enum) == 0,
-diff --git a/base/task/thread_pool/priority_queue.cc b/base/task/thread_pool/priority_queue.cc
-index 3260516ed6..a576d75b09 100644
---- a/base/task/thread_pool/priority_queue.cc
-+++ b/base/task/thread_pool/priority_queue.cc
-@@ -9,6 +9,7 @@
- #include "base/check_op.h"
- #include "base/compiler_specific.h"
- #include "base/memory/ptr_util.h"
-+#include "base/types/cxx23_to_underlying.h"
- 
- namespace base::internal {
- 
-@@ -211,12 +212,12 @@ void PriorityQueue::swap(PriorityQueue& other) {
- }
- 
- void PriorityQueue::DecrementNumTaskSourcesForPriority(TaskPriority priority) {
--  DCHECK_GT(num_task_sources_per_priority_[std::to_underlying(priority)], 0U);
--  --num_task_sources_per_priority_[std::to_underlying(priority)];
-+  DCHECK_GT(num_task_sources_per_priority_[base::to_underlying(priority)], 0U);
-+  --num_task_sources_per_priority_[base::to_underlying(priority)];
- }
- 
- void PriorityQueue::IncrementNumTaskSourcesForPriority(TaskPriority priority) {
--  ++num_task_sources_per_priority_[std::to_underlying(priority)];
-+  ++num_task_sources_per_priority_[base::to_underlying(priority)];
- }
- 
- }  // namespace base::internal
-diff --git a/base/task/thread_pool/priority_queue.h b/base/task/thread_pool/priority_queue.h
-index cd902bc1db..35dabc5f94 100644
---- a/base/task/thread_pool/priority_queue.h
-+++ b/base/task/thread_pool/priority_queue.h
-@@ -8,13 +8,13 @@
- #include <array>
- #include <functional>
- #include <memory>
--#include <utility>
- 
- #include "base/base_export.h"
- #include "base/containers/intrusive_heap.h"
- #include "base/task/common/checked_lock.h"
- #include "base/task/thread_pool/task_source.h"
- #include "base/task/thread_pool/task_source_sort_key.h"
-+#include "base/types/cxx23_to_underlying.h"
- 
- namespace base {
- namespace internal {
-@@ -68,7 +68,7 @@ class BASE_EXPORT PriorityQueue {
- 
-   // Returns the number of TaskSources with |priority|.
-   size_t GetNumTaskSourcesWithPriority(TaskPriority priority) const {
--    return num_task_sources_per_priority_[std::to_underlying(priority)];
-+    return num_task_sources_per_priority_[base::to_underlying(priority)];
-   }
- 
-   // Set the PriorityQueue to empty all its TaskSources of Tasks when it is
 diff --git a/base/types/cxx23_to_underlying.h b/base/types/cxx23_to_underlying.h
 new file mode 100644
 index 0000000000..8250bdd125
@@ -593,5 +539,5 @@ index ef0986dd5f..828158df5d 100644
  #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
  #include "mojo/public/cpp/bindings/lib/message_internal.h"
 -- 
-2.52.0.351.gbe84eed79e-goog
+2.53.0.345.g96ddfc5eaa-goog
 

@@ -742,6 +742,7 @@ libbase_sublibs = [
       "base/task/thread_pool/thread_pool_instance.cc",
       "base/task/thread_pool/worker_thread.cc",
       "base/task/thread_pool/worker_thread_set.cc",
+      "base/task/thread_type.cc",
       "base/third_party/cityhash/city.cc",
       "base/third_party/nspr/prtime.cc",
       "base/third_party/superfasthash/superfasthash.c",
