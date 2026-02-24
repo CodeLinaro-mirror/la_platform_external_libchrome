@@ -68,5 +68,10 @@ public interface Callback<T extends @Nullable Object> {
         static void onLongResultFromNative(Callback<Long> callback, long result) {
             callback.onResult(result);
         }
+
+        @CalledByNative("Helper")
+        static void runRunnable(Runnable runnable) {
+            runnable.run();
+        }
     }
 }

@@ -759,9 +759,7 @@ struct IPCZ_ALIGN(8) IpczBoxContents {
 
   // Used only for IPCZ_BOX_TYPE_APPLICATION_OBJECT. ipcz may use these
   // functions to serialize and/or destroy the opaque object identified by
-  // `object.application_object` above. Either may be null, which is the same as
-  // a function returning IPCZ_RESULT_FAILED_PRECONDITION or a no-op function,
-  // respectively.
+  // `object.application_object` above.
   IpczApplicationObjectSerializer serializer;
   IpczApplicationObjectDestructor destructor;
 };

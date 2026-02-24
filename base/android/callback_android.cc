@@ -62,6 +62,10 @@ void RunByteArrayCallbackAndroid(const JavaRef<jobject>& callback,
   Java_Helper_onObjectResultFromNative(env, callback, j_bytes);
 }
 
+void RunRunnableAndroid(const JavaRef<jobject>& runnable) {
+  Java_Helper_runRunnable(AttachCurrentThread(), runnable);
+}
+
 }  // namespace android
 }  // namespace base
 

@@ -19,9 +19,6 @@ import java.util.function.Supplier;
 /** Utilities for interactions with Suppliers. */
 @NullMarked
 public class SupplierUtils {
-    @SuppressWarnings("NullAway") // Might be fixed by https://github.com/uber/NullAway/issues/1455
-    private static final Supplier<?> NULL_SUPPLIER = () -> null;
-
     private SupplierUtils() {}
 
     private static class Barrier {
@@ -111,14 +108,5 @@ public class SupplierUtils {
             @Nullable Supplier<T> sup, T value) {
         T ret = sup == null ? null : sup.get();
         return ret == null ? value : ret;
-    }
-
-    public static <T extends @Nullable Object> Supplier<T> of(T value) {
-        return value == null ? ofNull() : () -> value;
-    }
-
-    @SuppressWarnings("unchecked")
-    public static <T extends @Nullable Object> Supplier<T> ofNull() {
-        return (Supplier<T>) NULL_SUPPLIER;
     }
 }
