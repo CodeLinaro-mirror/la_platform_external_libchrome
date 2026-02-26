@@ -1,0 +1,26 @@
+From 5846b3a2cbba7ee1b51d92dd6fe1ddf14802ba7f Mon Sep 17 00:00:00 2001
+From: Wei-Luan Wang <weiluanwang@google.com>
+Date: Fri, 27 Feb 2026 15:18:28 +0000
+Subject: [PATCH] Include trace_event/builtin_categories.h in
+ trace_event/trace_log.h
+
+Change-Id: I019c443bb749fe7f725c1e0b2ef44488ee96b2d2
+---
+ base/trace_event/trace_log.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/base/trace_event/trace_log.h b/base/trace_event/trace_log.h
+index 537e06567d..5c70a96eb8 100644
+--- a/base/trace_event/trace_log.h
++++ b/base/trace_event/trace_log.h
+@@ -17,6 +17,7 @@
+ #include "base/process/process_handle.h"
+ #include "base/synchronization/lock.h"
+ #include "base/thread_annotations.h"
++#include "base/trace_event/builtin_categories.h"
+ #include "base/trace_event/trace_config.h"
+ #include "base/trace_event/trace_event_impl.h"
+ #include "build/build_config.h"
+-- 
+2.53.0.473.g4a7958ca14-goog
+
