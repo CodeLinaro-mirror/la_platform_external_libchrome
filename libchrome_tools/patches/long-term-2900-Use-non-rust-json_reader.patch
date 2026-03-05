@@ -1,6 +1,6 @@
-From 08de441e6157cf7d06f5cb41690de8f1fd721bb2 Mon Sep 17 00:00:00 2001
-From: Wei-Luan Wang <weiluanwang@google.com>
-Date: Fri, 27 Jun 2025 02:26:09 +0000
+From 089140130dec5bdac03da44cf0019c9bf401177b Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@google.com>
+Date: Fri, 6 Mar 2026 16:24:27 +0800
 Subject: [PATCH] Use non-rust json_reader
 
 The rust-related files are currently not supported in libchrome.
@@ -8,23 +8,23 @@ The rust-related files are currently not supported in libchrome.
 Add back the non-rust implementation removed in crrev.com/c/6655303, including
 the JSONParser class used by the non-rust JSONReader.
 
-Change-Id: I6883925e7216b967ee3830d087792bc6fa25034f
+Change-Id: Id9bbec76e81447d47d1353089d1bfd97557285af
 ---
- base/json/json_parser.cc          | 872 ++++++++++++++++++++++++++++++
+ base/json/json_parser.cc          | 871 ++++++++++++++++++++++++++++++
  base/json/json_parser.h           | 269 +++++++++
  base/json/json_parser_unittest.cc | 341 ++++++++++++
  base/json/json_reader.cc          |  28 +-
- 4 files changed, 1499 insertions(+), 11 deletions(-)
+ 4 files changed, 1498 insertions(+), 11 deletions(-)
  create mode 100644 base/json/json_parser.cc
  create mode 100644 base/json/json_parser.h
  create mode 100644 base/json/json_parser_unittest.cc
 
 diff --git a/base/json/json_parser.cc b/base/json/json_parser.cc
 new file mode 100644
-index 0000000000..0873aa1f82
+index 0000000000..0a65a2f762
 --- /dev/null
 +++ b/base/json/json_parser.cc
-@@ -0,0 +1,872 @@
+@@ -0,0 +1,871 @@
 +// Copyright 2012 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -633,8 +633,7 @@ index 0000000000..0873aa1f82
 +    if (static_cast<unsigned char>(*c) >= kExtendedASCIIStart) {
 +      base_icu::UChar32 next_char = 0;
 +      size_t last_index = index_;
-+      if (!ReadUnicodeCharacter(input_.data(), input_.length(), &index_,
-+                                &next_char)) {
++      if (!ReadUnicodeCharacter(input_, &index_, &next_char)) {
 +        if ((options_ & JSON_REPLACE_INVALID_CHARACTERS) == 0) {
 +          ReportError(JSON_UNSUPPORTED_ENCODING, 0);
 +          // No need to return consumed data.
@@ -1520,7 +1519,7 @@ index 0000000000..bd4a1c169e
 +
 +}  // namespace base::internal
 diff --git a/base/json/json_reader.cc b/base/json/json_reader.cc
-index 361ed60a6f..ccd26c32f9 100644
+index 4d120e83ec..af7736a410 100644
 --- a/base/json/json_reader.cc
 +++ b/base/json/json_reader.cc
 @@ -7,15 +7,15 @@
@@ -1565,7 +1564,7 @@ index 361ed60a6f..ccd26c32f9 100644
  }
  
  // static
-@@ -163,8 +160,17 @@ std::optional<Value::List> JSONReader::ReadList(std::string_view json,
+@@ -163,8 +160,17 @@ std::optional<ListValue> JSONReader::ReadList(std::string_view json,
  JSONReader::Result JSONReader::ReadAndReturnValueWithError(
      std::string_view json,
      int options) {
@@ -1586,5 +1585,5 @@ index 361ed60a6f..ccd26c32f9 100644
  
  }  // namespace base
 -- 
-2.52.0.322.g1dd061c0dc-goog
+2.53.0.473.g4a7958ca14-goog
 
