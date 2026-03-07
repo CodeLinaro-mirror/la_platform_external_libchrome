@@ -1,0 +1,79 @@
+From 9b891d0c85fd91f0ed80adab140bcff16e93e60b Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@google.com>
+Date: Sun, 8 Mar 2026 03:13:30 +0800
+Subject: [PATCH] [CXX23] Guard std::from_range constructors for
+ base::flat_tree<>
+
+Change-Id: Ieabe09dd516143dc06920f318c24836d5dfdde26
+---
+ base/containers/flat_tree.h | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/base/containers/flat_tree.h b/base/containers/flat_tree.h
+index 5104d90b4f..df636644e6 100644
+--- a/base/containers/flat_tree.h
++++ b/base/containers/flat_tree.h
+@@ -169,11 +169,13 @@ class flat_tree {
+             InputIterator last,
+             const key_compare& comp = key_compare());
+ 
++#if __cplusplus >= 202302L
+   template <class Range>
+     requires(std::ranges::input_range<Range>)
+   flat_tree(std::from_range_t,
+             Range&& range,
+             const key_compare& comp = key_compare());
++#endif
+ 
+   flat_tree(const container_type& items,
+             const key_compare& comp = key_compare());
+@@ -190,12 +192,14 @@ class flat_tree {
+             InputIterator last,
+             const key_compare& comp = key_compare());
+ 
++#if __cplusplus >= 202302L
+   template <class Range>
+     requires(std::ranges::input_range<Range>)
+   flat_tree(std::from_range_t,
+             sorted_unique_t,
+             Range&& range,
+             const key_compare& comp = key_compare());
++#endif
+ 
+   flat_tree(sorted_unique_t,
+             const container_type& items,
+@@ -567,6 +571,7 @@ flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
+   sort_and_unique();
+ }
+ 
++#if __cplusplus >= 202302L
+ template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
+ template <class Range>
+   requires(std::ranges::input_range<Range>)
+@@ -577,6 +582,7 @@ flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
+     : comp_(comp), body_(std::from_range, std::forward<Range>(range)) {
+   sort_and_unique();
+ }
++#endif
+ 
+ template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
+ flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
+@@ -612,6 +618,7 @@ flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
+   DCHECK(is_sorted_and_unique(*this, value_comp()));
+ }
+ 
++#if __cplusplus >= 202302L
+ template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
+ template <class Range>
+   requires(std::ranges::input_range<Range>)
+@@ -623,6 +630,7 @@ flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
+     : comp_(comp), body_(std::from_range, std::forward<Range>(range)) {
+   DCHECK(is_sorted_and_unique(*this, value_comp()));
+ }
++#endif
+ 
+ template <class Key, class GetKeyFromValue, class KeyCompare, class Container>
+ flat_tree<Key, GetKeyFromValue, KeyCompare, Container>::flat_tree(
+-- 
+2.53.0.473.g4a7958ca14-goog
+
