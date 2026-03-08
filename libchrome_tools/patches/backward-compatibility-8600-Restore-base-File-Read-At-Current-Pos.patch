@@ -1,0 +1,33 @@
+From 842a20304ab0c5bdb69a0824f86e9c8c5d99a6fd Mon Sep 17 00:00:00 2001
+From: Di Wu <diwux@google.com>
+Date: Mon, 9 Mar 2026 12:04:26 +0000
+Subject: [PATCH] Restore base::File::ReadAtCurrentPos
+
+This partially reverts 3b61a3ba65a51649b58dcd726633f7b7f44e7ed5.
+---
+ base/files/file.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/base/files/file.h b/base/files/file.h
+index 950c8300b8..8765d823e0 100644
+--- a/base/files/file.h
++++ b/base/files/file.h
+@@ -417,6 +417,7 @@ class BASE_EXPORT File {
+  private:
+   friend class FileTracing::ScopedTrace;
+ 
++ public:
+   // PRECONDITIONS: `size` must be non-negative and `data` must point to at
+   // least `size` valid bytes.
+   UNSAFE_BUFFER_USAGE int ReadAtCurrentPos(char* data, int size);
+@@ -441,6 +442,7 @@ class BASE_EXPORT File {
+   // least `size` valid bytes.
+   UNSAFE_BUFFER_USAGE int Write(int64_t offset, const char* data, int size);
+ 
++ private:
+   // Creates or opens the given file. Only called if |path| has no
+   // traversal ('..') components.
+   void DoInitialize(const FilePath& path, uint32_t flags);
+-- 
+2.53.0.473.g4a7958ca14-goog
+
