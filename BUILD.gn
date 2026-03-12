@@ -60,6 +60,7 @@ group("all_buildflags") {
     ":mojo_cpp_bindings_buildflags",
     ":partition_allocator_buildflags",
     ":profiler_buildflags",
+    ":robolectric_buildflags",
     ":rust_buildflags",
     ":synchronization_buildflags",
     ":tracing_buildflags",
@@ -395,6 +396,13 @@ buildflag_header("profiler_buildflags") {
     "ENABLE_ARM_CFI_TABLE=false",
     "IOS_STACK_PROFILER_ENABLED=true",
     "USE_ANDROID_UNWINDER_V2=false",
+  ]
+}
+
+buildflag_header("robolectric_buildflags") {
+  header = "build/robolectric_buildflags.h"
+  flags = [
+    "IS_ROBOLECTRIC=false",
   ]
 }
 
