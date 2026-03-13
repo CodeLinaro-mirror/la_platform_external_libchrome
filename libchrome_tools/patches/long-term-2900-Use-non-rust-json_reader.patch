@@ -1,4 +1,4 @@
-From 089140130dec5bdac03da44cf0019c9bf401177b Mon Sep 17 00:00:00 2001
+From 3d85c10609fdd68dae0d3818c6f14bc7f5bbc3de Mon Sep 17 00:00:00 2001
 From: Kevin Lin <kevinptt@google.com>
 Date: Fri, 6 Mar 2026 16:24:27 +0800
 Subject: [PATCH] Use non-rust json_reader
@@ -21,7 +21,7 @@ Change-Id: Id9bbec76e81447d47d1353089d1bfd97557285af
 
 diff --git a/base/json/json_parser.cc b/base/json/json_parser.cc
 new file mode 100644
-index 0000000000..0a65a2f762
+index 0000000000..85129f7830
 --- /dev/null
 +++ b/base/json/json_parser.cc
 @@ -0,0 +1,871 @@
@@ -453,7 +453,7 @@ index 0000000000..0a65a2f762
 +  // Reverse |dict_storage| to keep the last of elements with the same key in
 +  // the input.
 +  std::ranges::reverse(values);
-+  return Value(Value::Dict(PassKey<JSONParser>(), std::move(values)));
++  return Value(DictValue(PassKey<JSONParser>(), std::move(values)));
 +}
 +
 +std::optional<Value> JSONParser::ConsumeList() {
@@ -468,7 +468,7 @@ index 0000000000..0a65a2f762
 +    return std::nullopt;
 +  }
 +
-+  Value::List list;
++  ListValue list;
 +
 +  Token token = GetNextToken();
 +  while (token != T_ARRAY_END) {
@@ -1585,5 +1585,5 @@ index 4d120e83ec..af7736a410 100644
  
  }  // namespace base
 -- 
-2.53.0.473.g4a7958ca14-goog
+2.53.0.851.ga537e3e6e9-goog
 
