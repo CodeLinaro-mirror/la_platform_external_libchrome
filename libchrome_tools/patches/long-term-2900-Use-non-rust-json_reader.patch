@@ -1,12 +1,15 @@
 From 3d85c10609fdd68dae0d3818c6f14bc7f5bbc3de Mon Sep 17 00:00:00 2001
 From: Kevin Lin <kevinptt@google.com>
 Date: Fri, 6 Mar 2026 16:24:27 +0800
-Subject: [PATCH] Use non-rust json_reader
+Subject: [PATCH] Use non-rust json_reader and revert essential JSONParser changes
 
 The rust-related files are currently not supported in libchrome.
 
 Add back the non-rust implementation removed in crrev.com/c/6655303, including
 the JSONParser class used by the non-rust JSONReader.
+
+Also include an essential revert of crrev.com/c/7691304 to restore necessary
+internal::JSONParser references.
 
 Change-Id: Id9bbec76e81447d47d1353089d1bfd97557285af
 ---
@@ -14,7 +17,9 @@ Change-Id: Id9bbec76e81447d47d1353089d1bfd97557285af
  base/json/json_parser.h           | 269 +++++++++
  base/json/json_parser_unittest.cc | 341 ++++++++++++
  base/json/json_reader.cc          |  28 +-
- 4 files changed, 1498 insertions(+), 11 deletions(-)
+ base/values.cc                    |   5 +
+ base/values.h                     |   8 +
+ 6 files changed, 1511 insertions(+), 11 deletions(-)
  create mode 100644 base/json/json_parser.cc
  create mode 100644 base/json/json_parser.h
  create mode 100644 base/json/json_parser_unittest.cc
@@ -1584,6 +1589,61 @@ index 4d120e83ec..af7736a410 100644
  }
  
  }  // namespace base
+diff --git a/base/values.cc b/base/values.cc
+index 74384e6316..41d80d24e2 100644
+--- a/base/values.cc
++++ b/base/values.cc
+@@ -30,6 +30,7 @@
+ #include "base/trace_event/memory_usage_estimator.h"  // no-presubmit-check
+ #include "base/trace_event/trace_event.h"
+ #include "base/tracing_buildflags.h"
++#include "base/types/pass_key.h"
+ #include "base/types/to_address.h"
+ 
+ namespace base {
+@@ -360,6 +361,10 @@ DictValue::DictValue(flat_map<std::string, std::unique_ptr<Value>> storage)
+   }));
+ }
+ 
++DictValue::DictValue(PassKey<internal::JSONParser>,
++                     flat_map<std::string, std::unique_ptr<Value>> storage)
++    : DictValue(std::move(storage)) {}
++
+ DictValue::DictValue(DictValue&&) noexcept = default;
+ 
+ DictValue& DictValue::operator=(DictValue&&) noexcept = default;
+diff --git a/base/values.h b/base/values.h
+index dcb83d4410..35a0e2d84c 100644
+--- a/base/values.h
++++ b/base/values.h
+@@ -30,6 +30,7 @@
+ #include "base/containers/flat_map.h"
+ #include "base/containers/span.h"
+ #include "base/trace_event/base_tracing_forward.h"
++#include "base/types/pass_key.h"
+ #include "base/value_iterators.h"
+ 
+ namespace base {
+@@ -37,6 +38,10 @@ namespace base {
+ class DictValue;
+ class Value;
+ 
++namespace internal {
++class JSONParser;
++}  // namespace internal
++
+ using BlobStorage = std::vector<uint8_t>;
+ 
+ // Represents a list of Values.
+@@ -262,6 +267,9 @@ class BASE_EXPORT GSL_OWNER DictValue {
+   DictValue(std::move_iterator<IteratorType> first,
+             std::move_iterator<IteratorType> last);
+ 
++  DictValue(PassKey<internal::JSONParser>,
++            flat_map<std::string, std::unique_ptr<Value>>);
++
+   ~DictValue();
+ 
+   // Returns true if there are no entries in this dictionary and false
 -- 
 2.53.0.851.ga537e3e6e9-goog
-
