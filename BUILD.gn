@@ -461,7 +461,6 @@ libbase_sublibs = [
     pkg_deps = [
       "absl",
       "glib-2.0",
-      "libevent",
       "perfetto",
     ]
     configs = [
