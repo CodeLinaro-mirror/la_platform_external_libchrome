@@ -1,0 +1,44 @@
+From ff2ebbf42661b2f792454e9d0f9be0a396cc6ffd Mon Sep 17 00:00:00 2001
+From: Di Wu <diwux@google.com>
+Date: Sat, 28 Mar 2026 04:48:54 +0000
+Subject: [PATCH] Restore HexEncode(const void* bytes, size_t size) for
+ backward compatibility
+
+Change-Id: Ia848879babd1787ed254f565c7eaa57724ee07af
+---
+ base/strings/string_number_conversions.cc | 6 ++++++
+ base/strings/string_number_conversions.h  | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/base/strings/string_number_conversions.cc b/base/strings/string_number_conversions.cc
+index a3a383a004..9eea26088b 100644
+--- a/base/strings/string_number_conversions.cc
++++ b/base/strings/string_number_conversions.cc
+@@ -141,6 +141,12 @@ std::string HexEncode(std::string_view chars) {
+   return HexEncode(base::as_byte_span(chars));
+ }
+ 
++std::string HexEncode(const void* bytes, size_t size) {
++  return HexEncode(
++      // SAFETY: HexEncode caller provides a valid pointer and size.
++      UNSAFE_BUFFERS(base::span(static_cast<const uint8_t*>(bytes), size)));
++}
++
+ std::string HexEncodeLower(base::span<const uint8_t> bytes) {
+   // Each input byte creates two output hex characters.
+   std::string ret;
+diff --git a/base/strings/string_number_conversions.h b/base/strings/string_number_conversions.h
+index 4ba6d20165..0a0bad6195 100644
+--- a/base/strings/string_number_conversions.h
++++ b/base/strings/string_number_conversions.h
+@@ -116,6 +116,7 @@ BASE_EXPORT bool StringToDouble(std::u16string_view input, double* output);
+ //   std::numeric_limits<size_t>::max() / 2
+ BASE_EXPORT std::string HexEncode(base::span<const uint8_t> bytes);
+ BASE_EXPORT std::string HexEncode(std::string_view chars);
++BASE_EXPORT std::string HexEncode(const void* bytes, size_t size);
+ 
+ // Behaves like the above, but returns the hex string in lower case.
+ BASE_EXPORT std::string HexEncodeLower(base::span<const uint8_t> bytes);
+-- 
+2.53.0.1018.g2bb0e51243-goog
+
