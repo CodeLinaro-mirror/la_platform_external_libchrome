@@ -1,4 +1,4 @@
-From 824cd6d64902ab421e130218b9ffc606f3337ce2 Mon Sep 17 00:00:00 2001
+From 6eb19e05a005a119e3c471e62ac40575894b02bb Mon Sep 17 00:00:00 2001
 From: Kevin Lin <kevinptt@google.com>
 Date: Tue, 2 Dec 2025 10:29:04 +0800
 Subject: [PATCH] Disable unneeded Rust logging integration
@@ -9,26 +9,27 @@ Change-Id: Iacf5974cdf24452778fb3def26d200514c778247
  1 file changed, 4 deletions(-)
 
 diff --git a/base/logging.cc b/base/logging.cc
-index 1a4944f54c..0677d95161 100644
+index 4f4712f94f..df16cd698b 100644
 --- a/base/logging.cc
 +++ b/base/logging.cc
-@@ -35,7 +35,6 @@
+@@ -34,7 +34,6 @@
+ #include "base/debug/task_trace.h"
  #include "base/functional/callback.h"
  #include "base/immediate_crash.h"
 -#include "base/logging/logger.rs.h"
  #include "base/logging/logging_settings.h"
  #include "base/no_destructor.h"
  #include "base/path_service.h"
- #include "base/pending_task.h"
-@@ -509,9 +509,6 @@ bool BaseInitLoggingImpl(const LoggingSettings& settings) {
+@@ -508,9 +507,6 @@ bool BaseInitLoggingImpl(const LoggingSettings& settings) {
+   }
  #endif
  
 -  // Connects Rust logging with the //base logging functionality.
--  internal::init_rust_log_crate();
+-  internal::init_rust_logging();
 -
    // Ignore file options unless logging to file is set.
    if ((g_logging_destination & LOG_TO_FILE) == 0) {
      return true;
-   }
 -- 
-2.52.0.107.ga0afd4fd5b-goog
+2.53.0.1118.gaef5881109-goog
+

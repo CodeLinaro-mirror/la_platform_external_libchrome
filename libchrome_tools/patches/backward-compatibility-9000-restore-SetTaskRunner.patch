@@ -1,0 +1,60 @@
+From d2cd130b74d2010f593979dd40f57860c55a3895 Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Wed, 1 Apr 2026 07:50:22 -0600
+Subject: [PATCH] Partial Revert "[task] Remove CurrentThread::SetTaskRunner"
+
+This is a partial revert of commit 7c45aa98ee735941305815a0ce514d7b3e30d20d.
+---
+ base/task/current_thread.cc                   |  6 +++
+ base/task/current_thread.h                    |  6 +++
+ ...hread_controller_with_message_pump_impl.cc | 11 ++++--
+ ...thread_controller_with_message_pump_impl.h |  4 +-
+ base/task/single_thread_task_runner.cc        | 22 +++++++----
+ base/task/single_thread_task_runner.h         | 38 +++++++++----------
+ .../single_thread_task_runner_unittest.cc     | 16 --------
+ ...oped_mock_time_message_loop_task_runner.cc | 15 +++++---
+ ...coped_mock_time_message_loop_task_runner.h |  4 --
+ ..._time_message_loop_task_runner_unittest.cc |  7 ++--
+ 10 files changed, 68 insertions(+), 61 deletions(-)
+
+diff --git a/base/task/current_thread.cc b/base/task/current_thread.cc
+index ec901a8a1d..76d1098620 100644
+--- a/base/task/current_thread.cc
++++ b/base/task/current_thread.cc
+@@ -55,6 +55,12 @@ void CurrentThread::RemoveDestructionObserver(
+   current_->RemoveDestructionObserver(destruction_observer);
+ }
+ 
++void CurrentThread::SetTaskRunner(
++    scoped_refptr<SingleThreadTaskRunner> task_runner) {
++  DCHECK(current_->IsBoundToCurrentThread());
++  current_->SetTaskRunner(std::move(task_runner));
++}
++
+ bool CurrentThread::IsBoundToCurrentThread() const {
+   return current_ == GetCurrentSequenceManagerImpl();
+ }
+diff --git a/base/task/current_thread.h b/base/task/current_thread.h
+index 2bf2f919fe..3ea0df2554 100644
+--- a/base/task/current_thread.h
++++ b/base/task/current_thread.h
+@@ -36,6 +36,7 @@ class WebTaskEnvironment;
+ namespace base {
+ 
+ class CallbackListSubscription;
++class SingleThreadTaskRunner;
+ 
+ namespace test {
+ bool RunUntil(FunctionRef<bool(void)>);
+@@ -130,6 +131,11 @@ class BASE_EXPORT CurrentThread {
+   // DestructionObserver is receiving a notification callback.
+   void RemoveDestructionObserver(DestructionObserver* destruction_observer);
+ 
++  // Forwards to SequenceManager::SetTaskRunner().
++  // DEPRECATED(https://crbug.com/825327): only owners of the SequenceManager
++  // instance should replace its TaskRunner.
++  void SetTaskRunner(scoped_refptr<SingleThreadTaskRunner> task_runner);
++
+   // Forwards to SequenceManager::(Add|Remove)TaskObserver.
+   // DEPRECATED(https://crbug.com/825327): only owners of the SequenceManager
+   // instance should add task observers on it.

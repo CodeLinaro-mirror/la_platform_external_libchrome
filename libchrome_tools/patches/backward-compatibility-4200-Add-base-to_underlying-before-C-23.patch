@@ -1,4 +1,4 @@
-From 3bb909d1cb6a50be87c7b7afea124c737a35d339 Mon Sep 17 00:00:00 2001
+From d0896c071e7bf35945f391bcf6cc07845117baa3 Mon Sep 17 00:00:00 2001
 From: Wei-Luan Wang <weiluanwang@google.com>
 Date: Fri, 26 Dec 2025 00:55:32 +0000
 Subject: [PATCH] Add base::to_underlying before C++23
@@ -42,7 +42,7 @@ Change-Id: I450dd0370048ac435c740e7a49193aec2e130128
  create mode 100644 base/types/cxx23_to_underlying_unittest.cc
 
 diff --git a/base/apple/mach_port_rendezvous.cc b/base/apple/mach_port_rendezvous.cc
-index 3d47f143c1..bf19f32333 100644
+index 6827382152..7cd6db6ca0 100644
 --- a/base/apple/mach_port_rendezvous.cc
 +++ b/base/apple/mach_port_rendezvous.cc
 @@ -21,6 +21,7 @@
@@ -92,7 +92,7 @@ index 2ce900f0f4..d69a6aa13d 100644
  
  void DumpWithoutCrashing(base::debug::CrashKeyString* message_key,
 diff --git a/base/containers/enum_set.h b/base/containers/enum_set.h
-index f38ef65d5a..3bd3b62e82 100644
+index 4cf3168c6b..cc3a1b4645 100644
 --- a/base/containers/enum_set.h
 +++ b/base/containers/enum_set.h
 @@ -17,6 +17,7 @@
@@ -100,19 +100,19 @@ index f38ef65d5a..3bd3b62e82 100644
  #include "base/check_op.h"
  #include "base/memory/raw_ptr.h"
 +#include "base/types/cxx23_to_underlying.h"
- #include "build/build_config.h"
  
  namespace base {
-@@ -62,7 +63,7 @@ class EnumSet {
-   static const E kMinValue = MinEnumValue;
-   static const E kMaxValue = MaxEnumValue;
-   static const size_t kValueCount =
+ 
+@@ -61,7 +62,7 @@ class EnumSet {
+   static constexpr E kMinValue = MinEnumValue;
+   static constexpr E kMaxValue = MaxEnumValue;
+   static constexpr size_t kValueCount =
 -      std::to_underlying(kMaxValue) - std::to_underlying(kMinValue) + 1;
 +      to_underlying(kMaxValue) - to_underlying(kMinValue) + 1;
  
    static_assert(kMinValue <= kMaxValue,
                  "min value must be no greater than max value");
-@@ -227,37 +228,37 @@ class EnumSet {
+@@ -211,37 +212,37 @@ class EnumSet {
  
    // Returns an EnumSet constructed from |bitmask|.
    static constexpr EnumSet FromEnumBitmask(const uint64_t bitmask) {
@@ -126,7 +126,7 @@ index f38ef65d5a..3bd3b62e82 100644
 +    return EnumSet(EnumBitSet(bitmask >> to_underlying(kMinValue)));
    }
    // Returns a bitmask for the EnumSet.
-   uint64_t ToEnumBitmask() const {
+   constexpr uint64_t ToEnumBitmask() const {
 -    static_assert(std::to_underlying(kMaxValue) < 64,
 +    static_assert(to_underlying(kMaxValue) < 64,
                    "The highest enum value must be < 64 for ToEnumBitmask ");
@@ -139,7 +139,7 @@ index f38ef65d5a..3bd3b62e82 100644
  
    // Returns a uint64_t bit mask representing the values within the range
    // [64*n, 64*n + 63] of the EnumSet.
-   std::optional<uint64_t> GetNth64bitWordBitmask(size_t n) const {
+   constexpr std::optional<uint64_t> GetNth64bitWordBitmask(size_t n) const {
      // If the EnumSet contains less than n 64-bit masks, return std::nullopt.
 -    if (std::to_underlying(kMaxValue) / 64 < n) {
 +    if (to_underlying(kMaxValue) / 64 < n) {
@@ -161,7 +161,7 @@ index f38ef65d5a..3bd3b62e82 100644
      }
      return result;
    }
-@@ -390,13 +391,13 @@ class EnumSet {
+@@ -353,13 +354,13 @@ class EnumSet {
    // Converts a value to/from an index into |enums_|.
    static constexpr size_t ToIndex(E value) {
      CHECK(InRange(value));
@@ -171,7 +171,7 @@ index f38ef65d5a..3bd3b62e82 100644
 +           static_cast<size_t>(to_underlying(MinEnumValue));
    }
  
-   static E FromIndex(size_t i) {
+   static constexpr E FromIndex(size_t i) {
      DCHECK_LT(i, kValueCount);
 -    return static_cast<E>(std::to_underlying(MinEnumValue) + i);
 +    return static_cast<E>(to_underlying(MinEnumValue) + i);
@@ -368,7 +368,7 @@ index d7eb537519..a021cba781 100644
  #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
  #include "mojo/public/cpp/bindings/lib/message_internal.h"
 diff --git a/mojo/golden/generated/c++/results.test-mojom.cc.golden b/mojo/golden/generated/c++/results.test-mojom.cc.golden
-index ac5516898f..a1d8f84408 100644
+index 5b40804615..1c2b9f85ca 100644
 --- a/mojo/golden/generated/c++/results.test-mojom.cc.golden
 +++ b/mojo/golden/generated/c++/results.test-mojom.cc.golden
 @@ -21,6 +21,7 @@
@@ -487,7 +487,7 @@ index b564eb9392..dca77937c4 100644
      ::mojo::internal::MessageFragment<
          mojom::internal::NoSync_Method_Params_Data>
 diff --git a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
-index fc403f98c5..09eb7097ef 100644
+index 85174a0176..4398196cb9 100644
 --- a/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
 +++ b/mojo/public/tools/bindings/generators/cpp_templates/interface_definition.tmpl
 @@ -239,7 +239,7 @@ class {{class_name}}_{{method.name}}_ForwardToCallback
@@ -539,5 +539,5 @@ index ef0986dd5f..828158df5d 100644
  #include "mojo/public/cpp/bindings/lib/generated_code_util.h"
  #include "mojo/public/cpp/bindings/lib/message_internal.h"
 -- 
-2.53.0.345.g96ddfc5eaa-goog
+2.53.0.1118.gaef5881109-goog
 
