@@ -1,4 +1,4 @@
-From df7eeb851f6a33ce2722405d0c25d0d08e680d0f Mon Sep 17 00:00:00 2001
+From baea346ed42c78aafcebef7cb212e26cfa934113 Mon Sep 17 00:00:00 2001
 From: Wei-Luan Wang <weiluanwang@google.com>
 Date: Thu, 26 Jun 2025 02:59:16 +0000
 Subject: [PATCH] Use non-boringssl md5 sha1 implementation.
@@ -14,10 +14,10 @@ patch-name: long-term-0600-Use-non-boringssl-md5-sha1-implementation.patch
  base/hash/md5_nacl.cc          | 297 +++++++++++++++++++++++++++++++++
  base/hash/md5_nacl.h           |  25 +++
  base/hash/sha1.h               |   6 +-
- base/hash/sha1_nacl.cc         | 203 ++++++++++++++++++++++
+ base/hash/sha1_nacl.cc         | 204 ++++++++++++++++++++++
  base/hash/sha1_nacl.h          |  40 +++++
  base/metrics/metrics_hashes.cc |  39 +++--
- 7 files changed, 591 insertions(+), 30 deletions(-)
+ 7 files changed, 592 insertions(+), 30 deletions(-)
  create mode 100644 base/hash/md5_nacl.cc
  create mode 100644 base/hash/md5_nacl.h
  create mode 100644 base/hash/sha1_nacl.cc
@@ -410,10 +410,10 @@ index edb521aa60..80e96351e0 100644
  // The output of an SHA-1 operation.
 diff --git a/base/hash/sha1_nacl.cc b/base/hash/sha1_nacl.cc
 new file mode 100644
-index 0000000000..669f81ac46
+index 0000000000..0d92607f10
 --- /dev/null
 +++ b/base/hash/sha1_nacl.cc
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,204 @@
 +// Copyright 2011 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -424,6 +424,7 @@ index 0000000000..669f81ac46
 +#include <stdint.h>
 +#include <string.h>
 +
++#include <bit>
 +#include <string_view>
 +
 +#include "base/numerics/byte_conversions.h"
@@ -508,7 +509,7 @@ index 0000000000..669f81ac46
 +  Process();
 +
 +  for (auto& t : H) {
-+    t = ByteSwap(t);
++    t = std::byteswap(t);
 +  }
 +}
 +
@@ -552,7 +553,7 @@ index 0000000000..669f81ac46
 +  // W and M are in a union, so no need to memcpy.
 +  // memcpy(W, M, sizeof(M));
 +  for (t = 0; t < 16; ++t) {
-+    W[t] = ByteSwap(W[t]);
++    W[t] = std::byteswap(W[t]);
 +  }
 +
 +  // b.
@@ -738,5 +739,5 @@ index d4bd2b98f4..e0fef601a7 100644
  
  }  // namespace base
 -- 
-2.50.0.727.gbf7dc18ff4-goog
+2.54.0.545.g6539524ca2-goog
 
