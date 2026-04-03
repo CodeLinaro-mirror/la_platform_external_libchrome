@@ -1,0 +1,28 @@
+From 6cf4a419cd48728133f3d641efacf3564cce00b9 Mon Sep 17 00:00:00 2001
+From: Di Wu <diwux@google.com>
+Date: Tue, 7 Apr 2026 01:29:18 +0000
+Subject: [PATCH] Revert Android-specific eventfd upgrade check in ChannelLinux
+
+Change-Id: I84def9aa311420b632b9c2dcc7864c2496c304d9
+---
+ mojo/core/channel_linux.cc | 4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/mojo/core/channel_linux.cc b/mojo/core/channel_linux.cc
+index 50e4732226..5dfdfdca1f 100644
+--- a/mojo/core/channel_linux.cc
++++ b/mojo/core/channel_linux.cc
+@@ -929,10 +929,6 @@ bool ChannelLinux::KernelSupportsUpgradeRequirements() {
+ 
+ // static
+ bool ChannelLinux::UpgradesEnabled() {
+-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+-          kSuppressEventfdUpgradeForWebview)) {
+-    return false;
+-  }
+   if (!g_params_set.load()) {
+     return g_use_shared_mem.load();
+   }
+-- 
+2.53.0.1213.gd9a14994de-goog
+

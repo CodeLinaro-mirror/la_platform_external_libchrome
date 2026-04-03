@@ -1,0 +1,96 @@
+From cbcd0135bf15c9bcc32c06c739536b24cf1f9531 Mon Sep 17 00:00:00 2001
+From: Brett Brotherton <bbrotherton@google.com>
+Date: Fri, 3 Apr 2026 09:41:23 -0600
+Subject: [PATCH] Revert "[mojo] Remove support for legacy EnumTraits
+ signatures"
+
+This reverts commit 6ad6d8a3047e6b9d7fbf660d843a1a2e7e2a34e9.
+---
+ .../cpp/bindings/lib/bindings_internal.h      |  8 +++++
+ mojo/public/cpp/test_support/test_utils.h     |  5 +++
+ .../enum_serialization_declaration.tmpl       | 31 +++++++------------
+ 3 files changed, 24 insertions(+), 20 deletions(-)
+
+diff --git a/mojo/public/cpp/bindings/lib/bindings_internal.h b/mojo/public/cpp/bindings/lib/bindings_internal.h
+index f0f52366ce..00b3f85635 100644
+--- a/mojo/public/cpp/bindings/lib/bindings_internal.h
++++ b/mojo/public/cpp/bindings/lib/bindings_internal.h
+@@ -364,6 +364,14 @@ T ConvertEnumValue(MojomType in) {
+   return *out;
+ }
+ 
++template <typename MojomType, typename T>
++T ConvertEnumValue(MojomType in) {
++  T out;
++  bool result = EnumTraits<MojomType, T>::FromMojom(in, &out);
++  DCHECK(result);
++  return out;
++}
++
+ template <typename MojomType>
+   requires(requires(MojomType in) {
+     { ToKnownEnumValue(in) } -> std::same_as<MojomType>;
+diff --git a/mojo/public/cpp/test_support/test_utils.h b/mojo/public/cpp/test_support/test_utils.h
+index 76c49c225c..e6579c2abd 100644
+--- a/mojo/public/cpp/test_support/test_utils.h
++++ b/mojo/public/cpp/test_support/test_utils.h
+@@ -104,6 +104,11 @@ bool DeserializeEnum(MojoT in, T& out) {
+   return result.has_value();
+ }
+ 
++template <typename MojoT, typename T>
++bool DeserializeEnum(MojoT in, T& out) {
++  return mojo::EnumTraits<MojoT, T>::FromMojom(in, &out);
++}
++
+ // This overload is used for mojom enums. The C++ enum type is given as an
+ // input, and returned as an output.
+ template <typename MojoT, typename T>
+diff --git a/mojo/public/tools/bindings/generators/cpp_templates/enum_serialization_declaration.tmpl b/mojo/public/tools/bindings/generators/cpp_templates/enum_serialization_declaration.tmpl
+index a592c05ca3..51b1979b6e 100644
+--- a/mojo/public/tools/bindings/generators/cpp_templates/enum_serialization_declaration.tmpl
++++ b/mojo/public/tools/bindings/generators/cpp_templates/enum_serialization_declaration.tmpl
+@@ -15,29 +15,20 @@ struct Serializer<{{mojom_type}}, MaybeConstUserType> {
+   static bool Deserialize(int32_t input, UserType* output) {
+     auto known_value = ::mojo::internal::ToKnownEnumValueHelper(
+         static_cast<{{mojom_type}}>(input));
+-    if constexpr (requires {
+-                    {
+-                      Traits::FromMojom(known_value)
+-                    } -> std::same_as<UserType>;
+-                  }) {
+-      static_assert(std::same_as<{{mojom_type}}, UserType> ||
+-                        HasInfallibleConversion({{mojom_type}}()),
+-                    "{{mojom_type}} does not have an infallible conversion, "
+-                    "use an optional return type.");
++     if constexpr (requires { {Traits::FromMojom(known_value) } -> std::same_as<UserType>; }) {
++      static_assert(
++        std::same_as<{{mojom_type}}, UserType> ||
++        HasInfallibleConversion({{mojom_type}}()), "{{mojom_type}} does not have an infallible conversion, use an optional return type.");
+       *output = Traits::FromMojom(known_value);
+       return true;
+-    } else {
+-      static_assert(
+-          requires {
+-            {
+-              Traits::FromMojom(known_value)
+-            } -> std::same_as<std::optional<UserType>>;
+-          }, "FromMojom must return by value or optional.");
+-      std::optional<UserType> from_mojom = Traits::FromMojom(known_value);
+-      if (from_mojom) {
+-        *output = *from_mojom;
+-      }
++    } else if constexpr (requires { {Traits::FromMojom(known_value) } -> std::same_as<std::optional<UserType>>; }) {
++      auto from_mojom = Traits::FromMojom(known_value);
++      if (from_mojom) { *output = *from_mojom; }
+       return from_mojom.has_value();
++    } else {
++      // TODO(crbug.com/483092898): Remove this branch once all traits use
++      // the single argument version.
++      return Traits::FromMojom(known_value, output);
+     }
+   }
+ };
+-- 
+2.53.0.1213.gd9a14994de-goog
+
