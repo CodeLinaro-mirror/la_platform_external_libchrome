@@ -26,7 +26,7 @@ diff --git a/base/allocator/partition_allocator/src/partition_alloc/shim/allocat
 index b82bf2187d..ebdb706d09 100644
 --- a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
-@@ -28,71 +28,19 @@ namespace {
+@@ -28,28 +28,7 @@ namespace {
  
  using allocator_shim::AllocatorDispatch;
  
@@ -35,7 +35,7 @@ index b82bf2187d..ebdb706d09 100644
 -// most platforms), and tests expect that.
 -constexpr size_t kMaxAllowedSize = std::numeric_limits<int>::max() - (1 << 12);
 -
- void* GlibcMalloc(size_t size, AllocToken, void* context) {
+ void* GlibcMalloc(size_t size, allocator_shim::AllocToken, void* context) {
 -  // Cannot force glibc's malloc() to crash when a large size is requested, do
 -  // it in the shim instead.
 -  if (size >= kMaxAllowedSize) [[unlikely]] {
@@ -45,16 +45,20 @@ index b82bf2187d..ebdb706d09 100644
 -  return __libc_malloc(size);
 -}
 -
--void* GlibcUncheckedMalloc(size_t size, AllocToken, void* context) {
+-void* GlibcUncheckedMalloc(size_t size,
+-                           allocator_shim::AllocToken,
+-                           void* context) {
 -  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    return nullptr;
 -  }
 -
--  return __libc_malloc(size);
-+    return __libc_malloc(size);
+   return __libc_malloc(size);
  }
  
- void* GlibcCalloc(size_t n, size_t size, AllocToken, void* context) {
+@@ -57,23 +36,6 @@ void* GlibcCalloc(size_t n,
+                   size_t size,
+                   allocator_shim::AllocToken,
+                   void* context) {
 -  const auto total = partition_alloc::internal::base::CheckMul(n, size);
 -  if (!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize) [[unlikely]] {
 -    partition_alloc::TerminateBecauseOutOfMemory(size * n);
@@ -63,7 +67,10 @@ index b82bf2187d..ebdb706d09 100644
 -  return __libc_calloc(n, size);
 -}
 -
--void* GlibcUncheckedCalloc(size_t n, size_t size, AllocToken, void* context) {
+-void* GlibcUncheckedCalloc(size_t n,
+-                           size_t size,
+-                           allocator_shim::AllocToken,
+-                           void* context) {
 -  const auto total = partition_alloc::internal::base::CheckMul(n, size);
 -  if (!total.IsValid() || total.ValueOrDie() >= kMaxAllowedSize) [[unlikely]] {
 -    return nullptr;
@@ -72,7 +79,10 @@ index b82bf2187d..ebdb706d09 100644
    return __libc_calloc(n, size);
  }
  
- void* GlibcRealloc(void* address, size_t size, AllocToken, void* context) {
+@@ -81,21 +43,6 @@ void* GlibcRealloc(void* address,
+                    size_t size,
+                    allocator_shim::AllocToken,
+                    void* context) {
 -  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
@@ -82,7 +92,7 @@ index b82bf2187d..ebdb706d09 100644
 -
 -void* GlibcUncheckedRealloc(void* address,
 -                            size_t size,
--                            AllocToken,
+-                            allocator_shim::AllocToken,
 -                            void* context) {
 -  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    return nullptr;
@@ -91,7 +101,10 @@ index b82bf2187d..ebdb706d09 100644
    return __libc_realloc(address, size);
  }
  
- void* GlibcMemalign(size_t alignment, size_t size, AllocToken, void* context) {
+@@ -103,10 +50,6 @@ void* GlibcMemalign(size_t alignment,
+                     size_t size,
+                     allocator_shim::AllocToken,
+                     void* context) {
 -  if (size >= kMaxAllowedSize) [[unlikely]] {
 -    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
@@ -99,7 +112,7 @@ index b82bf2187d..ebdb706d09 100644
    return __libc_memalign(alignment, size);
  }
  
-@@ -133,12 +81,12 @@ size_t GlibcGetSizeEstimate(void* address, void* context) {
+@@ -147,12 +90,12 @@ size_t GlibcGetSizeEstimate(void* address, void* context) {
  
  const AllocatorDispatch AllocatorDispatch::default_dispatch = {
      &GlibcMalloc,           /* alloc_function */

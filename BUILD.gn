@@ -259,6 +259,10 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "SHIM_SUPPORTS_SIZED_DEALLOC=false",
     "MOVE_METADATA_OUT_OF_GIGACAGE_FOR_64_BITS_POINTERS=false",
     "CHECKED_SPAN=false",
+    "ENABLE_AUTO_PARTITIONING=false",
+    "SMALLER_PARTITION_COOKIE=false",
+    "ENABLE_SYSTEM_FREE_FALLBACK=false",
+    "REALLOC_GROWTH_FACTOR_MITIGATION=false",
   ]
 }
 
