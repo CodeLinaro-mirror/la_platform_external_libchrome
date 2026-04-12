@@ -716,7 +716,6 @@ libbase_sublibs = [
       "base/task/sequence_manager/task_time_observer.cc",
       "base/task/sequence_manager/tasks.cc",
       "base/task/sequence_manager/thread_controller.cc",
-      "base/task/sequence_manager/thread_controller_impl.cc",
       "base/task/sequence_manager/thread_controller_power_monitor.cc",
       "base/task/sequence_manager/thread_controller_with_message_pump_impl.cc",
       "base/task/sequence_manager/time_domain.cc",
