@@ -346,6 +346,7 @@ buildflag_header("debugging_buildflags") {
 
     # "ENABLE_STACK_TRACE_LINE_NUMBERS=",
     "PRINT_UNSYMBOLIZED_STACK_TRACES=false",
+    "ENABLE_CHECK_ELISION_WARNING=false",
   ]
 }
 
