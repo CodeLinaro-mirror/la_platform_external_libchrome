@@ -263,6 +263,8 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "SMALLER_PARTITION_COOKIE=false",
     "ENABLE_SYSTEM_FREE_FALLBACK=false",
     "REALLOC_GROWTH_FACTOR_MITIGATION=false",
+    "ENABLE_USER_SPACE_ZERO_SEGMENT=false",
+    "USER_SPACE_ZERO_SEGMENT_SIZE_MB=0",
   ]
 }
 
