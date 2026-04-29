@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/test/test_trace_processor.h"
+#include "base/test/tracing/test_trace_processor.h"
 
 #include <string>
 #include <string_view>
@@ -53,8 +53,7 @@ constexpr char kSaveTraceSwitch[] = "ttp-save-trace";
 // The output is used to override the Chrome SQL package in the trace processor.
 TestTraceProcessorImpl::PerfettoSQLPackage GetChromeStdlib() {
   std::vector<std::pair<std::string, std::string>> stdlib;
-  for (const auto& file_to_sql :
-       perfetto::trace_processor::chrome_stdlib::kFileToSql) {
+  for (const auto& file_to_sql : base::test::kChromeStdlibFilesToSql) {
     std::string include_key;
     base::ReplaceChars(file_to_sql.path, "/", ".", &include_key);
     if (include_key.ends_with(".sql")) {
