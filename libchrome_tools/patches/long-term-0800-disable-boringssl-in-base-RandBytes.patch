@@ -1,4 +1,4 @@
-From c0c96214ec46a30997fe1dcf15bbd7802c982816 Mon Sep 17 00:00:00 2001
+From be1a1d809388f045f2c448e8cc9c556df6297feb Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Thu, 7 May 2026 11:25:20 -0600
 Subject: [PATCH] disable boringssl in base::RandBytes
@@ -8,83 +8,49 @@ Updated in r1321254 (crrev.com/c/5669584).
 Updated in r1477790 (crrev.com/c/6665689).
 Updated in r1624070 (crrev.com/c/7812144).
 Updated in r1626560 (crrev.com/c/7828277).
+Updated in r1632053 (crrev.com/c/7856143).
 
 In the most recent update, upstream removed all of the previous
 functionality this patch has been using, so this adds it back in.  Also,
 this was combined with the long-term-0900 patch since they are both
 related.
+
+Change-Id: I465dc418929f7ed936d5a2c8be114ca8194acc7e
+patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
 ---
- base/rand_util_posix.cc | 42 +++++++++++++++++++++++++++++++++++++----
- 1 file changed, 38 insertions(+), 4 deletions(-)
+ base/rand_util_posix.cc | 11 +----------
+ 1 file changed, 1 insertion(+), 10 deletions(-)
 
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index b37f87159e..099105a4e2 100644
+index 0c7149149e..81687e4af9 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -12,9 +12,8 @@
- #include "base/posix/eintr_wrapper.h"
+@@ -22,11 +22,8 @@
  #include "base/system/sys_info.h"
+ #include "base/time/time.h"
  #include "build/build_config.h"
 -#include "third_party/boringssl/src/include/openssl/rand.h"
  
--#if BUILDFLAG(IS_MAC)
-+#if BUILDFLAG(IS_MAC) || 1
+-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+-#include "third_party/lss/linux_syscall_support.h"
+-#elif BUILDFLAG(IS_MAC)
++#if BUILDFLAG(IS_MAC)
  // TODO(crbug.com/40641285): Waiting for this header to appear in the iOS SDK.
  // (See below.)
  #include <sys/random.h>
-@@ -42,6 +41,27 @@ double RandomUint64ToRandomDouble(uint64_t value) {
-   return (value >> 11) * 0x1.0p-53;
- }
+@@ -114,12 +111,6 @@ bool UseBoringSSLForRandBytes() {
+ namespace {
  
-+bool KernelSupportsGetRandom() {
-+  return base::SysInfo::KernelVersionNumber::Current() >=
-+         base::SysInfo::KernelVersionNumber(3, 17);
-+}
-+
-+bool GetRandomSyscall(void* output, size_t output_length) {
-+  // We have to call `getrandom` via Linux Syscall Support, rather than through
-+  // the libc wrapper, because we might not have an up-to-date libc (e.g. on
-+  // some bots).
-+  const ssize_t r =
-+      HANDLE_EINTR(syscall(__NR_getrandom, output, output_length, 0));
-+
-+  // Return success only on total success. In case errno == ENOSYS (or any other
-+  // error), we'll fall through to reading from urandom below.
-+  if (output_length == static_cast<size_t>(r)) {
-+    MSAN_UNPOISON(output, output_length);
-+    return true;
-+  }
-+  return false;
-+}
-+
- }  // namespace
- 
- namespace internal {
-@@ -66,8 +86,22 @@ double RandDoubleAvoidAllocation() {
- }  // namespace internal
- 
- void RandBytes(span<uint8_t> output) {
--  // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
--  (void)RAND_bytes(output.data(), output.size());
-+  // On Android it is mandatory to check that the kernel _version_ has the
-+  // support for a syscall before calling. The same check is made on Linux and
-+  // ChromeOS to avoid making a syscall that predictably returns ENOSYS.
-+  static const bool kernel_has_support = KernelSupportsGetRandom();
-+  if (kernel_has_support && GetRandomSyscall(output.data(), output.size())) {
-+    return;
-+  }
-+
-+  // If the OS-specific mechanisms didn't work, fall through to reading from
-+  // urandom.
-+  //
-+  // TODO(crbug.com/40641285): When we no longer need to support old Linux
-+  // kernels, we can get rid of this /dev/urandom branch altogether.
-+  const int urandom_fd = GetUrandomFD();
-+  const bool success = ReadFromFD(urandom_fd, as_writable_chars(output));
-+  CHECK(success);
- }
- 
- int GetUrandomFD() {
+ void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
+-  // The BoringSSL experiment takes priority over everything else.
+-  if (!avoid_allocation && internal::UseBoringSSLForRandBytes()) {
+-    // BoringSSL's RAND_bytes always returns 1. Any error aborts the program.
+-    (void)RAND_bytes(output.data(), output.size());
+-    return;
+-  }
+ #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+   // On Android it is mandatory to check that the kernel _version_ has the
+   // support for a syscall before calling. The same check is made on Linux and
 -- 
-2.54.0.563.g4f69b47b94-goog
+2.54.0.669.g59709faab0-goog
 
