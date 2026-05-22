@@ -812,6 +812,7 @@ libbase_sublibs = [
       "base/trace_event/memory_infra_background_allowlist.cc",
       "base/trace_event/memory_pressure_level_proto.cc",
       "base/trace_event/memory_usage_estimator.cc",
+      "base/trace_event/named_trigger.cc",
       "base/trace_event/perfetto_proto_appender.cc",
       "base/trace_event/process_memory_dump.cc",
       "base/trace_event/trace_arguments.cc",
