@@ -525,7 +525,6 @@ libbase_sublibs = [
       "base/files/file_path_watcher.cc",
       "base/files/file_path_watcher_inotify.cc",
       "base/files/file_posix.cc",
-      "base/files/file_tracing.cc",
       "base/files/file_util.cc",
       "base/files/file_util_posix.cc",
       "base/files/important_file_writer.cc",
