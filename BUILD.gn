@@ -267,6 +267,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "ENABLE_USER_SPACE_ZERO_SEGMENT=false",
     "USER_SPACE_ZERO_SEGMENT_SIZE_MB=0",
     "IS_COMPONENT_BUILD=false",
+    "OFFICIAL=false",
   ]
 }
 

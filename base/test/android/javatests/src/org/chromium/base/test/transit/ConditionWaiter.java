@@ -12,16 +12,15 @@ import androidx.annotation.IntDef;
 
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.TimeUtils;
 import org.chromium.base.test.transit.StatusStore.StatusRegion;
 import org.chromium.base.test.transit.Transition.TransitionOptions;
-import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.CriteriaNotSatisfiedException;
 import org.chromium.base.test.util.TimeoutTimer;
 import org.chromium.build.annotations.EnsuresNonNull;
 import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -37,6 +36,11 @@ import java.util.Set;
 /** Polls multiple {@link Condition}s in parallel. */
 @NullMarked
 public class ConditionWaiter {
+    /** Returns the current time in milliseconds, based on System.nanoTime(). */
+    public static long getNow() {
+        return System.nanoTime() / 1_000_000;
+    }
+
     /**
      * The process of waiting for a {@link Condition} to be fulfilled.
      *
@@ -47,12 +51,24 @@ public class ConditionWaiter {
      */
     protected static class ConditionWait {
 
+        /** The condition being waited for. */
         private final Condition mCondition;
+
+        /** The origin of the condition (e.g., ENTER, EXIT). */
         private final @ConditionOrigin int mOrigin;
+
+        /** True if this is the initial wait for the condition, false if it's a delayed wait. */
         private boolean mIsInitialWait = true;
+
+        /** The time when we started waiting for this condition in ConditionWaiter. */
         private long mTimeStarted;
+
+        /** The timestamp of the latest check where the condition was unfulfilled. */
         private long mTimeUnfulfilled;
+
+        /** The timestamp of the first check where the condition was fulfilled. */
         private long mTimeFulfilled;
+
         private final StatusStore mStatusStore = new StatusStore();
 
         /**
@@ -173,12 +189,6 @@ public class ConditionWaiter {
             return Pair.create(minTimeToFulfill, maxTimeToFulfill);
         }
 
-        private static long getNow() {
-            long now = TimeUtils.currentTimeMillis();
-            assert now > 0;
-            return now;
-        }
-
         /**
          * @return an aggregation of the statuses reported while checking a Condition.
          */
@@ -281,26 +291,46 @@ public class ConditionWaiter {
      * @throws TravelException if not all {@link Condition}s are fulfilled before timing out.
      */
     void waitFor() throws TravelException {
+        assert !ThreadUtils.runningOnUiThread();
         assert isPreCheckDone();
 
         if (!mPreCheckFulfilledConditions) {
             TransitionOptions options = mTransition.getOptions();
             long timeoutMs = options.getTimeoutMs();
             TimeoutTimer timeoutTimer = new TimeoutTimer(timeoutMs);
+            boolean anyCriteriaMissing = true;
 
-            try {
-                CriteriaHelper.pollInstrumentationThread(
-                        new CheckConditionsOnce(timeoutTimer), timeoutMs, POLLING_INTERVAL);
-            } catch (CriteriaHelper.TimeoutException timeoutException) {
-                // Unwrap the TimeoutException and CriteriaNotSatisfiedException parts of the stack
-                // to reduce the error message.
-                if (timeoutException.getCause()
-                        instanceof CriteriaNotSatisfiedException criteriaNotSatisfiedException) {
-                    throw TravelException.newTravelException(
-                            criteriaNotSatisfiedException.getMessage());
-                } else {
-                    throw timeoutException;
+            while (!timeoutTimer.isTimedOut()) {
+                anyCriteriaMissing = processWaits(/* isPreCheck= */ false, timeoutTimer);
+                if (!anyCriteriaMissing) {
+                    break;
                 }
+                try {
+                    Thread.sleep(POLLING_INTERVAL);
+                } catch (InterruptedException e) {
+                    // ignore
+                }
+            }
+
+            if (anyCriteriaMissing) {
+                // Run one last time after timeout to ensure the total time has been given
+                // and that every Condition has been checked at least once.
+                anyCriteriaMissing = processWaits(/* isPreCheck= */ false, null);
+            }
+
+            if (anyCriteriaMissing) {
+                throw TravelException.newTravelException(
+                        "Did not complete "
+                                + mTransition.toDebugString()
+                                + ", "
+                                + createWaitConditionsSummary(
+                                        mWaits, /* generateMainMessage= */ true));
+            } else {
+                Log.i(
+                        TAG,
+                        "%s: Conditions fulfilled:\n%s",
+                        mTransition.toDebugString(),
+                        createWaitConditionsSummary(mWaits, /* generateMainMessage= */ false));
             }
         }
 
@@ -415,7 +445,7 @@ public class ConditionWaiter {
         return newWaits;
     }
 
-    private boolean processWaits(boolean isPreCheck, TimeoutTimer timeoutTimer) {
+    private boolean processWaits(boolean isPreCheck, @Nullable TimeoutTimer timeoutTimer) {
         assert isPreCheckDone();
 
         boolean anyCriteriaMissing = false;
@@ -435,7 +465,7 @@ public class ConditionWaiter {
             for (ConditionWait wait : nextBatch) {
                 // Check timeout before each Condition check; if multiple Conditions are taking
                 // long, the Transition can take too long to time out.
-                if (timeoutTimer.isTimedOut()) {
+                if (timeoutTimer != null && timeoutTimer.isTimedOut()) {
                     anyCriteriaMissing = true;
                     mWaits.addAll(nextBatch);
                     return anyCriteriaMissing;
@@ -516,21 +546,21 @@ public class ConditionWaiter {
     }
 
     private static String createWaitConditionsSummary(
-            List<ConditionWait> conditionStatuses, boolean generateMainMessage) {
+            List<ConditionWait> conditionWaits, boolean generateMainMessage) {
         String firstUnfulfilledConditionString = null;
         int unfulfilledConditionCount = 0;
         StringBuilder detailsString = new StringBuilder();
         int i = 1;
-        for (ConditionWait conditionStatus : conditionStatuses) {
-            String conditionDescription = conditionStatus.mCondition.getDescription();
+        for (ConditionWait conditionWait : conditionWaits) {
+            String conditionDescription = conditionWait.mCondition.getDescription();
 
             String indexString = "[" + i + "]";
 
             String marker = "  ";
             String originString = "";
-            switch (conditionStatus.mOrigin) {
+            switch (conditionWait.mOrigin) {
                 case ConditionOrigin.ENTER:
-                    if (conditionStatus.isInitialWait()) {
+                    if (conditionWait.isInitialWait()) {
                         originString = "[ENTER ]";
                     } else {
                         originString = "[+ENTER]";
@@ -545,14 +575,14 @@ public class ConditionWaiter {
             }
 
             String verdictString;
-            if (conditionStatus.isFulfilled()) {
-                if (conditionStatus.getStatusStore().anyErrorsReported()) {
+            if (conditionWait.isFulfilled()) {
+                if (conditionWait.getStatusStore().anyErrorsReported()) {
                     verdictString = "[OK* ]";
                 } else {
                     verdictString = "[OK  ]";
                 }
             } else {
-                if (conditionStatus.getStatusStore().anyErrorsReported()) {
+                if (conditionWait.getStatusStore().anyErrorsReported()) {
                     verdictString = "[ERR*]";
                 } else {
                     verdictString = "[FAIL]";
@@ -565,18 +595,18 @@ public class ConditionWaiter {
             }
 
             StringBuilder historyString = new StringBuilder();
-            if (conditionStatus.getStatusStore().shouldPrintRegions()) {
+            if (conditionWait.getStatusStore().shouldPrintRegions()) {
                 List<StatusRegion> statusRegions =
-                        conditionStatus.getStatusStore().getStatusRegions();
+                        conditionWait.getStatusStore().getStatusRegions();
                 for (StatusRegion r : statusRegions) {
                     historyString.append("\n        ");
-                    historyString.append(r.getLogString(conditionStatus.mTimeStarted));
+                    historyString.append(r.getLogString(conditionWait.mTimeStarted));
                 }
             }
 
             String fulfilledString;
-            if (conditionStatus.isFulfilled()) {
-                Pair<Long, Long> timeToFulfill = conditionStatus.getTimeToFulfill();
+            if (conditionWait.isFulfilled()) {
+                Pair<Long, Long> timeToFulfill = conditionWait.getTimeToFulfill();
                 fulfilledString =
                         String.format(
                                 "{fulfilled after %d~%d ms}",
@@ -584,7 +614,7 @@ public class ConditionWaiter {
             } else {
                 fulfilledString =
                         String.format(
-                                "{unfulfilled after %d ms}", conditionStatus.getTimeUnfulfilled());
+                                "{unfulfilled after %d ms}", conditionWait.getTimeUnfulfilled());
             }
 
             detailsString
@@ -637,36 +667,5 @@ public class ConditionWaiter {
         int ENTER = 0;
         int EXIT = 1;
         int TRANSITION = 2;
-    }
-
-    private class CheckConditionsOnce implements Runnable {
-        private final TimeoutTimer mTimeoutTimer;
-
-        private CheckConditionsOnce(TimeoutTimer timeoutTimer) {
-            mTimeoutTimer = timeoutTimer;
-        }
-
-        @Override
-        public void run() {
-            assert isPreCheckDone();
-
-            boolean anyCriteriaMissing =
-                    ConditionWaiter.this.processWaits(/* isPreCheck= */ false, mTimeoutTimer);
-
-            if (anyCriteriaMissing) {
-                throw new CriteriaNotSatisfiedException(
-                        "Did not complete "
-                                + mTransition.toDebugString()
-                                + ", "
-                                + createWaitConditionsSummary(
-                                        mWaits, /* generateMainMessage= */ true));
-            } else {
-                Log.i(
-                        TAG,
-                        "%s: Conditions fulfilled:\n%s",
-                        mTransition.toDebugString(),
-                        createWaitConditionsSummary(mWaits, /* generateMainMessage= */ false));
-            }
-        }
     }
 }

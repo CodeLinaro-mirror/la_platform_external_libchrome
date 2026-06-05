@@ -98,13 +98,6 @@ class BASE_EXPORT SysInfo {
   // will return the lesser of the actual physical memory, or 512MB.
   static ByteSize AmountOfTotalPhysicalMemory();
 
-  // Deprecated: Prefer AmountOfTotalPhysicalMemory(), which returns a ByteSize.
-  // ByteCount is deprecated.
-  // TODO(crbug.com/448661443): Migrate all callers and remove this.
-  static ByteCount AmountOfPhysicalMemory() {
-    return AmountOfTotalPhysicalMemory().AsDeprecatedByteCount();
-  }
-
   // Return the number of bytes of current available physical memory on the
   // machine.
   // (The amount of memory that can be allocated without any significant
@@ -345,6 +338,10 @@ class BASE_EXPORT SysInfo {
 
   // Returns the SDK API level that the device initially launched with.
   static std::string GetAndroidFirstApiLevel();
+
+  // Returns the android.os.Build.FINGERPRINT. This corresponds to the
+  // ro.build.fingerprint system property.
+  static std::string GetAndroidBuildFingerprint();
 #endif  // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_IOS)

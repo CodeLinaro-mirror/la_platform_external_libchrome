@@ -1,0 +1,30 @@
+From a2c9720614eb6a2bf58afc48fd4d390038e44bf5 Mon Sep 17 00:00:00 2001
+From: Di Wu <diwux@google.com>
+Date: Sat, 6 Jun 2026 04:28:32 +0000
+Subject: [PATCH] Restore SysInfo::AmountOfPhysicalMemory for backward
+ compatibility
+
+Change-Id: I48d161e5c6ded476031588dd4828cbe57ff579ff
+---
+ base/system/sys_info.h | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/base/system/sys_info.h b/base/system/sys_info.h
+index df63a9aa1c..ca27ae72cf 100644
+--- a/base/system/sys_info.h
++++ b/base/system/sys_info.h
+@@ -98,6 +98,11 @@ class BASE_EXPORT SysInfo {
+   // will return the lesser of the actual physical memory, or 512MB.
+   static ByteSize AmountOfTotalPhysicalMemory();
+ 
++  // Deprecated. Use AmountOfTotalPhysicalMemory() instead.
++  static ByteCount AmountOfPhysicalMemory() {
++    return AmountOfTotalPhysicalMemory().AsDeprecatedByteCount();
++  }
++
+   // Return the number of bytes of current available physical memory on the
+   // machine.
+   // (The amount of memory that can be allocated without any significant
+-- 
+2.54.0.1032.g2f8565e1d1-goog
+
