@@ -530,6 +530,12 @@ class BASE_EXPORT FeatureList {
   // sequence.
   OverrideState GetOverrideState(const Feature& feature) const;
 
+  // Returns the runtime override state for |feature| if it is runtime-mutable
+  // and a runtime override has been set. Otherwise returns std::nullopt.
+  std::optional<OverrideState> MaybeGetRuntimeOverrideState(
+      const Feature& feature,
+      Feature::FeatureStateCache current_cached_value) const;
+
   // Returns the non-runtime override state for the given |feature_name|,
   // without falling back to any default state associated with the feature.
   //

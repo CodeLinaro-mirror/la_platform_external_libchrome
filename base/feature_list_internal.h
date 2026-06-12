@@ -36,21 +36,6 @@ enum : Feature::FeatureStateCache {
   // objects that manage runtime mutability and is properly configured. The
   // feature's state may change at runtime.
   kRuntimeMutabilityEnabledMask = 1 << 19,
-
-  // The feature has had its runtime mutability disabled. This happens if a
-  // runtime mutable feature is accessed before the feature's runtime mutability
-  // has been enabled. Note that having runtime mutability disabled is not the
-  // same as not having runtime mutability enabled. Having runtime mutability
-  // disabled means that the feature is in a bad state wherein its runtime
-  // mutability has been rendered non-functional.
-  //
-  // This state may be detected and set via two scenarios:
-  // 1. The runtime mutable feature was accessed before the FeatureList was
-  //    initialized. The state can be detected if/when EnableRuntimeMutability()
-  //    is eventually called for the already-accessed feature.
-  // 2. EnableRuntimeMutability() was never called for the feature. This state
-  //    can be detected on the first access of the feature.
-  kRuntimeMutabilityDisabledMask = 1 << 20,
 };
 
 // Result of a runtime-mutable feature operation. These values are logged to
