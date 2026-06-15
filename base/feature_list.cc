@@ -429,55 +429,6 @@ BASE_FEATURE(kDCheckIsFatalFeature,
              FEATURE_DISABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(DCHECK_IS_CONFIGURABLE)
 
-struct FeatureList::RuntimeMutableFeatureState {
-  RuntimeMutableFeatureState(
-      const Feature& feature,
-      OnRuntimeMutableFeatureStateChangedCallback callback);
-  ~RuntimeMutableFeatureState();
-
-  RuntimeMutableFeatureState(const RuntimeMutableFeatureState&);
-  RuntimeMutableFeatureState(RuntimeMutableFeatureState&&);
-  RuntimeMutableFeatureState& operator=(const RuntimeMutableFeatureState&);
-  RuntimeMutableFeatureState& operator=(RuntimeMutableFeatureState&&);
-
-  // The feature that has runtime mutability enabled.
-  std::reference_wrapper<const Feature> feature;
-
-  // Callback to be invoked when the feature state is changed.
-  OnRuntimeMutableFeatureStateChangedCallback callback;
-
-  // The runtime override state of the feature, or OVERRIDE_USE_DEFAULT if the
-  // feature is not runtime overridden.
-  OverrideState override_state = OVERRIDE_USE_DEFAULT;
-
-  // The name and group of the field trial that has, at runtime, superseded
-  // the feature's startup-initialized state.
-  std::string field_trial_name;
-  std::string group_name;
-};
-
-FeatureList::RuntimeMutableFeatureState::RuntimeMutableFeatureState(
-    const Feature& feature,
-    FeatureList::OnRuntimeMutableFeatureStateChangedCallback callback)
-    : feature(feature), callback(std::move(callback)) {}
-
-FeatureList::RuntimeMutableFeatureState::~RuntimeMutableFeatureState() =
-    default;
-
-FeatureList::RuntimeMutableFeatureState::RuntimeMutableFeatureState(
-    const RuntimeMutableFeatureState&) = default;
-
-FeatureList::RuntimeMutableFeatureState::RuntimeMutableFeatureState(
-    RuntimeMutableFeatureState&&) = default;
-
-FeatureList::RuntimeMutableFeatureState&
-FeatureList::RuntimeMutableFeatureState::operator=(
-    const RuntimeMutableFeatureState&) = default;
-
-FeatureList::RuntimeMutableFeatureState&
-FeatureList::RuntimeMutableFeatureState::operator=(
-    RuntimeMutableFeatureState&&) = default;
-
 FeatureList::FeatureList() : caching_context_(g_current_caching_context++) {}
 
 FeatureList::~FeatureList() = default;

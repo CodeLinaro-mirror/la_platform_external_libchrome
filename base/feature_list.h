@@ -35,6 +35,10 @@ class FieldTrialList;
 class PersistentMemoryAllocator;
 class FeatureVisitor;
 
+namespace internal {
+struct RuntimeMutableFeatureState;
+}  // namespace internal
+
 #if BUILDFLAG(DCHECK_IS_CONFIGURABLE)
 // DCHECKs have been built-in, and are configurable at run-time to be fatal, or
 // not, via a DcheckIsFatal feature. We define the Feature here since it is
@@ -82,15 +86,6 @@ BASE_EXPORT BASE_DECLARE_FEATURE(kDCheckIsFatalFeature);
 // intended use is to create an instance of this class and fully initialize it,
 // before setting it as the singleton for a process, via SetInstance().
 class BASE_EXPORT FeatureList {
- private:
-  // Map from feature name to an OverrideEntry struct and a callback to be
-  // invoked when the feature state is changed. This is used for features having
-  // runtime mutability enabled.
-  //
-  // TODO: http://crbug.com/482451143 - Pull this struct, its mapping, and the
-  // methods to manage the mapping out to a separate class?
-  struct RuntimeMutableFeatureState;
-
  public:
   FeatureList();
   FeatureList(const FeatureList&) = delete;
@@ -606,7 +601,7 @@ class BASE_EXPORT FeatureList {
 
   // Map from feature name to the state of the feature, if it is a runtime
   // mutable feature and has been enabled for runtime mutability.
-  base::flat_map<std::string, RuntimeMutableFeatureState>
+  base::flat_map<std::string, internal::RuntimeMutableFeatureState>
       runtime_mutable_overrides_ GUARDED_BY_CONTEXT(sequence_checker_);
 
   // Locked map that keeps track of seen features, to ensure a single feature is

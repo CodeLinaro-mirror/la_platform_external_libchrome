@@ -5,7 +5,13 @@
 #ifndef BASE_FEATURE_LIST_INTERNAL_H_
 #define BASE_FEATURE_LIST_INTERNAL_H_
 
+#include <functional>
+#include <string>
+
+#include "base/base_export.h"
 #include "base/feature.h"
+#include "base/feature_list.h"
+#include "base/functional/callback.h"
 
 namespace base::internal {
 
@@ -59,6 +65,35 @@ enum class RuntimeMutabilityResult {
   kFailure_CommandLineOverride = 4,
   // Add new values above this line, and update kMaxValue below.
   kMaxValue = kFailure_CommandLineOverride,
+};
+
+// State for a runtime-mutable feature. This is stored in the FeatureList's
+// map of runtime-mutable features.
+struct BASE_EXPORT RuntimeMutableFeatureState {
+  RuntimeMutableFeatureState(
+      const Feature& feature,
+      FeatureList::OnRuntimeMutableFeatureStateChangedCallback callback);
+  ~RuntimeMutableFeatureState();
+
+  RuntimeMutableFeatureState(const RuntimeMutableFeatureState&);
+  RuntimeMutableFeatureState(RuntimeMutableFeatureState&&);
+  RuntimeMutableFeatureState& operator=(const RuntimeMutableFeatureState&);
+  RuntimeMutableFeatureState& operator=(RuntimeMutableFeatureState&&);
+
+  // The feature that has runtime mutability enabled.
+  std::reference_wrapper<const Feature> feature;
+
+  // Callback to be invoked when the feature state is changed.
+  FeatureList::OnRuntimeMutableFeatureStateChangedCallback callback;
+
+  // The runtime override state of the feature, or OVERRIDE_USE_DEFAULT if the
+  // feature is not runtime overridden.
+  FeatureList::OverrideState override_state = FeatureList::OVERRIDE_USE_DEFAULT;
+
+  // The name and group of the field trial that has, at runtime, superseded
+  // the feature's startup-initialized state.
+  std::string field_trial_name;
+  std::string group_name;
 };
 
 }  // namespace base::internal
