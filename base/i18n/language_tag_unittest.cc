@@ -21,7 +21,7 @@ using ::testing::Property;
 
 MATCHER_P(OptionalToString, expected, "") {
   return ExplainMatchResult(
-      Optional(Property(&LanguageTag::ToString, Eq(expected))), arg,
+      Optional(Property(&LanguageTag::tag_string, Eq(expected))), arg,
       result_listener);
 }
 
@@ -168,7 +168,7 @@ TEST(LanguageTagTest, PrivateUseSubtags) {
     ASSERT_OK_AND_ASSIGN(
         LanguageTag lc,
         LanguageTagConverter::GetInstance().FromString("und-x-private"))
-    EXPECT_EQ(lc.ToString(), "und-x-private");
+    EXPECT_EQ(lc.tag_string(), "und-x-private");
     EXPECT_THAT(
         lc.GetExtension(i18n_extensions::priv()),
         Optional(Property(&i18n_extensions::PrivateUseSubtags::subtags_string,
@@ -179,7 +179,7 @@ TEST(LanguageTagTest, PrivateUseSubtags) {
     ASSERT_OK_AND_ASSIGN(
         LanguageTag lc,
         LanguageTagConverter::GetInstance().FromString("en-US-x-a"))
-    EXPECT_EQ(lc.ToString(), "en-US-x-a");
+    EXPECT_EQ(lc.tag_string(), "en-US-x-a");
     EXPECT_THAT(
         lc.GetExtension(i18n_extensions::priv()),
         Optional(Property(&i18n_extensions::PrivateUseSubtags::subtags_string,
@@ -357,24 +357,24 @@ TEST(LanguageTagTest, CopyAndMove) {
 
   // Copy constructor
   LanguageTag lt_copy(lt_original);
-  EXPECT_EQ(lt_copy.ToString(), "en-US");
+  EXPECT_EQ(lt_copy.tag_string(), "en-US");
   EXPECT_EQ(lt_copy, lt_original);
 
   // Copy assignment
   LanguageTag lt_copy_assign = lt_original;
   lt_copy_assign = lt_original;
-  EXPECT_EQ(lt_copy_assign.ToString(), "en-US");
+  EXPECT_EQ(lt_copy_assign.tag_string(), "en-US");
   EXPECT_EQ(lt_copy_assign, lt_original);
 
   // Move constructor
   LanguageTag lt_move(std::move(lt_copy));
-  EXPECT_EQ(lt_move.ToString(), "en-US");
+  EXPECT_EQ(lt_move.tag_string(), "en-US");
   EXPECT_EQ(lt_move, lt_original);
 
   // Move assignment
   LanguageTag lt_move_assign = lt_original;
   lt_move_assign = std::move(lt_move);
-  EXPECT_EQ(lt_move_assign.ToString(), "en-US");
+  EXPECT_EQ(lt_move_assign.tag_string(), "en-US");
   EXPECT_EQ(lt_move_assign, lt_original);
 }
 
