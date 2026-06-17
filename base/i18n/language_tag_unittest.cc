@@ -388,6 +388,10 @@ TEST(LanguageTagTest, Canonicalize) {
               Optional(language_tags::CHINESE()));
 }
 
+TEST(LanguageTagTest, UndefinedLanguageTag) {
+  EXPECT_EQ(language_tags::UNDEFINED().tag_string(), "und");
+}
+
 TEST(LanguageTagTest, region_subtag) {
   // Simple case.
   ASSERT_OK_AND_ASSIGN(LanguageTag lt_en_us,
