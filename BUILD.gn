@@ -518,6 +518,7 @@ libbase_sublibs = [
       "base/debug/task_trace.cc",
       "base/environment.cc",
       "base/feature_list.cc",
+      "base/feature_list_internal.cc",
       "base/features.cc",
       "base/file_descriptor_posix.cc",
       "base/files/file.cc",
