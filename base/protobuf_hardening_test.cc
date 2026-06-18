@@ -13,7 +13,7 @@ namespace base::test {
 TEST(ProtobufHardeningTest, RepeatedFieldOutOfBounds) {
   HardeningTestMessage message;
 
-  EXPECT_DEATH_IF_SUPPORTED(message.repeated_field(4), "");
+  EXPECT_DEATH_IF_SUPPORTED((void)message.repeated_field(4), "");
   EXPECT_DEATH_IF_SUPPORTED(message.set_repeated_field(4, 44), "");
 
   EXPECT_DEATH_IF_SUPPORTED(message.repeated_field()[4], "");
@@ -27,8 +27,8 @@ TEST(ProtobufHardeningTest, RepeatedFieldOutOfBounds) {
 TEST(ProtobufHardeningTest, RepeatedPtrFieldOutOfBounds) {
   HardeningTestMessage message;
 
-  EXPECT_DEATH_IF_SUPPORTED(message.repeated_ptr_field(4), "");
-  EXPECT_DEATH_IF_SUPPORTED(message.mutable_repeated_ptr_field(4), "");
+  EXPECT_DEATH_IF_SUPPORTED((void)message.repeated_ptr_field(4), "");
+  EXPECT_DEATH_IF_SUPPORTED((void)message.mutable_repeated_ptr_field(4), "");
 
   EXPECT_DEATH_IF_SUPPORTED(message.repeated_ptr_field()[4], "");
   EXPECT_DEATH_IF_SUPPORTED(message.repeated_ptr_field().Get(4), "");
