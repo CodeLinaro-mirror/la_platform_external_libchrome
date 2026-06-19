@@ -695,7 +695,8 @@ fn test_associated_late_binding() {
     expect_eq!(*responses_received.lock().unwrap(), 3);
 }
 
-#[gtest(RustBindingsAPI, TestCppAssociatedSender)]
+// TODO(crbug.com/525557459): failing on Linux Chromium OS ASan LSan Tests
+#[gtest(RustBindingsAPI, DISABLED_TestCppAssociatedSender)]
 fn test_cpp_associated_sender() {
     let _task_env = task_environment::ffi::CreateTaskEnvironment();
     test_util::set_default_process_error_handler(|msg: &str| panic!("Got a bad message: {}", msg));
