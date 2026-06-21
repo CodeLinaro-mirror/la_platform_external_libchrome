@@ -1,0 +1,245 @@
+From 0ba6e8e16f2050ce0c9e3cc812c108b8b9d342db Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@google.com>
+Date: Thu, 25 Jun 2026 23:07:20 +0800
+Subject: [PATCH] Revert "[base] Migrate MemoryMappedFile usages to memory-safe
+ getters"
+
+This reverts commit 8bfa63f313418dc9dd52936aa233966066eb4e22.
+---
+ base/files/file_unittest.cc                   |  2 +-
+ base/files/memory_mapped_file.h               |  1 +
+ base/files/memory_mapped_file_unittest.cc     | 44 +++++++++----------
+ base/i18n/icu_util.cc                         |  3 +-
+ base/metrics/persistent_memory_allocator.cc   |  7 ++-
+ .../persistent_memory_allocator_unittest.cc   |  4 +-
+ .../stack_sampling_profiler_test_util.cc      |  3 +-
+ 7 files changed, 33 insertions(+), 31 deletions(-)
+
+diff --git a/base/files/file_unittest.cc b/base/files/file_unittest.cc
+index 08c295149b..5a327c5a55 100644
+--- a/base/files/file_unittest.cc
++++ b/base/files/file_unittest.cc
+@@ -987,7 +987,7 @@ TEST(FileTest, NoDeleteOnCloseWithMappedFile) {
+   {
+     MemoryMappedFile mapping;
+     ASSERT_TRUE(mapping.Initialize(file.Duplicate()));
+-    ASSERT_EQ(5U, mapping.bytes().size());
++    ASSERT_EQ(5U, mapping.length());
+ 
+     EXPECT_FALSE(file.DeleteOnClose(true));
+   }
+diff --git a/base/files/memory_mapped_file.h b/base/files/memory_mapped_file.h
+index 2870a4d193..420779bbb9 100644
+--- a/base/files/memory_mapped_file.h
++++ b/base/files/memory_mapped_file.h
+@@ -110,6 +110,7 @@ class BASE_EXPORT MemoryMappedFile {
+     return Initialize(std::move(file), region, READ_ONLY);
+   }
+ 
++  const uint8_t* data() const { return bytes_.data(); }
+   uint8_t* data() { return bytes_.data(); }
+   size_t length() const { return bytes_.size(); }
+ 
+diff --git a/base/files/memory_mapped_file_unittest.cc b/base/files/memory_mapped_file_unittest.cc
+index 0d4e172b7d..0ff2f357d9 100644
+--- a/base/files/memory_mapped_file_unittest.cc
++++ b/base/files/memory_mapped_file_unittest.cc
+@@ -71,8 +71,8 @@ TEST_F(MemoryMappedFileTest, MapWholeFileByPath) {
+   CreateTemporaryTestFile(kFileSize);
+   MemoryMappedFile map;
+   ASSERT_TRUE(map.Initialize(temp_file_path()));
+-  ASSERT_EQ(kFileSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kFileSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes(), 0));
+ }
+@@ -83,8 +83,8 @@ TEST_F(MemoryMappedFileTest, MapWholeFileByFD) {
+   MemoryMappedFile map;
+   ASSERT_TRUE(map.Initialize(
+       File(temp_file_path(), File::FLAG_OPEN | File::FLAG_READ)));
+-  ASSERT_EQ(kFileSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kFileSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes(), 0));
+ }
+@@ -94,8 +94,8 @@ TEST_F(MemoryMappedFileTest, MapSmallFile) {
+   CreateTemporaryTestFile(kFileSize);
+   MemoryMappedFile map;
+   ASSERT_TRUE(map.Initialize(temp_file_path()));
+-  ASSERT_EQ(kFileSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kFileSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes(), 0));
+ }
+@@ -108,8 +108,8 @@ TEST_F(MemoryMappedFileTest, MapWholeFileUsingRegion) {
+   File file(temp_file_path(), File::FLAG_OPEN | File::FLAG_READ);
+   ASSERT_TRUE(
+       map.Initialize(std::move(file), MemoryMappedFile::Region::kWholeFile));
+-  ASSERT_EQ(kFileSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kFileSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes(), 0));
+ }
+@@ -123,8 +123,8 @@ TEST_F(MemoryMappedFileTest, MapPartialRegionAtBeginning) {
+   File file(temp_file_path(), File::FLAG_OPEN | File::FLAG_READ);
+   MemoryMappedFile::Region region = {0, kPartialSize};
+   ASSERT_TRUE(map.Initialize(std::move(file), region));
+-  ASSERT_EQ(kPartialSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kPartialSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes().first<kPartialSize>(), 0));
+ }
+@@ -139,8 +139,8 @@ TEST_F(MemoryMappedFileTest, MapPartialRegionAtEnd) {
+   File file(temp_file_path(), File::FLAG_OPEN | File::FLAG_READ);
+   MemoryMappedFile::Region region = {kOffset, kPartialSize};
+   ASSERT_TRUE(map.Initialize(std::move(file), region));
+-  ASSERT_EQ(kPartialSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kPartialSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes().first<kPartialSize>(), kOffset));
+ }
+@@ -156,8 +156,8 @@ TEST_F(MemoryMappedFileTest, MapSmallPartialRegionInTheMiddle) {
+   File file(temp_file_path(), File::FLAG_OPEN | File::FLAG_READ);
+   MemoryMappedFile::Region region = {kOffset, kPartialSize};
+   ASSERT_TRUE(map.Initialize(std::move(file), region));
+-  ASSERT_EQ(kPartialSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kPartialSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes().first<kPartialSize>(), kOffset));
+ }
+@@ -173,8 +173,8 @@ TEST_F(MemoryMappedFileTest, MapLargePartialRegionInTheMiddle) {
+   File file(temp_file_path(), File::FLAG_OPEN | File::FLAG_READ);
+   MemoryMappedFile::Region region = {kOffset, kPartialSize};
+   ASSERT_TRUE(map.Initialize(std::move(file), region));
+-  ASSERT_EQ(kPartialSize, map.bytes().size());
+-  ASSERT_TRUE(map.bytes().data() != nullptr);
++  ASSERT_EQ(kPartialSize, map.length());
++  ASSERT_TRUE(map.data() != nullptr);
+   EXPECT_TRUE(map.IsValid());
+   ASSERT_TRUE(CheckBufferContents(map.bytes().first<kPartialSize>(), kOffset));
+ }
+@@ -186,8 +186,8 @@ TEST_F(MemoryMappedFileTest, WriteableFile) {
+   {
+     MemoryMappedFile map;
+     ASSERT_TRUE(map.Initialize(temp_file_path(), MemoryMappedFile::READ_WRITE));
+-    ASSERT_EQ(kFileSize, map.bytes().size());
+-    ASSERT_TRUE(map.bytes().data() != nullptr);
++    ASSERT_EQ(kFileSize, map.length());
++    ASSERT_TRUE(map.data() != nullptr);
+     EXPECT_TRUE(map.IsValid());
+     ASSERT_TRUE(CheckBufferContents(map.bytes(), 0));
+ 
+@@ -219,8 +219,8 @@ TEST_F(MemoryMappedFileTest, CopyOnWrite) {
+     MemoryMappedFile map;
+     ASSERT_TRUE(
+         map.Initialize(temp_file_path(), MemoryMappedFile::READ_WRITE_COPY));
+-    ASSERT_EQ(kFileSize, map.bytes().size());
+-    ASSERT_TRUE(map.bytes().data() != nullptr);
++    ASSERT_EQ(kFileSize, map.length());
++    ASSERT_TRUE(map.data() != nullptr);
+     EXPECT_TRUE(map.IsValid());
+     ASSERT_TRUE(CheckBufferContents(map.bytes(), 0));
+ 
+@@ -256,8 +256,8 @@ TEST_F(MemoryMappedFileTest, ExtendableFile) {
+     MemoryMappedFile map;
+     ASSERT_TRUE(map.Initialize(std::move(file), region,
+                                MemoryMappedFile::READ_WRITE_EXTEND));
+-    EXPECT_EQ(kFileSize + kFileExtend, map.bytes().size());
+-    ASSERT_TRUE(map.bytes().data() != nullptr);
++    EXPECT_EQ(kFileSize + kFileExtend, map.length());
++    ASSERT_TRUE(map.data() != nullptr);
+     EXPECT_TRUE(map.IsValid());
+     ASSERT_TRUE(CheckBufferContents(map.bytes().first<kFileSize>(), 0));
+ 
+diff --git a/base/i18n/icu_util.cc b/base/i18n/icu_util.cc
+index e27431af1b..6e6e12089d 100644
+--- a/base/i18n/icu_util.cc
++++ b/base/i18n/icu_util.cc
+@@ -240,7 +240,8 @@ int LoadIcuData(PlatformFile data_fd,
+   }
+ 
+   (*out_error_code) = U_ZERO_ERROR;
+-  udata_setCommonData((*out_mapped_data_file)->bytes().data(), out_error_code);
++  udata_setCommonData(const_cast<uint8_t*>((*out_mapped_data_file)->data()),
++                      out_error_code);
+   if (U_FAILURE(*out_error_code)) {
+     LOG(ERROR) << "Failed to initialize ICU with data file: "
+                << u_errorName(*out_error_code);
+diff --git a/base/metrics/persistent_memory_allocator.cc b/base/metrics/persistent_memory_allocator.cc
+index f0c2f64e54..9d2248b077 100644
+--- a/base/metrics/persistent_memory_allocator.cc
++++ b/base/metrics/persistent_memory_allocator.cc
+@@ -1195,8 +1195,8 @@ FilePersistentMemoryAllocator::FilePersistentMemoryAllocator(
+     std::string_view name,
+     AccessMode access_mode)
+     : PersistentMemoryAllocator(
+-          Memory(file->mutable_bytes().data(), MEM_FILE),
+-          max_size != 0 ? max_size : file->mutable_bytes().size(),
++          Memory(const_cast<uint8_t*>(file->data()), MEM_FILE),
++          max_size != 0 ? max_size : file->length(),
+           0,
+           id,
+           name,
+@@ -1209,8 +1209,7 @@ FilePersistentMemoryAllocator::~FilePersistentMemoryAllocator() = default;
+ bool FilePersistentMemoryAllocator::IsFileAcceptable(
+     const MemoryMappedFile& file,
+     bool readonly) {
+-  const base::span<const uint8_t> bytes = file.bytes();
+-  return IsMemoryAcceptable(bytes.data(), bytes.size(), 0, readonly);
++  return IsMemoryAcceptable(file.data(), file.length(), 0, readonly);
+ }
+ 
+ void FilePersistentMemoryAllocator::Cache() {
+diff --git a/base/metrics/persistent_memory_allocator_unittest.cc b/base/metrics/persistent_memory_allocator_unittest.cc
+index be9f40c124..2b783194ef 100644
+--- a/base/metrics/persistent_memory_allocator_unittest.cc
++++ b/base/metrics/persistent_memory_allocator_unittest.cc
+@@ -823,7 +823,7 @@ TEST(FilePersistentMemoryAllocatorTest, CreationTest) {
+   auto mmfile = std::make_unique<MemoryMappedFile>();
+   ASSERT_TRUE(mmfile->Initialize(file_path));
+   EXPECT_TRUE(mmfile->IsValid());
+-  const size_t mmlength = mmfile->bytes().size();
++  const size_t mmlength = mmfile->length();
+   EXPECT_GE(meminfo1.total, mmlength);
+ 
+   FilePersistentMemoryAllocator file(std::move(mmfile), 0, 0, "",
+@@ -946,7 +946,7 @@ TEST(FilePersistentMemoryAllocatorTest, AcceptableTest) {
+ 
+     mmfile = std::make_unique<MemoryMappedFile>();
+     ASSERT_TRUE(mmfile->Initialize(File(file_path, file_flags), map_access));
+-    EXPECT_EQ(filesize, mmfile->bytes().size());
++    EXPECT_EQ(filesize, mmfile->length());
+     if (FilePersistentMemoryAllocator::IsFileAcceptable(*mmfile, read_only)) {
+       // Make sure construction doesn't crash. It will, however, cause
+       // error messages warning about about a corrupted memory segment.
+diff --git a/base/profiler/stack_sampling_profiler_test_util.cc b/base/profiler/stack_sampling_profiler_test_util.cc
+index 3b4a3d4959..8bcb6a98ab 100644
+--- a/base/profiler/stack_sampling_profiler_test_util.cc
++++ b/base/profiler/stack_sampling_profiler_test_util.cc
+@@ -174,7 +174,8 @@ std::unique_ptr<Unwinder> CreateChromeUnwinderAndroid32ForTesting(
+   DCHECK(ok);
+   return std::make_unique<ChromeUnwinderAndroid32ForTesting>(
+       std::move(cfi_file),
+-      base::CreateChromeUnwindInfoAndroid32(cfi_file->bytes()),
++      base::CreateChromeUnwindInfoAndroid32(
++          UNSAFE_TODO({cfi_file->data(), cfi_file->length()})),
+       chrome_module_base_address,
+       /* text_section_start_address= */ base::android::kStartOfText);
+ }
+-- 
+2.55.0.rc0.799.gd6f94ed593-goog
+
