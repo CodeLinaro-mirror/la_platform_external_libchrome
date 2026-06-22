@@ -138,22 +138,8 @@ std::optional<RegionSubtag> LanguageTag::region_subtag() const {
   return std::nullopt;
 }
 
-template <typename R>
-std::optional<R> LanguageTag::GetExtensionInternal(char key) const {
-  std::string_view extension_string = GetExtensionString(tag_.AsString(), key);
-  if (extension_string.empty()) {
-    return std::nullopt;
-  }
-  return R(base::PassKey<LanguageTag>(), extension_string);
+std::string_view LanguageTag::GetExtensionStringInternal(char key) const {
+  return GetExtensionString(tag_.AsString(), key);
 }
-
-template BASE_I18N_EXPORT std::optional<i18n_extensions::UnicodeExtension>
-LanguageTag::GetExtensionInternal(char) const;
-
-template BASE_I18N_EXPORT std::optional<i18n_extensions::PrivateUseSubtags>
-LanguageTag::GetExtensionInternal(char) const;
-
-template BASE_I18N_EXPORT std::optional<i18n_extensions::Extension>
-LanguageTag::GetExtensionInternal(char) const;
 
 }  // namespace base
