@@ -250,7 +250,6 @@ TEST(Bcp47ExtensionTest, UnicodeExtensionAttributesMethod) {
 }
 
 TEST(Bcp47ExtensionTest, UnicodeExtensionKeywordKeys) {
-  using ::testing::ElementsAre;
   ASSERT_OK_AND_ASSIGN(UnicodeExtension ext1,
                        CreateUnicodeExtension("ca-gregory-co-phonebk"));
   EXPECT_THAT(ext1.GetKeywordKeys(), ElementsAre("ca", "co"));
@@ -317,6 +316,64 @@ TEST(Bcp47ExtensionTest, UnicodeExtensionMalformedInput) {
   EXPECT_THAT(UnicodeExtension::FromString("u-at")->GetKeywordKeys(),
               ElementsAre("at"));
   EXPECT_FALSE(UnicodeExtension::FromString("u-toolongattribute").has_value());
+}
+
+TEST(Bcp47ExtensionTest, UnicodeExtensionMutation) {
+  ASSERT_OK_AND_ASSIGN(UnicodeExtension ext,
+                       CreateUnicodeExtension("ca-gregory"));
+  EXPECT_EQ(ext.ToString(), "ca-gregory");
+
+  // Add attribute.
+  EXPECT_TRUE(ext.AddAttribute("attr1"));
+  EXPECT_TRUE(ext.has_attribute("attr1"));
+  EXPECT_THAT(ext.attributes(), ElementsAre("attr1"));
+  EXPECT_EQ(ext.ToString(), "attr1-ca-gregory");
+
+  // Add another attribute (should be sorted).
+  EXPECT_TRUE(ext.AddAttribute("aaa"));
+  EXPECT_THAT(ext.attributes(), ElementsAre("aaa", "attr1"));
+  EXPECT_EQ(ext.ToString(), "aaa-attr1-ca-gregory");
+
+  // Drop attribute.
+  ext.remove_attribute("attr1");
+  EXPECT_FALSE(ext.has_attribute("attr1"));
+  EXPECT_THAT(ext.attributes(), ElementsAre("aaa"));
+  EXPECT_EQ(ext.ToString(), "aaa-ca-gregory");
+
+  // SetKeyword (new keyword).
+  EXPECT_TRUE(ext.SetKeyword("co", "phonebk"));
+  EXPECT_THAT(ext.GetKeywordValue("co"), Optional(Eq("phonebk")));
+  EXPECT_EQ(ext.ToString(), "aaa-ca-gregory-co-phonebk");
+
+  // SetKeyword (update existing keyword).
+  EXPECT_TRUE(ext.SetKeyword("ca", "buddhist"));
+  EXPECT_THAT(ext.GetKeywordValue("ca"), Optional(Eq("buddhist")));
+  EXPECT_EQ(ext.ToString(), "aaa-ca-buddhist-co-phonebk");
+
+  // SetKeyword (multi-subtag value).
+  EXPECT_TRUE(ext.SetKeyword("co", "emoji-attr3"));
+  EXPECT_THAT(ext.GetKeywordValue("co"), Optional(Eq("emoji-attr3")));
+  EXPECT_EQ(ext.ToString(), "aaa-ca-buddhist-co-emoji-attr3");
+
+  // remove_keyword.
+  ext.remove_keyword("ca");
+  EXPECT_FALSE(ext.GetKeywordValue("ca").has_value());
+  EXPECT_EQ(ext.ToString(), "aaa-co-emoji-attr3");
+
+  // Validation: invalid attribute (too short) should be ignored.
+  EXPECT_FALSE(ext.AddAttribute("at"));
+  EXPECT_FALSE(ext.has_attribute("at"));
+  EXPECT_EQ(ext.ToString(), "aaa-co-emoji-attr3");
+
+  // Validation: invalid keyword (too long) should be ignored.
+  EXPECT_FALSE(ext.SetKeyword("ccc", "val"));
+  EXPECT_FALSE(ext.GetKeywordValue("ccc").has_value());
+  EXPECT_EQ(ext.ToString(), "aaa-co-emoji-attr3");
+
+  // Validation: invalid value (too short subtag) should be ignored.
+  EXPECT_FALSE(ext.SetKeyword("nu", "a"));
+  EXPECT_FALSE(ext.GetKeywordValue("nu").has_value());
+  EXPECT_EQ(ext.ToString(), "aaa-co-emoji-attr3");
 }
 
 TEST(Bcp47ExtensionTest, CopyAndMove) {

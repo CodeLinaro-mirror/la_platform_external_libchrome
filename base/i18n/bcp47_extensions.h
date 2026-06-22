@@ -101,10 +101,30 @@ class BASE_I18N_EXPORT UnicodeExtension {
   // Reference:  https://www.rfc-editor.org/info/rfc6067/#section-2.1
   std::optional<std::string_view> GetKeywordValue(std::string_view key) const;
 
+  // Removes the keyword if present.
+  void remove_keyword(std::string_view key) { keywords_.erase(key); }
+
+  // Sets or updates the value for the given keyword.
+  // `key` must be exactly 2 alphanumeric characters.
+  // `value` must be a dash-separated string of types (3-8 alphanumeric chars).
+  // Returns true if the keyword was updated, false otherwise.
+  bool SetKeyword(std::string_view key, std::string_view type_subtags);
+
   // Attributes come before any keyword/value and have length between 3 and 8.
   bool has_attribute(std::string_view attribute) const {
     return attributes_.contains(attribute);
   }
+
+  // Removes the attribute if present.
+  void remove_attribute(std::string_view attribute) {
+    attributes_.erase(attribute);
+  }
+
+  // Adds the attribute if not present.
+  // `attribute` must be between 3 and 8 alphanumeric characters.
+  // Returns true if the attribute was added (or already present), false if
+  // invalid.
+  bool AddAttribute(std::string_view attribute);
 
   // Returns all attributes as a single, dash-separated string.
   // The attributes are sorted alphabetically.

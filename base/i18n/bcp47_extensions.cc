@@ -141,6 +141,28 @@ std::optional<UnicodeExtension> UnicodeExtension::FromString(
   return UnicodeExtension(*std::move(attributes), *std::move(keywords));
 }
 
+bool UnicodeExtension::AddAttribute(std::string_view attribute) {
+  if (!VerifyTypeOrAttributeSubtags({attribute})) {
+    return false;
+  }
+  attributes_.emplace(attribute);
+  return true;
+}
+
+bool UnicodeExtension::SetKeyword(std::string_view key,
+                                  std::string_view type_subtags) {
+  if (!VerifyKeySubtag(key)) {
+    return false;
+  }
+  std::vector<std::string_view> types = base::SplitStringPiece(
+      type_subtags, "-", base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
+  if (!VerifyTypeOrAttributeSubtags(types)) {
+    return false;
+  }
+  keywords_.insert_or_assign(key, type_subtags);
+  return true;
+}
+
 std::string UnicodeExtension::ToString() const {
   std::string subtags = base::JoinString(attributes_, "-");
   // Iterates sorted by key.
