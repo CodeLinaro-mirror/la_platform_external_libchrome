@@ -16,6 +16,7 @@
 #include "base/containers/flat_set.h"
 #include "base/containers/span.h"
 #include "base/i18n/base_i18n_export.h"
+#include "base/strings/string_util.h"
 #include "base/types/pass_key.h"
 
 namespace base {
@@ -108,7 +109,9 @@ class BASE_I18N_EXPORT UnicodeExtension {
   }
 
   // Removes the keyword if present.
-  void remove_keyword(std::string_view key) { keywords_.erase(key); }
+  void remove_keyword(std::string_view key) {
+    keywords_.erase(base::ToLowerASCII(key));
+  }
 
   // Sets or updates the value for the given keyword.
   // `key` must be exactly 2 alphanumeric characters.
@@ -116,14 +119,19 @@ class BASE_I18N_EXPORT UnicodeExtension {
   // Returns true if the keyword was updated, false otherwise.
   bool SetKeyword(std::string_view key, std::string_view type_subtags);
 
+  // Returns true if the keyword is present.
+  bool has_keyword(std::string_view key) const {
+    return keywords_.contains(base::ToLowerASCII(key));
+  }
+
   // Attributes come before any keyword/value and have length between 3 and 8.
   bool has_attribute(std::string_view attribute) const {
-    return attributes_.contains(attribute);
+    return attributes_.contains(base::ToLowerASCII(attribute));
   }
 
   // Removes the attribute if present.
   void remove_attribute(std::string_view attribute) {
-    attributes_.erase(attribute);
+    attributes_.erase(base::ToLowerASCII(attribute));
   }
 
   // Adds the attribute if not present.
@@ -149,13 +157,8 @@ class BASE_I18N_EXPORT UnicodeExtension {
   std::string ToString() const;
 
  private:
-  // These objects are managed by LanguageTag and cannot be constructed
-  // manually.
-  // |extension| must be a valid Unicode extension string (e.g.,
-  // "u-ca-gregory").
-  explicit UnicodeExtension(
-      base::flat_set<std::string> attributes,
-      base::flat_map<std::string, std::string> key_values);
+  // Must be constructed from `FromString`, thus the private constructor.
+  UnicodeExtension();
 
   base::flat_set<std::string, std::less<>> attributes_;
   // The unicode extension keywords map.
