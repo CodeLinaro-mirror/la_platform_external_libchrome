@@ -15,6 +15,8 @@ chromium::import! {
     "//base/test:task_environment";
 }
 
+use bindings::message::MojomMessage;
+use bindings::message_header::{MessageHeader, MessageHeaderFlags};
 use bindings::receiver::{PendingAssociatedReceiver, PendingReceiver, Receiver};
 use bindings::remote::{PendingAssociatedRemote, PendingRemote, Remote};
 use bindings_unittests_mojom_rust::bindings_unittests as test_mojom;
@@ -756,5 +758,86 @@ fn test_cpp_associated_sender() {
     run_loop.run();
 }
 
-// TODO(crbug.com/493274453): Write disconnection tests for associated
-// interfaces when that's implemented.
+#[gtest(RustBindingsAPI, TestAssociatedDisconnect)]
+fn test_associated_disconnect() {
+    let _task_env = task_environment::ffi::CreateTaskEnvironment();
+    test_util::set_default_process_error_handler(|msg: &str| panic!("Got a bad message: {}", msg));
+
+    let (
+        _remote,
+        _receiver,
+        assoc_impl,
+        assoc_p_rec_1,
+        assoc_p_rem_2,
+        _assoc_p_rem_3,
+        _assoc_p_rec_4,
+    ) = init_associated_test();
+
+    // 1. Test Remote-to-Receiver disconnection
+    {
+        let run_loop = RunLoop::new();
+        let quit = run_loop.get_quit_closure();
+
+        let _math_receiver_1 = assoc_p_rec_1.bind_with_options(
+            crate::state_objects::SaturatingMathService {},
+            None,
+            Some(Box::new(quit)),
+        );
+
+        // Drop the remote end, which is stored in assoc_impl.send_remote
+        drop(assoc_impl.send_remote.lock().unwrap().take());
+
+        run_loop.run();
+    }
+
+    // 2. Test Receiver-to-Remote disconnection
+    {
+        let run_loop = RunLoop::new();
+        let quit = run_loop.get_quit_closure();
+
+        let _math_remote_2 = assoc_p_rem_2.bind_with_options(None, Some(Box::new(quit)));
+
+        // Drop the receiver end, which is stored in assoc_impl.send_receiver
+        drop(assoc_impl.send_receiver.lock().unwrap().take());
+
+        run_loop.run();
+    }
+}
+
+#[gtest(RustBindingsAPI, TestBadControlMessage)]
+fn test_bad_control_message() {
+    let _task_env = task_environment::ffi::CreateTaskEnvironment();
+
+    let bad_message_flag = Arc::new(Mutex::new(None::<String>));
+    let bad_message_flag_clone = bad_message_flag.clone();
+    test_util::set_default_process_error_handler(move |msg: &str| {
+        *bad_message_flag_clone.lock().unwrap() = Some(msg.to_string());
+    });
+
+    let (handle0, handle1) = system::message_pipe::MessageEndpoint::create_pipe().unwrap();
+
+    let pending_receiver = PendingReceiver::<dyn MathService>::new(handle0);
+    let _receiver = pending_receiver.bind(crate::state_objects::WrappingMathService {});
+
+    // Send a bad control message on handle1 (wrong message name)
+    let header = MessageHeader::new(
+        u32::MAX, // CONTROL_INTERFACE_ID
+        0,        // Wrong message name (should be 0xFFFFFFFE)
+        MessageHeaderFlags::default(),
+        0,
+        0,
+    );
+    let msg = MojomMessage { header, payload: vec![], handles: vec![], raw_message_handle: None };
+    let (serialized, handles) = msg.into_data();
+    let raw_msg = system::message::RawMojoMessage::new_with_data(&serialized, handles).unwrap();
+    handle1.write(raw_msg).unwrap();
+
+    // Run the loop to process the message
+    let run_loop = RunLoop::new();
+    run_loop.run_until_idle();
+
+    // Check that bad message was reported
+    let reported = bad_message_flag.lock().unwrap().take();
+    expect_true!(reported.is_some());
+    expect_eq!(reported.unwrap(), "Control message has incorrect message ID");
+}
