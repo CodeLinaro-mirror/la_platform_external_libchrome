@@ -101,6 +101,12 @@ class BASE_I18N_EXPORT UnicodeExtension {
   // Reference:  https://www.rfc-editor.org/info/rfc6067/#section-2.1
   std::optional<std::string_view> GetKeywordValue(std::string_view key) const;
 
+  // Returns all the keywords sorted by key and parsed into pairs of key subtag
+  // string plus types subtag string, if present.
+  base::span<const std::pair<std::string, std::string>> keywords() const {
+    return base::span(keywords_);
+  }
+
   // Removes the keyword if present.
   void remove_keyword(std::string_view key) { keywords_.erase(key); }
 

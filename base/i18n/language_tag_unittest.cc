@@ -65,6 +65,32 @@ TEST(LanguageTagTest, ValidButUnknowLocales) {
 
 TEST(LanguageTagTest, ToLegacyICUFormat) {
   EXPECT_EQ(language_tags::BRAZILIAN_PORTUGUESE().ToLegacyICUFormat(), "pt_BR");
+
+  {
+    ASSERT_OK_AND_ASSIGN(
+        LanguageTag lt,
+        LanguageTagConverter::GetInstance().FromString("en-US-u-cu-usd"));
+    EXPECT_EQ(lt.ToLegacyICUFormat(), "en_US@currency=USD");
+  }
+  {
+    ASSERT_OK_AND_ASSIGN(LanguageTag lt,
+                         LanguageTagConverter::GetInstance().FromString(
+                             "de-DE-u-ca-gregory-co-phonebk"));
+    EXPECT_EQ(lt.ToLegacyICUFormat(),
+              "de_DE@calendar=gregorian;collation=phonebook");
+  }
+  {
+    ASSERT_OK_AND_ASSIGN(
+        LanguageTag lt,
+        LanguageTagConverter::GetInstance().FromString("ca-ES-u-va-valencia"));
+    EXPECT_EQ(lt.ToLegacyICUFormat(), "ca_ES@valencia");
+  }
+  {
+    ASSERT_OK_AND_ASSIGN(LanguageTag lt,
+                         LanguageTagConverter::GetInstance().FromString(
+                             "ja-u-lb-normal-lw-phrase"));
+    EXPECT_EQ(lt.ToLegacyICUFormat(), "ja@lb=normal;lw=phrase");
+  }
 }
 
 TEST(LanguageTagTest, ComplexLocales) {
