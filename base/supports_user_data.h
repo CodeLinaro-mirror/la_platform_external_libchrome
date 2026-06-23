@@ -5,7 +5,6 @@
 #ifndef BASE_SUPPORTS_USER_DATA_H_
 #define BASE_SUPPORTS_USER_DATA_H_
 
-#include <map>
 #include <memory>
 
 #include "base/base_export.h"
