@@ -296,17 +296,26 @@ std::string ConvertBcp47UnicodeKeywordToLegacyCode(
 
 std::optional<std::string> ConvertLegacyCodeToBcp47IfNecessary(
     std::string_view code) {
+  size_t dot_pos = code.find('.');
   size_t at_pos = code.find('@');
   size_t underline_pos = code.find('_');
   // Legacy ICU locale IDs use '_' as a separator (e.g., "en_US")
-  // and '@' to start the keywords section (e.g., "en_US@calendar=gregorian").
-  // BCP47 uses '-' as a separator and "-u-" for Unicode extensions.
-  if (at_pos == std::string::npos && underline_pos == std::string::npos) {
+  // and '@' to start the keywords section (e.g.,
+  // "en_US@calendar=gregorian"). BCP47 uses '-' as a separator and "-u-"
+  // for Unicode extensions.
+  // The legacy codes could also contain POSIX charset specifiers before the
+  // extensions (e.g. "en_US.UTF8@currency=USD") before the exntesions
+  // (https://unicode-org.github.io/icu/userguide/locale/). These are simply
+  // ignored.
+  if (dot_pos == std::string::npos && at_pos == std::string::npos &&
+      underline_pos == std::string::npos) {
     return std::nullopt;
   }
 
-  // We init it with the string that is before the '@' sign.
-  std::string normalized_code = std::string(code.substr(0, at_pos));
+  // We init it with the string that is before the first occurrence of either
+  // '@' or '.' sign.
+  std::string normalized_code =
+      std::string(code.substr(0, std::min(dot_pos, at_pos)));
   if (underline_pos != std::string::npos) {
     // Replace "_" by "-" for BCP47 compatibility.
     std::ranges::replace(normalized_code, '_', '-');

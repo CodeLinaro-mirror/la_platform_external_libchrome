@@ -383,6 +383,17 @@ TEST(LanguageTagTest, LocaleWithAtSign) {
       OptionalToString("en-US-u-tz-usnyc"));
 }
 
+TEST(LanguageTagTest, LegacyIcuIgnoresPosixEncoding) {
+  EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("en.UTF8@"),
+              OptionalToString("en"));
+  EXPECT_THAT(
+      LanguageTagConverter::GetInstance().FromString("ca.UTF8@valencia"),
+      OptionalToString("ca-u-va-valencia"));
+  EXPECT_THAT(
+      LanguageTagConverter::GetInstance().FromString("ca_ES.UTF8@valencia"),
+      OptionalToString("ca-ES-u-va-valencia"));
+}
+
 TEST(LanguageTagTest, LegacyIcuRobustness) {
   EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("en@"),
               OptionalToString("en"));
