@@ -697,65 +697,70 @@ fn test_associated_late_binding() {
     expect_eq!(*responses_received.lock().unwrap(), 3);
 }
 
-// TODO(crbug.com/525557459): failing on Linux Chromium OS ASan LSan Tests
-#[gtest(RustBindingsAPI, DISABLED_TestCppAssociatedSender)]
+#[gtest(RustBindingsAPI, TestCppAssociatedSender)]
 fn test_cpp_associated_sender() {
     let _task_env = task_environment::ffi::CreateTaskEnvironment();
     test_util::set_default_process_error_handler(|msg: &str| panic!("Got a bad message: {}", msg));
 
-    let (pending_remote, pending_receiver) =
-        PendingRemote::<dyn AssociatedSender>::new_pipe().unwrap();
+    {
+        let (pending_remote, pending_receiver) =
+            PendingRemote::<dyn AssociatedSender>::new_pipe().unwrap();
 
-    let receiver_wrapper =
-        system::scoped_handle_interop::ScopedMessagePipeHandleWrapper::from_message_endpoint(
-            pending_receiver.into_endpoint(),
-        );
-    crate::cxx::ffi::CreateCppAssociatedSender(receiver_wrapper);
+        let receiver_wrapper =
+            system::scoped_handle_interop::ScopedMessagePipeHandleWrapper::from_message_endpoint(
+                pending_receiver.into_endpoint(),
+            );
+        crate::cxx::ffi::CreateCppAssociatedSender(receiver_wrapper);
 
-    let mut remote = pending_remote.bind();
+        let mut remote = pending_remote.bind();
 
-    let run_loop = RunLoop::new();
-    let quit = run_loop.get_quit_closure();
+        let run_loop = RunLoop::new();
+        let quit = run_loop.get_quit_closure();
 
-    let count = Arc::new(Mutex::new(0));
+        let count = Arc::new(Mutex::new(0));
 
-    // Vectors to keep endpoints alive
-    let active_remotes = Arc::new(Mutex::new(Vec::new()));
-    let active_receivers = Arc::new(Mutex::new(Vec::new()));
+        // Vectors to keep endpoints alive
+        let active_remotes = Arc::new(Mutex::new(Vec::new()));
+        let active_receivers = Arc::new(Mutex::new(Vec::new()));
 
-    // 1. Send Remote to C++
-    let (math_rem, math_rec) = PendingAssociatedRemote::<dyn MathService>::new_pair();
-    let _math_receiver = math_rec.bind(crate::state_objects::NotifyingMathService {
-        f: math_response_closure!(count, 0, 3),
-    });
-    remote.SendRemote(math_rem);
+        // 1. Send Remote to C++
+        let (math_rem, math_rec) = PendingAssociatedRemote::<dyn MathService>::new_pair();
+        let _math_receiver = math_rec.bind(crate::state_objects::NotifyingMathService {
+            f: math_response_closure!(count, 0, 3),
+        });
+        remote.SendRemote(math_rem);
 
-    // 2. Send Receiver to C++
-    let (math_rem2, math_rec2) = PendingAssociatedRemote::<dyn MathService>::new_pair();
-    let mut math_remote2 = math_rem2.bind();
-    remote.SendReceiver(math_rec2);
+        // 2. Send Receiver to C++
+        let (math_rem2, math_rec2) = PendingAssociatedRemote::<dyn MathService>::new_pair();
+        let mut math_remote2 = math_rem2.bind();
+        remote.SendReceiver(math_rec2);
 
-    // Recall that C++ PlusSevenMathService adds 7 to the result
-    math_remote2.Add(10, 20, math_response_closure!(count, 1, 37));
+        // Recall that C++ PlusSevenMathService adds 7 to the result
+        math_remote2.Add(10, 20, math_response_closure!(count, 1, 37));
 
-    // 3. Request Remote from C++
-    let response_handler = math_response_closure!(count, 2, 17);
-    let active_remotes_clone = active_remotes.clone();
-    remote.RequestRemote(move |math_rem| {
-        let mut math_remote = math_rem.bind();
-        math_remote.Add(5, 5, response_handler);
-        active_remotes_clone.lock().unwrap().push(math_remote);
-    });
+        // 3. Request Remote from C++
+        let response_handler = math_response_closure!(count, 2, 17);
+        let active_remotes_clone = active_remotes.clone();
+        remote.RequestRemote(move |math_rem| {
+            let mut math_remote = math_rem.bind();
+            math_remote.Add(5, 5, response_handler);
+            active_remotes_clone.lock().unwrap().push(math_remote);
+        });
 
-    // 4. Request Receiver from C++
-    let f = math_response_closure!(count, 2, 50, quit);
-    let active_receivers_clone = active_receivers.clone();
-    remote.RequestReceiver(move |math_rec| {
-        let receiver = math_rec.bind(crate::state_objects::NotifyingMathService { f });
-        active_receivers_clone.lock().unwrap().push(receiver);
-    });
+        // 4. Request Receiver from C++
+        let f = math_response_closure!(count, 2, 50, quit);
+        let active_receivers_clone = active_receivers.clone();
+        remote.RequestReceiver(move |math_rec| {
+            let receiver = math_rec.bind(crate::state_objects::NotifyingMathService { f });
+            active_receivers_clone.lock().unwrap().push(receiver);
+        });
 
-    run_loop.run();
+        run_loop.run();
+    }
+    // We need to make sure the disconnect handlers are actually run to avoid
+    // complaints about memory leaks.
+    let run_loop_idle = RunLoop::new();
+    run_loop_idle.run_until_idle();
 }
 
 #[gtest(RustBindingsAPI, TestAssociatedDisconnect)]
