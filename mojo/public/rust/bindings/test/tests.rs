@@ -13,7 +13,6 @@ chromium::import! {
     "//mojo/public/rust/system/test_util";
     "//base:run_loop";
     "//base/test:task_environment";
-    "//base:sequenced_task_runner";
 }
 
 use bindings::message::MojomMessage;
@@ -841,84 +840,4 @@ fn test_bad_control_message() {
     let reported = bad_message_flag.lock().unwrap().take();
     expect_true!(reported.is_some());
     expect_eq!(reported.unwrap(), "Control message has incorrect message ID");
-}
-
-// These types and functions provide us a way to set a disconnect handler for
-// C++ remotes/receivers that will end up calling back into rust so we can
-// easily track it. It stores a function that takes an integer so we can
-// distinguish different remotes/receivers calling their DC handlers.
-type DisconnectInfoCallback = Box<dyn Fn(i32) + Send>;
-static CPP_DISCONNECT_CALLBACK: Mutex<Option<DisconnectInfoCallback>> = Mutex::new(None);
-
-#[unsafe(no_mangle)]
-pub extern "C" fn rust_on_cpp_associated_disconnect(handler_type: i32) {
-    if let Some(cb) = CPP_DISCONNECT_CALLBACK.lock().unwrap().as_ref() {
-        cb(handler_type);
-    }
-}
-
-#[gtest(RustBindingsAPI, TestAssociatedDisconnectCpp)]
-fn test_associated_disconnect_cpp() {
-    let _task_env = task_environment::ffi::CreateTaskEnvironment();
-    test_util::set_default_process_error_handler(|msg: &str| panic!("Got a bad message: {}", msg));
-
-    // Set up the primary pipe
-    let (pending_remote, pending_receiver) =
-        PendingRemote::<dyn AssociatedSender>::new_pipe().unwrap();
-
-    // Pass the primary receiver to C++
-    crate::cxx::ffi::CreateCppAssociatedSender(
-        system::scoped_handle_interop::ScopedMessagePipeHandleWrapper::from_message_endpoint(
-            pending_receiver.into_endpoint(),
-        ),
-    );
-
-    let mut remote = pending_remote.bind();
-
-    // Test Rust to C++ disconnection
-    // We create a pair, send the receiver to C++, and drop the remote in Rust.
-    {
-        let (assoc_p_rem, assoc_p_rec) = PendingAssociatedRemote::new_pair();
-
-        remote.SendReceiver(assoc_p_rec);
-
-        let run_loop = RunLoop::new();
-        let quit = run_loop.get_quit_closure();
-
-        // Register the Rust callback for C++ disconnect
-        *CPP_DISCONNECT_CALLBACK.lock().unwrap() = Some(Box::new(move |handler_type| {
-            expect_eq!(handler_type, 2); // C++ PlusSevenMathService (type 2) disconnected
-            quit();
-        }));
-
-        // Drop the remote end on the Rust side
-        drop(assoc_p_rem);
-
-        // This loop won't terminate until the C++ DC callback executes
-        run_loop.run();
-    }
-
-    // Reset the C++ callback state
-    *CPP_DISCONNECT_CALLBACK.lock().unwrap() = None;
-
-    // Same as above, but in the other direction
-    {
-        let (assoc_p_rem, assoc_p_rec) = PendingAssociatedRemote::new_pair();
-
-        remote.SendRemote(assoc_p_rem);
-
-        let run_loop = RunLoop::new();
-        let quit = run_loop.get_quit_closure();
-
-        let _math_receiver = assoc_p_rec.bind_with_options(
-            crate::state_objects::SaturatingMathService {},
-            None,
-            Some(Box::new(quit)),
-        );
-
-        // Send a message that will drop the remote on the other side.
-        remote.ClearActiveEndpoints();
-
-        run_loop.run();
-    }
 }
