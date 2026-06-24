@@ -373,7 +373,7 @@ bool ToProto(
 {%-     endfor %}
   return mojolpm_result;
 {%-   else %}
-  (void)output.new_();
+  output.new_();
   return true;
 {%-   endif %}
 }{{"\n"-}}
