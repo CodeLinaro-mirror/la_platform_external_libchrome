@@ -6,6 +6,7 @@
 #define BASE_SUPPORTS_USER_DATA_H_
 
 #include <memory>
+#include <utility>
 
 #include "base/base_export.h"
 #include "base/memory/scoped_refptr.h"
@@ -83,12 +84,11 @@ class UserDataAdapter : public SupportsUserData::Data {
     return data ? static_cast<T*>(data->object_.get()) : nullptr;
   }
 
-  explicit UserDataAdapter(T* object) : object_(object) {}
+  explicit UserDataAdapter(scoped_refptr<T> object)
+      : object_(std::move(object)) {}
   UserDataAdapter(const UserDataAdapter&) = delete;
   UserDataAdapter& operator=(const UserDataAdapter&) = delete;
   ~UserDataAdapter() override = default;
-
-  T* release() { return object_.release(); }
 
  private:
   scoped_refptr<T> const object_;
