@@ -32,8 +32,8 @@ MATCHER_P(OptionalRegionToString, expected, "") {
 }
 
 TEST(LanguageTagTest, ParseAndToString) {
-  EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("en-US"),
-              Optional(language_tags::ENGLISH_US()));
+  EXPECT_THAT(language_tags::GetKnownTag<"en-US">(),
+              language_tags::ENGLISH_US());
 
   EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("EN-us"),
               OptionalToString("en-US"));
@@ -64,7 +64,7 @@ TEST(LanguageTagTest, ValidButUnknowLocales) {
 }
 
 TEST(LanguageTagTest, ToLegacyICUFormat) {
-  EXPECT_EQ(language_tags::BRAZILIAN_PORTUGUESE().ToLegacyICUFormat(), "pt_BR");
+  EXPECT_EQ(language_tags::GetKnownTag<"pt-BR">().ToLegacyICUFormat(), "pt_BR");
 
   {
     ASSERT_OK_AND_ASSIGN(
@@ -106,6 +106,8 @@ TEST(LanguageTagTest, NumericRegions) {
   // Locales with numeric regions.
   EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("es-419"),
               Optional(language_tags::SPANISH_LATIN_AMERICAN()));
+  EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("es-419"),
+              Optional(language_tags::GetKnownTag<"es-419">()));
 }
 
 TEST(LanguageTagTest, ThreeLetterLanguages) {

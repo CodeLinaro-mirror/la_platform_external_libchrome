@@ -297,10 +297,10 @@ TEST(LanguageTagMatcherTest, LikelySubtagsMatch) {
 }
 
 TEST(LanguageTagMatcherTest, LikelySubtagsNoMatch) {
-  std::vector<LanguageTag> supported = {language_tags::ENGLISH_UK()};
+  std::vector<LanguageTag> supported = {language_tags::BRITISH_ENGLISH()};
   LanguageTagMatcher matcher = LanguageTagMatcher::Create(supported);
   EXPECT_THAT(matcher.Match(LanguageTagOrDie("en")),
-              Optional(language_tags::ENGLISH_UK()));
+              Optional(language_tags::BRITISH_ENGLISH()));
 }
 
 TEST(LanguageTagMatcherTest, SerboCroatian) {
