@@ -497,6 +497,27 @@ TEST(LanguageTagTest, Canonicalize) {
               Optional(language_tags::CHINESE()));
 }
 
+TEST(LanguageTagTest, LegacyLanguages) {
+  // "sh" and "tl" should NOT be canonicalized.
+  auto sh_tag = LanguageTagConverter::GetInstance().FromString("sh");
+  ASSERT_TRUE(sh_tag.has_value());
+  EXPECT_EQ(sh_tag->tag_string(), "sh");
+
+  auto tl_tag = LanguageTagConverter::GetInstance().FromString("tl");
+  ASSERT_TRUE(tl_tag.has_value());
+  EXPECT_EQ(tl_tag->tag_string(), "tl");
+
+  // Case insensitivity check
+  auto sh_upper = LanguageTagConverter::GetInstance().FromString("SH");
+  ASSERT_TRUE(sh_upper.has_value());
+  EXPECT_EQ(sh_upper->tag_string(), "sh");  // Still lowercased by tag_string()
+                                            // but not canonicalized to sr-Latn
+
+  auto tl_with_region = LanguageTagConverter::GetInstance().FromString("tl-PH");
+  ASSERT_TRUE(tl_with_region.has_value());
+  EXPECT_EQ(tl_with_region->tag_string(), "tl-PH");
+}
+
 TEST(LanguageTagTest, UndefinedLanguageTag) {
   EXPECT_EQ(language_tags::UNDEFINED().tag_string(), "und");
 }

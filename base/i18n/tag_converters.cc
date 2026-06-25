@@ -4,15 +4,18 @@
 
 #include "base/i18n/tag_converters.h"
 
+#include <algorithm>
 #include <string_view>
 #include <vector>
 
 #include "base/compiler_specific.h"
+#include "base/containers/fixed_flat_set.h"
 #include "base/i18n/internal/icu_bridge.rs.h"
 #include "base/i18n/internal/legacy_icu_converter.h"
 #include "base/i18n/language_tag.h"
 #include "base/logging.h"
 #include "base/no_destructor.h"
+#include "base/strings/string_util.h"
 
 namespace base {
 namespace {
@@ -21,7 +24,16 @@ constexpr std::string_view kBcp47SubtagSeparator = "-";
 
 using ::base::i18n::internal::ConvertLegacyCodeToBcp47IfNecessary;
 using ::base::i18n::internal::create_icu_canonicalizer;
+using ::base::i18n::internal::create_icu_locale;
 using ::base::i18n::internal::Icu4xLocale;
+
+bool ShouldSkipCanonicalization(std::string_view tag) {
+  size_t dash_pos = tag.find('-');
+  std::string_view lang = tag.substr(0, dash_pos);
+  static constexpr auto kLanguagesToSkipCanonicalization =
+      base::MakeFixedFlatSet<std::string_view>({"tl", "sh"});
+  return kLanguagesToSkipCanonicalization.contains(base::ToLowerASCII(lang));
+}
 
 i18n::internal::ImmutableString ImmutableStringFromIcu4xLocale(
     const i18n::internal::Icu4xLocale& locale) {
@@ -83,9 +95,11 @@ std::optional<LanguageTag> LanguageTagConverter::Impl::FromString(
   rust::Slice<const uint8_t> locale_bytes(
       reinterpret_cast<const uint8_t*>(tag.data()), tag.size());
 
-  // Use the new OptionalIcu4xLocale return type.
+  // Skip canonicalization for "tl" and "sh".
   i18n::internal::OptionalIcu4xLocale opt_locale =
-      canonicalizer_->canonicalize(locale_bytes);
+      ShouldSkipCanonicalization(tag)
+          ? create_icu_locale(locale_bytes)
+          : canonicalizer_->canonicalize(locale_bytes);
 
   if (!opt_locale.has_value) {
     return std::nullopt;
