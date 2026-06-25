@@ -14,7 +14,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace base {
+namespace base::i18n {
 namespace {
 
 using ::testing::Eq;
@@ -397,4 +397,4 @@ TEST(LanguageTagMatcherTest, ChineseVariantsAndExtensions) {
 }
 
 }  // namespace
-}  // namespace base
+}  // namespace base::i18n

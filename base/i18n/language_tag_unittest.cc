@@ -12,7 +12,7 @@
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-namespace base {
+namespace base::i18n {
 namespace {
 
 using ::testing::Eq;
@@ -32,8 +32,7 @@ MATCHER_P(OptionalRegionToString, expected, "") {
 }
 
 TEST(LanguageTagTest, ParseAndToString) {
-  EXPECT_THAT(language_tags::GetKnownTag<"en-US">(),
-              language_tags::ENGLISH_US());
+  EXPECT_THAT(GetKnownLanguageTag<"en-US">(), language_tags::ENGLISH_US());
 
   EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("EN-us"),
               OptionalToString("en-US"));
@@ -64,7 +63,7 @@ TEST(LanguageTagTest, ValidButUnknowLocales) {
 }
 
 TEST(LanguageTagTest, ToLegacyICUFormat) {
-  EXPECT_EQ(language_tags::GetKnownTag<"pt-BR">().ToLegacyICUFormat(), "pt_BR");
+  EXPECT_EQ(GetKnownLanguageTag<"pt-BR">().ToLegacyICUFormat(), "pt_BR");
 
   {
     ASSERT_OK_AND_ASSIGN(
@@ -107,7 +106,7 @@ TEST(LanguageTagTest, NumericRegions) {
   EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("es-419"),
               Optional(language_tags::SPANISH_LATIN_AMERICAN()));
   EXPECT_THAT(LanguageTagConverter::GetInstance().FromString("es-419"),
-              Optional(language_tags::GetKnownTag<"es-419">()));
+              Optional(GetKnownLanguageTag<"es-419">()));
 }
 
 TEST(LanguageTagTest, ThreeLetterLanguages) {
@@ -268,9 +267,8 @@ TEST(LanguageTagTest, PrivateUseSubtags) {
         LanguageTagConverter::GetInstance().FromString("und-x-private"))
     EXPECT_EQ(lc.tag_string(), "und-x-private");
     EXPECT_THAT(
-        lc.GetExtension(i18n_extensions::priv()),
-        Optional(Property(&i18n_extensions::PrivateUseSubtags::subtags_string,
-                          Eq("private"))));
+        lc.GetExtension(bcp47_extensions::priv()),
+        Optional(Property(&PrivateUseSubtags::subtags_string, Eq("private"))));
   }
   {
     // Single-char private use subtags.
@@ -279,9 +277,8 @@ TEST(LanguageTagTest, PrivateUseSubtags) {
         LanguageTagConverter::GetInstance().FromString("en-US-x-a"))
     EXPECT_EQ(lc.tag_string(), "en-US-x-a");
     EXPECT_THAT(
-        lc.GetExtension(i18n_extensions::priv()),
-        Optional(Property(&i18n_extensions::PrivateUseSubtags::subtags_string,
-                          Eq("a"))));
+        lc.GetExtension(bcp47_extensions::priv()),
+        Optional(Property(&PrivateUseSubtags::subtags_string, Eq("a"))));
   }
   {
     // Long private use subtags.
@@ -294,9 +291,8 @@ TEST(LanguageTagTest, PrivateUseSubtags) {
         LanguageTag lc,
         LanguageTagConverter::GetInstance().FromString("en-US-x-12345678"))
     EXPECT_THAT(
-        lc.GetExtension(i18n_extensions::priv()),
-        Optional(Property(&i18n_extensions::PrivateUseSubtags::subtags_string,
-                          Eq("12345678"))));
+        lc.GetExtension(bcp47_extensions::priv()),
+        Optional(Property(&PrivateUseSubtags::subtags_string, Eq("12345678"))));
   }
 }
 
@@ -586,7 +582,6 @@ TEST_P(LanguageTagAllCodesTest, VerifyAllLangCodeFunctions) {
   EXPECT_THAT(LanguageTagConverter::GetInstance().FromString(param.tag),
               Optional(param.get_code()));
 }
-
 const LanguageTestData kTestData[] = {
 #define IMPL_LANGUAGECODE_TAG_NAME(tag, name) \
   {tag, #name, &language_tags::name},
@@ -603,4 +598,4 @@ INSTANTIATE_TEST_SUITE_P(
     });
 
 }  // namespace
-}  // namespace base
+}  // namespace base::i18n

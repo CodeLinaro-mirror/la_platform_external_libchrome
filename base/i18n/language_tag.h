@@ -19,7 +19,7 @@
 #include "base/i18n/bcp47_extensions.h"
 #include "base/i18n/internal/immutable_string.h"
 
-namespace base {
+namespace base::i18n {
 
 class BASE_I18N_EXPORT LanguageTagConverter;
 class BASE_I18N_EXPORT RegionSubtag;
@@ -37,7 +37,7 @@ class BASE_I18N_EXPORT RegionSubtag;
 //   - Private use: Optional (e.g., "x-privatestuff")
 class BASE_I18N_EXPORT LanguageTag {
  public:
-  using ImmutableStringType = i18n::internal::ImmutableString;
+  using ImmutableStringType = internal::ImmutableString;
 
   ~LanguageTag();
   LanguageTag(const LanguageTag&);
@@ -77,21 +77,22 @@ class BASE_I18N_EXPORT LanguageTag {
   // Retrieves the singleton and subtag(s) for an extension to a BCP47 language
   // tag.
   //
-  // Use the helper functions in `i18n_extensions` to specify which extension
-  // or private use subtags to retrieve:
-  // - `GetExtension(i18n_extensions::unicode())` for "u-" extensions.
-  // - `GetExtension(i18n_extensions::priv())` for "x-" private use subtags.
-  // - `GetExtension(i18n_extensions::ext('a'))` for any other single-char
-  // extension.
+  // Use the helper functions in `bcp47_extensions` to specify which
+  // extension or private use subtags to retrieve:
+  // - `GetExtension(bcp47_extensions::unicode())` for "u-" extensions.
+  // - `GetExtension(bcp47_extensions::priv())` for "x-" private use
+  // subtags.
+  // - `GetExtension(bcp47_extensions::ext('a'))` for any other
+  // single-char extension.
   //
   // Example:
   //   auto locale =
   //   LanguageTagConverter::GetInstance().FromString("en-US-u-ca-gregory");
-  //   auto ext = locale->GetExtension(i18n_extensions::unicode());
+  //   auto ext = locale->GetExtension(bcp47_extensions::unicode());
   //   if (ext) {
   //     std::string_view val = ext->subtags_string(); // "ca-gregory"
   //   }
-  template <i18n_extensions::ExtensionTrait T>
+  template <bcp47_extensions::ExtensionTrait T>
   std::optional<typename T::type> GetExtension(T traits) const {
     std::string_view extension = GetExtensionStringInternal(traits.key);
     if (extension.empty()) {
@@ -169,20 +170,20 @@ class RegionSubtag : public internal::Bcp47Subtag<2, 3> {
   using base_type::base_type;
 };
 
-}  // namespace base
+}  // namespace base::i18n
 
 namespace std {
 
 template <>
-struct hash<base::LanguageTag> {
-  std::size_t operator()(const base::LanguageTag& tag) const {
+struct hash<base::i18n::LanguageTag> {
+  std::size_t operator()(const base::i18n::LanguageTag& tag) const {
     return std::hash<std::string_view>()(tag.tag_string());
   }
 };
 
 template <>
-struct hash<base::RegionSubtag> {
-  std::size_t operator()(const base::RegionSubtag& region_subtag) const {
+struct hash<base::i18n::RegionSubtag> {
+  std::size_t operator()(const base::i18n::RegionSubtag& region_subtag) const {
     return std::hash<std::string_view>()(region_subtag.subtag_string());
   }
 };

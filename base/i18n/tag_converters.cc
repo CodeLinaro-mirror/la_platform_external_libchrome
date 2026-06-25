@@ -17,7 +17,7 @@
 #include "base/no_destructor.h"
 #include "base/strings/string_util.h"
 
-namespace base {
+namespace base::i18n {
 namespace {
 
 constexpr std::string_view kBcp47SubtagSeparator = "-";
@@ -68,7 +68,7 @@ i18n::internal::ImmutableString ImmutableStringFromIcu4xLocale(
     parts.emplace_back(ext.data(), ext.size());
   }
 
-  return i18n::internal::ImmutableString(parts);
+  return internal::ImmutableString(parts);
 }
 
 }  // namespace
@@ -82,7 +82,7 @@ class LanguageTagConverter::Impl {
   LanguageTag FromIcu4xLocale(const Icu4xLocale& icu_locale) const;
 
  private:
-  rust::Box<base::i18n::internal::IcuCanonicalizer> canonicalizer_;
+  rust::Box<internal::IcuCanonicalizer> canonicalizer_;
 };
 
 LanguageTag LanguageTagConverter::Impl::FromIcu4xLocale(
@@ -96,7 +96,7 @@ std::optional<LanguageTag> LanguageTagConverter::Impl::FromString(
       reinterpret_cast<const uint8_t*>(tag.data()), tag.size());
 
   // Skip canonicalization for "tl" and "sh".
-  i18n::internal::OptionalIcu4xLocale opt_locale =
+  internal::OptionalIcu4xLocale opt_locale =
       ShouldSkipCanonicalization(tag)
           ? create_icu_locale(locale_bytes)
           : canonicalizer_->canonicalize(locale_bytes);
@@ -140,4 +140,4 @@ std::optional<LanguageTag> LanguageTagConverter::FromString(
   return impl_->FromString(*bcp47_converted_tag);
 }
 
-}  // namespace base
+}  // namespace base::i18n

@@ -14,14 +14,15 @@
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 
-namespace base {
+namespace base::i18n {
 namespace {
 
 // Finds the position of start of the next singleton identified as
 // "-"+<singleton>+"-". Where <singleton> is any alpha ASCII character.
 size_t FindNextSingleton(std::string_view tag) {
-  // Skip the first two characters as they are always present within a language
-  // definition or a subtag inside a non-private extension.
+  // Skip the first two characters as they are always either an extension
+  // singleton (e.g. "u-") or the beginning of the language tag which is at
+  // least two characters long.
   for (size_t i = 2; i + 2 < tag.size(); i++) {
     if (tag[i] == '-' && tag[i + 2] == '-' && base::IsAsciiAlpha(tag[i + 1])) {
       // Skip the first '-', e.g. if "-x-value" was found, "x-value" is
@@ -29,7 +30,6 @@ size_t FindNextSingleton(std::string_view tag) {
       return i + 1;
     }
   }
-
   return std::string_view::npos;
 }
 
@@ -58,8 +58,7 @@ std::string_view GetExtensionString(std::string_view tag, char ext_id) {
                  : tag;
     }
 
-    // Move to the next singleton, not that the first two characters are skipped
-    // as they are part of the current singleton.
+    // Move to the next singleton.
     extension_pos = FindNextSingleton(tag.substr(2));
   }
 
@@ -82,8 +81,8 @@ std::string LanguageTag::ToLegacyICUFormat() const {
   if (first_extension_pos == std::string_view::npos) {
     return legacy_code;
   }
-  std::optional<i18n_extensions::UnicodeExtension> unicode_extension =
-      GetExtension(i18n_extensions::unicode());
+  std::optional<UnicodeExtension> unicode_extension =
+      GetExtension(bcp47_extensions::unicode());
   // There is only support to converting unicode extensions to the legacy
   // format. The rest is ignored.
   if (!unicode_extension) {
@@ -91,7 +90,7 @@ std::string LanguageTag::ToLegacyICUFormat() const {
   }
 
   base::StrAppend(&legacy_code,
-                  {"@", i18n::internal::ConvertBcp47UnicodeKeywordsToLegacyCode(
+                  {"@", internal::ConvertBcp47UnicodeKeywordsToLegacyCode(
                             unicode_extension->keywords())});
   return legacy_code;
 }
@@ -165,4 +164,4 @@ std::string_view LanguageTag::GetExtensionStringInternal(char key) const {
   return GetExtensionString(tag_.AsString(), key);
 }
 
-}  // namespace base
+}  // namespace base::i18n
