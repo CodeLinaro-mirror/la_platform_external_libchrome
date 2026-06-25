@@ -22,7 +22,7 @@ patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
  1 file changed, 1 insertion(+), 10 deletions(-)
 
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 0c7149149e..81687e4af9 100644
+index 49bf347d51..1cf96c589d 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
 @@ -22,11 +22,8 @@
@@ -35,9 +35,9 @@ index 0c7149149e..81687e4af9 100644
 -#include "third_party/lss/linux_syscall_support.h"
 -#elif BUILDFLAG(IS_MAC)
 +#if BUILDFLAG(IS_MAC)
- // TODO(crbug.com/40641285): Waiting for this header to appear in the iOS SDK.
- // (See below.)
  #include <sys/random.h>
+ #elif BUILDFLAG(IS_IOS)
+ #include <CommonCrypto/CommonRandom.h>
 @@ -114,12 +111,6 @@ bool UseBoringSSLForRandBytes() {
  namespace {
  
@@ -53,4 +53,3 @@ index 0c7149149e..81687e4af9 100644
    // support for a syscall before calling. The same check is made on Linux and
 -- 
 2.54.0.669.g59709faab0-goog
-
