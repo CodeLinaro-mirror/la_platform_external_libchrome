@@ -259,13 +259,28 @@ TEST(LanguageTagTest, ExtensionBadlyFormed) {
             std::nullopt);
 }
 
+TEST(LanguageTagTest, MultipleExtensions) {
+  ASSERT_OK_AND_ASSIGN(LanguageTag lc,
+                       LanguageTagConverter::GetInstance().FromString(
+                           "en-US-a-foo-u-ca-gregory-x-private"))
+  EXPECT_EQ(lc.tag_string(), "en-US-a-foo-u-ca-gregory-x-private");
+  EXPECT_THAT(lc.GetExtension(bcp47_extensions::ext<'a'>()),
+              Optional(Property(&Extension::subtags_string, Eq("foo"))));
+  EXPECT_THAT(
+      lc.GetExtension(bcp47_extensions::unicode()),
+      Optional(Property(&UnicodeExtension::ToString, Eq("ca-gregory"))));
+  EXPECT_THAT(
+      lc.GetExtension(bcp47_extensions::priv()),
+      Optional(Property(&PrivateUseSubtags::subtags_string, Eq("private"))));
+}
+
 TEST(LanguageTagTest, PrivateUseSubtags) {
   {
     // Private use subtags.
-    ASSERT_OK_AND_ASSIGN(
-        LanguageTag lc,
-        LanguageTagConverter::GetInstance().FromString("und-x-private"))
-    EXPECT_EQ(lc.tag_string(), "und-x-private");
+    ASSERT_OK_AND_ASSIGN(LanguageTag lc,
+                         LanguageTagConverter::GetInstance().FromString(
+                             "und-u-ca-gregory-x-private"))
+    EXPECT_EQ(lc.tag_string(), "und-u-ca-gregory-x-private");
     EXPECT_THAT(
         lc.GetExtension(bcp47_extensions::priv()),
         Optional(Property(&PrivateUseSubtags::subtags_string, Eq("private"))));

@@ -48,7 +48,7 @@ std::string_view GetExtensionString(std::string_view tag, char ext_id) {
     if (tag[0] == ext_id) {
       // Look for the next singleton, that is where the found extension is going
       // to end.
-      size_t next_extension_pos = FindNextSingleton(tag.substr(2));
+      size_t next_extension_pos = FindNextSingleton(tag);
       // The `code` must never start with an extension.
       if (next_extension_pos == 0u) {
         return {};
@@ -59,7 +59,7 @@ std::string_view GetExtensionString(std::string_view tag, char ext_id) {
     }
 
     // Move to the next singleton.
-    extension_pos = FindNextSingleton(tag.substr(2));
+    extension_pos = FindNextSingleton(tag);
   }
 
   return {};
