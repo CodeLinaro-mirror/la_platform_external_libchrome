@@ -580,6 +580,7 @@ libbase_sublibs = [
       "base/message_loop/message_pump_default.cc",
       "base/message_loop/message_pump_epoll.cc",
       "base/message_loop/message_pump_glib.cc",
+      "base/message_loop/message_pump_wakeup_counter.cc",
       "base/message_loop/watchable_io_message_pump_posix.cc",
       "base/message_loop/work_id_provider.cc",
       "base/metrics/bucket_ranges.cc",
