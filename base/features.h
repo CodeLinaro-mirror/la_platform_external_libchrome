@@ -55,6 +55,7 @@ BASE_EXPORT BASE_DECLARE_FEATURE(kPostGetMyMemoryStateToBackground);
 BASE_EXPORT BASE_DECLARE_FEATURE(kRebindingChildServiceConnectionController);
 BASE_EXPORT BASE_DECLARE_FEATURE(kRebindServiceBatchApi);
 BASE_EXPORT BASE_DECLARE_FEATURE(kUseSharedRebindServiceConnection);
+BASE_EXPORT BASE_DECLARE_FEATURE(kVirtualKeyboardGeometryAndInsetFixes);
 
 BASE_EXPORT BASE_DECLARE_FEATURE(kBackgroundThreadPoolFieldTrial);
 BASE_EXPORT BASE_DECLARE_FEATURE(kShutdownPreNativeThreadPoolAfterStartup);
@@ -64,8 +65,8 @@ BASE_EXPORT BASE_DECLARE_FEATURE_PARAM(int,
 BASE_EXPORT BASE_DECLARE_FEATURE(kLibraryPrefetcherMadvise);
 BASE_EXPORT BASE_DECLARE_FEATURE_PARAM(size_t, kLibraryPrefetcherMadviseLength);
 BASE_EXPORT BASE_DECLARE_FEATURE_PARAM(bool, kLibraryPrefetcherMadviseFallback);
-
-#endif
+BASE_EXPORT BASE_DECLARE_FEATURE(kLibraryPrefetcherOnlyOrderedText);
+#endif  // BUILDFLAG(IS_ANDROID)
 
 BASE_EXPORT BASE_DECLARE_FEATURE(kUseTerminationStatusMemoryExhaustion);
 

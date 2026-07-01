@@ -172,7 +172,26 @@ class FeatureListTest;
 enum FeatureState {
   FEATURE_DISABLED_BY_DEFAULT,
   FEATURE_ENABLED_BY_DEFAULT,
+  // The feature is disabled only for the countries specified. Defaults to
+  // enabled if Chrome does not have information about the current country.
+  // Use only together with `BASE_FEATURE_WITH_COUNTRY_RESTRICTIONS`.
+  FEATURE_DISABLED_FOR_COUNTRIES,
+  // The feature is enabled only for the countries specified. Defaults to
+  // disabled if Chrome does not have information about the current country.
+  // Use only together with `BASE_FEATURE_WITH_COUNTRY_RESTRICTIONS`.
+  FEATURE_ENABLED_FOR_COUNTRIES,
 };
+
+constexpr bool IsCountrySpecificFeatureState(FeatureState state) {
+  switch (state) {
+    case FEATURE_DISABLED_BY_DEFAULT:
+    case FEATURE_ENABLED_BY_DEFAULT:
+      return false;
+    case FEATURE_DISABLED_FOR_COUNTRIES:
+    case FEATURE_ENABLED_FOR_COUNTRIES:
+      return true;
+  }
+}
 
 // The Feature struct is used to define the default state for a feature. There
 // must only ever be one struct instance for a given feature name—generally
@@ -275,6 +294,57 @@ struct BASE_EXPORT LOGICALLY_CONST Feature {
   // The logging bits (16 and 17) are used to ensure that we only log the
   // feature access once per session, even if the cached value is invalidated.
   mutable std::atomic<FeatureStateCache> cached_value;
+};
+
+// `FeatureWithCountryRestriction` allows enabling or disabling a feature for a
+// given set of countries. This country set is referenced in the `countries`
+// member of the struct.
+//
+// Querying the feature state (via `FeatureList::IsEnabled`) or using it with
+// `FeatureParam` works exactly the same as for `Feature` (due to implicit
+// upcasting). Having a separate class is only a memory/binary-size
+// optimization. Differences are:
+// - Use BASE_DECLARE_FEATURE_WITH_COUNTRY_RESTRICTIONS and
+//   BASE_FEATURE_WITH_COUNTRY_RESTRICTIONS to declare and define
+//   `FeatureWithCountryRestriction`.
+// - Use only `FEATURE_DISABLED_FOR_COUNTRIES` and
+//   `FEATURE_ENABLED_FOR_COUNTRIES` as default states. Everything else should
+//   use the BASE_FEATURE macros.
+// - Pass a non-empty list of two-letter, lower-case country codes as string
+//   literals to define the country set.
+// - Currently, passing an explicit name string (similar to the 3-argument
+//   version of BASE_FEATURE) and runtime mutability are not supported.
+//
+// Example usage:
+// - Declaration in a header:
+//
+//   BASE_DECLARE_FEATURE_WITH_COUNTRY_RESTRICTIONS(kMyFeature);
+//
+// - Definition:
+//
+//   BASE_FEATURE_WITH_COUNTRY_RESTRICTIONS(kMyFeature,
+//       base::FEATURE_ENABLED_FOR_COUNTRIES, "us", "de", "fr");
+//
+//   The resulting feature is default-enabled if and only if the permanent
+//   variations country is either US, Germany, or France.
+struct BASE_EXPORT LOGICALLY_CONST FeatureWithCountryRestriction
+    : public Feature {
+  constexpr FeatureWithCountryRestriction(
+      const char* feature_name,
+      FeatureState feature_default_state,
+      base::span<const std::string_view> countries_list,
+      internal::FeatureMacroHandshake handshake)
+      : Feature(feature_name, feature_default_state, false, handshake),
+        countries(countries_list) {}
+
+  FeatureWithCountryRestriction(const FeatureWithCountryRestriction&) = delete;
+  FeatureWithCountryRestriction& operator=(
+      const FeatureWithCountryRestriction&) = delete;
+
+  // RAW_PTR_EXCLUSION: base::FeatureWithCountryRestriction is constructed via
+  // macros that guarantee static storage duration for the span. The exclusion
+  // is also necessary to avoid errors due to non-trivial exit-time destructors.
+  RAW_PTR_EXCLUSION const base::span<const std::string_view> countries;
 };
 
 }  // namespace base
