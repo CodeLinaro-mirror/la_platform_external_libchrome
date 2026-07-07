@@ -675,7 +675,6 @@ libbase_sublibs = [
       "base/strings/string_number_conversions.cc",
       "base/strings/string_split.cc",
       "base/strings/string_util.cc",
-      "base/strings/string_util_constants.cc",
       "base/strings/stringprintf.cc",
       "base/strings/sys_string_conversions_posix.cc",
       "base/strings/utf_offset_string_conversions.cc",

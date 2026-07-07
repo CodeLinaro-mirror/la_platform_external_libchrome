@@ -11,13 +11,11 @@
 
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/feature_buildflags.h"
 #include "base/feature_internal.h"
-#include "build/build_config.h"
-
-#if BUILDFLAG(ENABLE_BANNED_BASE_FEATURE_PREFIX)
 #include "base/logging.h"
-#endif
+#include "build/build_config.h"
 
 namespace base {
 
@@ -39,12 +37,16 @@ class FeatureListTest;
 //
 //   BASE_DECLARE_FEATURE(kMyFeature);
 //
+// Note that the `extern "C"` here is necessary to make Features accessible
+// across FFI boundaries (motivated, in particular, by the need for Rust
+// interop.)
+//
 // If the feature needs to be marked as exported, i.e. it is referenced by
 // multiple components, then write:
 //
 //   COMPONENT_EXPORT(MY_COMPONENT) BASE_DECLARE_FEATURE(kMyFeature);
 #define BASE_DECLARE_FEATURE(kFeature) \
-  extern constinit const base::Feature kFeature
+  extern "C" constinit const base::Feature kFeature
 
 // Provides a definition for `kFeature` with `name` and `default_state`, e.g.
 //
@@ -224,18 +226,12 @@ struct BASE_EXPORT LOGICALLY_CONST Feature {
   constexpr Feature(const char* name,
                     FeatureState default_state,
                     bool is_runtime_mutable,
-                    internal::FeatureMacroHandshake)
-      : name(name),
-        default_state(default_state),
-        cached_value(is_runtime_mutable ? kRuntimeMutabilityMask : 0) {
-#if BUILDFLAG(ENABLE_BANNED_BASE_FEATURE_PREFIX)
-    if (std::string_view(name).starts_with(
-            BUILDFLAG(BANNED_BASE_FEATURE_PREFIX))) {
-      LOG(FATAL) << "Invalid feature name " << name << " starts with "
-                 << BUILDFLAG(BANNED_BASE_FEATURE_PREFIX);
-    }
-#endif  // BUILDFLAG(ENABLE_BANNED_BASE_FEATURE_PREFIX)
-  }
+                    internal::FeatureMacroHandshake handshake)
+      : Feature(name,
+                default_state,
+                is_runtime_mutable,
+                handshake,
+                /*is_country_specific=*/false) {}
 
   // Non-copyable since:
   // - there should be only one `Feature` instance per unique name.
@@ -266,6 +262,30 @@ struct BASE_EXPORT LOGICALLY_CONST Feature {
   // NOTE: The actual runtime state may be different, due to a field trial or a
   // command line switch.
   const FeatureState default_state;
+
+ protected:
+  // Base constructor that performs initialization and checks, with an option to
+  // bypass the country-specific state check for subclasses.
+  constexpr Feature(const char* name,
+                    FeatureState default_state,
+                    bool is_runtime_mutable,
+                    internal::FeatureMacroHandshake handshake,
+                    bool is_country_specific)
+      : name(name),
+        default_state(default_state),
+        cached_value(is_runtime_mutable ? kRuntimeMutabilityMask : 0) {
+    if (is_country_specific != IsCountrySpecificFeatureState(default_state)) {
+      LOG(FATAL) << "Pass a country-specific default state if and only if you "
+                    "are using FeatureWithCountryRestriction.";
+    }
+#if BUILDFLAG(ENABLE_BANNED_BASE_FEATURE_PREFIX)
+    if (std::string_view(name).starts_with(
+            BUILDFLAG(BANNED_BASE_FEATURE_PREFIX))) {
+      LOG(FATAL) << "Invalid feature name " << name << " starts with "
+                 << BUILDFLAG(BANNED_BASE_FEATURE_PREFIX);
+    }
+#endif  // BUILDFLAG(ENABLE_BANNED_BASE_FEATURE_PREFIX)
+  }
 
  private:
   friend class FeatureList;
@@ -334,7 +354,11 @@ struct BASE_EXPORT LOGICALLY_CONST FeatureWithCountryRestriction
       FeatureState feature_default_state,
       base::span<const std::string_view> countries_list,
       internal::FeatureMacroHandshake handshake)
-      : Feature(feature_name, feature_default_state, false, handshake),
+      : Feature(feature_name,
+                feature_default_state,
+                /*is_runtime_mutable=*/false,
+                handshake,
+                /*is_country_specific=*/true),
         countries(countries_list) {}
 
   FeatureWithCountryRestriction(const FeatureWithCountryRestriction&) = delete;
