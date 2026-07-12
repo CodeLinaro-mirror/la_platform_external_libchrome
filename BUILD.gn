@@ -207,6 +207,7 @@ pa_buildflag_header("partition_allocator_buildflags") {
     "HAS_64_BIT_POINTERS=$has_64_bit_pointers",
     "USE_PARTITION_ALLOC=false",
     "USE_PARTITION_ALLOC_AS_MALLOC=false",
+    "MEMORY_TOOL_REPLACES_ALLOCATOR=false",
     "USE_ASAN_BACKUP_REF_PTR=false",
     "USE_HOOKABLE_RAW_PTR=false",
     "USE_RAW_PTR_ASAN_UNOWNED_IMPL=false",
