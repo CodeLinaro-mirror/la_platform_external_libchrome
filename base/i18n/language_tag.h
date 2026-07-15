@@ -18,6 +18,7 @@
 #include "base/containers/span.h"
 #include "base/i18n/base_i18n_export.h"
 #include "base/i18n/bcp47_extensions.h"
+#include "base/i18n/internal/bcp47_parser.h"
 #include "base/i18n/internal/immutable_string.h"
 
 namespace base::i18n {
@@ -64,9 +65,9 @@ class BASE_I18N_EXPORT LanguageTag {
                                    const LanguageTag& rhs) {
     return lhs.tag_string() == rhs.tag_string();
   }
-  constexpr friend bool operator<(const LanguageTag& lhs,
-                                  const LanguageTag& rhs) {
-    return lhs.tag_string() < rhs.tag_string();
+  constexpr friend std::strong_ordering operator<=>(const LanguageTag& lhs,
+                                                    const LanguageTag& rhs) {
+    return lhs.tag_string() <=> rhs.tag_string();
   }
   constexpr friend std::ostream& operator<<(std::ostream& os,
                                             const LanguageTag& lt) {
@@ -187,8 +188,9 @@ class BASE_I18N_EXPORT Bcp47Subtag {
   friend bool operator==(const SubtagType& lhs, const SubtagType& rhs) {
     return lhs.subtag_string() == rhs.subtag_string();
   }
-  friend bool operator<(const SubtagType& lhs, const SubtagType& rhs) {
-    return lhs.subtag_string() < rhs.subtag_string();
+  friend std::strong_ordering operator<=>(const SubtagType& lhs,
+                                          const SubtagType& rhs) {
+    return lhs.subtag_string() <=> rhs.subtag_string();
   }
   friend std::ostream& operator<<(std::ostream& os, const SubtagType& tag) {
     return os << tag.subtag_string();
@@ -237,6 +239,31 @@ class RegionSubtag : public i18n_internal::Bcp47Subtag<2, 3> {
   using base_type = i18n_internal::Bcp47Subtag<2, 3>;
   using base_type::base_type;
 };
+
+// Returns a LanguageTag checked at compile time. does not compile if tag is
+// not one of the predefined supported language tags.
+consteval LanguageTag GetKnownLanguageTag(std::string_view tag) {
+  std::optional<i18n_internal::ParsedBcp47Tag> parsed =
+      i18n_internal::ParseBcp47Tag(tag);
+  if (!parsed) {
+    void ERROR_TagIsMalformed();
+    ERROR_TagIsMalformed();
+  }
+
+  if (!i18n_internal::AreSubtagsKnown(*parsed)) {
+    void ERROR_TagIsUnknown();
+    ERROR_TagIsUnknown();
+  }
+
+  // It is only possible to construct `LanguageTag`s at compile-time if they
+  // are small.
+  if (tag.size() > i18n_internal::ImmutableString::kSmallBufferSize) {
+    void ERROR_TagIsTooLarge();
+    ERROR_TagIsTooLarge();
+  }
+
+  return LanguageTag(base::span<const std::string_view>({tag}));
+}
 
 }  // namespace base::i18n
 
