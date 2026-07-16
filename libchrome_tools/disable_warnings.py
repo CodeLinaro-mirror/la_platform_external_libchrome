@@ -32,7 +32,6 @@ WARNINGS_TO_SILENCE: Dict[str, Iterable[str]] = {
     "base/numerics/clamped_math_impl.h": ("-Wimplicit-int-float-conversion",),
     "base/time/time.h": ("-Wimplicit-int-float-conversion",),
     "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/check.h": ("-Wunused-parameter",),
-    "base/byte_count.h": ("-Wimplicit-int-float-conversion",),
 }
 
 
