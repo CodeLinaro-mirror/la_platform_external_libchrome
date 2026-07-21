@@ -5,6 +5,7 @@
 #include "base/i18n/language_tag.h"
 
 #include <algorithm>
+#include <ostream>
 #include <utility>
 
 #include "base/check_op.h"
@@ -92,12 +93,26 @@ std::string LanguageTag::ToLegacyICUFormat() const {
   return legacy_code;
 }
 
+LanguageTag LanguageTag::WithLanguageSubtagOnly() const {
+  CHECK(language_subtag().size() >= 2);
+  return LanguageTag(ImmutableStringType({language_subtag()}));
+}
+
 LanguageTag::LanguageTag(ImmutableStringType tag) : tag_(std::move(tag)) {
   CHECK(tag_string().size() >= 2);
 }
 
 std::string_view LanguageTag::GetExtensionStringInternal(char key) const {
   return GetExtensionString(tag_.AsString(), key);
+}
+
+std::ostream& operator<<(std::ostream& os, const LanguageTag& lt) {
+  return os << lt.tag_string();
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const std::optional<LanguageTag>& opt) {
+  return opt ? os << *opt : os << "nullopt";
 }
 
 }  // namespace base::i18n

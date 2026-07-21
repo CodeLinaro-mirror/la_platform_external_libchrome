@@ -5,16 +5,12 @@
 #ifndef BASE_I18N_LANGUAGE_TAG_H_
 #define BASE_I18N_LANGUAGE_TAG_H_
 
-#include <algorithm>
-#include <array>
 #include <compare>
-#include <cstdint>
-#include <limits>
+#include <iosfwd>
 #include <optional>
-#include <ostream>
 #include <string_view>
+#include <utility>
 
-#include "base/check.h"
 #include "base/containers/span.h"
 #include "base/i18n/base_i18n_export.h"
 #include "base/i18n/bcp47_extensions.h"
@@ -67,14 +63,10 @@ class BASE_I18N_EXPORT LanguageTag {
                                                     const LanguageTag& rhs) {
     return lhs.tag_string() <=> rhs.tag_string();
   }
-  constexpr friend std::ostream& operator<<(std::ostream& os,
-                                            const LanguageTag& lt) {
-    return os << lt.tag_string();
-  }
-  constexpr friend std::ostream& operator<<(
-      std::ostream& os,
-      const std::optional<LanguageTag>& opt) {
-    return opt ? os << *opt : os << "nullopt";
+
+  template <typename H>
+  friend H AbslHashValue(H h, const LanguageTag& tag) {
+    return H::combine(std::move(h), tag.tag_string());
   }
 
   // Returns the BCP47 language tag (e.g., "en-US", "zh-CN").
@@ -103,6 +95,8 @@ class BASE_I18N_EXPORT LanguageTag {
         .value_or(i18n_internal::ParsedBcp47Tag())
         .language;
   }
+  // Creates a new `LanguageTag` containing only the language subtag.
+  LanguageTag WithLanguageSubtagOnly() const;
 
   // Returns the region subtag in the language tag if present.
   // Examples:
@@ -136,7 +130,8 @@ class BASE_I18N_EXPORT LanguageTag {
   //   if (ext) {
   //     std::string_view val = ext->subtags_string(); // "ca-gregory"
   //   }
-  template <bcp47_extensions::ExtensionTrait T>
+  template <typename T>
+    requires(bcp47_extensions::ExtensionTrait<T>)
   std::optional<typename T::type> GetExtension(T traits) const {
     std::string_view extension = GetExtensionStringInternal(traits.key);
     if (extension.empty()) {
@@ -174,6 +169,13 @@ class BASE_I18N_EXPORT LanguageTag {
   ImmutableStringType tag_;
 };
 
+BASE_I18N_EXPORT std::ostream& operator<<(std::ostream& os,
+                                          const LanguageTag& lt);
+
+BASE_I18N_EXPORT std::ostream& operator<<(
+    std::ostream& os,
+    const std::optional<LanguageTag>& opt);
+
 }  // namespace base::i18n
 
 namespace base::i18n {
@@ -204,16 +206,5 @@ consteval LanguageTag GetKnownLanguageTag(std::string_view tag) {
 }
 
 }  // namespace base::i18n
-
-namespace std {
-
-template <>
-struct hash<base::i18n::LanguageTag> {
-  std::size_t operator()(const base::i18n::LanguageTag& tag) const {
-    return std::hash<std::string_view>()(tag.tag_string());
-  }
-};
-
-}  // namespace std
 
 #endif  // BASE_I18N_LANGUAGE_TAG_H_
