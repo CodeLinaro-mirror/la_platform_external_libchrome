@@ -1,3 +1,4 @@
+             - Test failures due to seccomp policy violations (seccomp kill) caused by underlying syscall changes in the libchrome implementation.
 ---
 name: libchrome-uprev
 description: Fix a failing libchrome uprev CL by delegating setup, reproduction, root cause analysis, and fix proposals.
@@ -5,12 +6,12 @@ description: Fix a failing libchrome uprev CL by delegating setup, reproduction,
 
 # Libchrome Uprev CL Fixing Skill
 
-Use this skill when the user asks you to fix a failing libchrome uprev CL. 
+Use this skill when the user asks you to fix a failing libchrome uprev CL.
 This skill heavily relies on subagent delegation to keep the main context clean and perform tasks efficiently.
 
 ## Prerequisites
 - The target CL number is provided by the user. An optional patchset may also be provided.
-- You have access to the helper script `scripts/get_cq_status.py` located in this skill's directory to check CQ status and find failing boards.
+- You have access to the helper script `scripts/get_cq_status.py` located in this skill's directory to check CQ status, find failing boards, and extract raw failed step details from Buildbucket.
 
 ## Execution Steps
 
@@ -41,4 +42,16 @@ Provide the subagent with these exact instructions:
   7. If the local build is successful, ask the human user for permission to upload. You MUST include a coherent summary of the fixes you applied compared to the base uprev CL. Do NOT upload without human approval.
   8. Upon human approval, run `repo upload` and apply a CQ+1 label.
   9. CQ verification can take anywhere from 20-30 minutes to many hours. Use the `schedule` tool (e.g., cron expression `*/15 * * * *`) to set up a recurring task to periodically run `.agents/skills/libchrome-uprev/scripts/get_cq_status.py <CL_NUMBER>` to monitor the CQ status without remaining blocked.
-  10. If a check reveals the CQ verification failed, update `build_failure.log` with the new CQ failure output, cancel any active schedules/timers, and immediately loop back to step 3 in this subagent to revise the fix. Do NOT restart the entire setup process. If the CQ passes, notify the main agent and the user that the task is complete.
+  10. When a CQ status check completes:
+      - Inspect the raw output from `get_cq_status.py`.
+      - **Agent Failure Analysis**:
+        - For any test step failures (e.g. `Results|tast.some.TestName`), use Buganizer CLI (`/google/bin/releases/issues-cli/issues readonly search "<TEST_NAME>"`) to check for open bugs.
+        - Evaluate whether failures are:
+          a) **Flake / Infra Failure**: Unrelated test step failures with open Buganizer bugs, hardware skip conditions, or GCE VM resource stockout errors.
+          b) **Libchrome Regression or Build Failure**:
+             - C++ compilation or GN build errors on any board builder. Note that an initial fix may expose build failures further down the line or on specific board configurations; multiple iterative rounds of fixes may be required.
+             - Test failures that appear directly caused by API/behavioral changes in the libchrome uprev.
+      - **Action**:
+        - If **Flake / Infra Failure**: Re-trigger `CQ+1` (e.g. `git cl try` or re-applying CQ+1 label). Post a comment on the Gerrit CL detailing the evidence (linked Buganizer bug IDs, stockout log) and notify the user in chat that CQ+1 is being retried due to suspected flake.
+        - If **Libchrome Regression or Build Failure**: Save the new build/test failure output to `build_failure.log`, cancel active schedules/timers, and loop back to step 3 in this subagent to analyze the new failure, reproduce it locally (`cros build-packages --board=<FAILING_BOARD> libchrome`), apply an updated fix, request human approval to upload, and re-trigger CQ.
+        - If **CQ SUCCESS**: Notify the main agent and user that CQ verification passed.
