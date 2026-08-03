@@ -18,8 +18,8 @@ libchrome_basever = read_file("BASE_VER", "trim string")
 # Enable //base/allocator shim for non-sanitizer builds.
 use_allocator_shim = !(use.asan || use.fuzzer || use.msan || use.ubsan)
 
-# We don't require legacy Mojo Core support if ipcz is enabled.
-mojo_support_legacy_core = !use.ipcz
+# Legacy Mojo Core was deleted upstream.
+mojo_support_legacy_core = false
 
 group("all") {
   deps = [
@@ -1350,85 +1350,47 @@ if (use.mojo) {
       "third_party/ipcz/src",
     ]
 
-    if (mojo_support_legacy_core) {
-      sources += [
-        "mojo/core/atomic_flag.cc",
-        "mojo/core/core.cc",
-        "mojo/core/data_pipe_consumer_dispatcher.cc",
-        "mojo/core/data_pipe_control_message.cc",
-        "mojo/core/data_pipe_producer_dispatcher.cc",
-        "mojo/core/dispatcher.cc",
-        "mojo/core/entrypoints.cc",
-        "mojo/core/handle_table.cc",
-        "mojo/core/invitation_dispatcher.cc",
-        "mojo/core/message_pipe_dispatcher.cc",
-        "mojo/core/node_channel.cc",
-        "mojo/core/node_controller.cc",
-        "mojo/core/platform_handle_dispatcher.cc",
-        "mojo/core/platform_shared_memory_mapping.cc",
-        "mojo/core/request_context.cc",
-        "mojo/core/shared_buffer_dispatcher.cc",
-        "mojo/core/user_message_impl.cc",
-        "mojo/core/watch.cc",
-        "mojo/core/watcher_dispatcher.cc",
-        "mojo/core/watcher_set.cc",
-        "mojo/core/ports/event.cc",
-        "mojo/core/ports/message_queue.cc",
-        "mojo/core/ports/name.cc",
-        "mojo/core/ports/node.cc",
-        "mojo/core/ports/port.cc",
-        "mojo/core/ports/port_locker.cc",
-        "mojo/core/ports/port_ref.cc",
-        "mojo/core/ports/user_message.cc",
-      ]
-    }
+    cflags = [ "-Wno-invalid-offsetof" ]
 
-    if (use.ipcz) {
-      cflags = [ "-Wno-invalid-offsetof" ]
+    sources += [
+      "third_party/ipcz/src/api.cc",
+      "third_party/ipcz/src/ipcz/api_context.cc",
+      "third_party/ipcz/src/ipcz/api_object.cc",
+      "third_party/ipcz/src/ipcz/application_object.cc",
+      "third_party/ipcz/src/ipcz/block_allocator.cc",
+      "third_party/ipcz/src/ipcz/block_allocator_pool.cc",
+      "third_party/ipcz/src/ipcz/box.cc",
+      "third_party/ipcz/src/ipcz/buffer_pool.cc",
+      "third_party/ipcz/src/ipcz/driver_memory.cc",
+      "third_party/ipcz/src/ipcz/driver_memory_mapping.cc",
+      "third_party/ipcz/src/ipcz/driver_object.cc",
+      "third_party/ipcz/src/ipcz/driver_transport.cc",
+      "third_party/ipcz/src/ipcz/features.cc",
+      "third_party/ipcz/src/ipcz/fragment.cc",
+      "third_party/ipcz/src/ipcz/fragment_ref.cc",
+      "third_party/ipcz/src/ipcz/link_side.cc",
+      "third_party/ipcz/src/ipcz/link_type.cc",
+      "third_party/ipcz/src/ipcz/local_router_link.cc",
+      "third_party/ipcz/src/ipcz/message.cc",
+      "third_party/ipcz/src/ipcz/node.cc",
+      "third_party/ipcz/src/ipcz/node_connector.cc",
+      "third_party/ipcz/src/ipcz/node_link.cc",
+      "third_party/ipcz/src/ipcz/node_link_memory.cc",
+      "third_party/ipcz/src/ipcz/node_messages.cc",
+      "third_party/ipcz/src/ipcz/node_name.cc",
+      "third_party/ipcz/src/ipcz/parcel.cc",
+      "third_party/ipcz/src/ipcz/parcel_wrapper.cc",
+      "third_party/ipcz/src/ipcz/pending_transaction_set.cc",
+      "third_party/ipcz/src/ipcz/ref_counted_fragment.cc",
+      "third_party/ipcz/src/ipcz/remote_router_link.cc",
+      "third_party/ipcz/src/ipcz/route_edge.cc",
+      "third_party/ipcz/src/ipcz/router.cc",
+      "third_party/ipcz/src/ipcz/router_link_state.cc",
+      "third_party/ipcz/src/ipcz/trap_event_dispatcher.cc",
+      "third_party/ipcz/src/ipcz/trap_set.cc",
+      "third_party/ipcz/src/util/ref_counted.cc",
+    ]
 
-      sources += [
-        "third_party/ipcz/src/api.cc",
-        "third_party/ipcz/src/ipcz/api_context.cc",
-        "third_party/ipcz/src/ipcz/api_object.cc",
-        "third_party/ipcz/src/ipcz/application_object.cc",
-        "third_party/ipcz/src/ipcz/block_allocator.cc",
-        "third_party/ipcz/src/ipcz/block_allocator_pool.cc",
-        "third_party/ipcz/src/ipcz/box.cc",
-        "third_party/ipcz/src/ipcz/buffer_pool.cc",
-        "third_party/ipcz/src/ipcz/driver_memory.cc",
-        "third_party/ipcz/src/ipcz/driver_memory_mapping.cc",
-        "third_party/ipcz/src/ipcz/driver_object.cc",
-        "third_party/ipcz/src/ipcz/driver_transport.cc",
-        "third_party/ipcz/src/ipcz/features.cc",
-        "third_party/ipcz/src/ipcz/fragment.cc",
-        "third_party/ipcz/src/ipcz/fragment_ref.cc",
-        "third_party/ipcz/src/ipcz/link_side.cc",
-        "third_party/ipcz/src/ipcz/link_type.cc",
-        "third_party/ipcz/src/ipcz/local_router_link.cc",
-        "third_party/ipcz/src/ipcz/message.cc",
-        "third_party/ipcz/src/ipcz/node.cc",
-        "third_party/ipcz/src/ipcz/node_connector.cc",
-        "third_party/ipcz/src/ipcz/node_link.cc",
-        "third_party/ipcz/src/ipcz/node_link_memory.cc",
-        "third_party/ipcz/src/ipcz/node_messages.cc",
-        "third_party/ipcz/src/ipcz/node_name.cc",
-        "third_party/ipcz/src/ipcz/parcel.cc",
-        "third_party/ipcz/src/ipcz/parcel_wrapper.cc",
-        "third_party/ipcz/src/ipcz/pending_transaction_set.cc",
-        "third_party/ipcz/src/ipcz/ref_counted_fragment.cc",
-        "third_party/ipcz/src/ipcz/remote_router_link.cc",
-        "third_party/ipcz/src/ipcz/route_edge.cc",
-        "third_party/ipcz/src/ipcz/router.cc",
-        "third_party/ipcz/src/ipcz/router_link_state.cc",
-        "third_party/ipcz/src/ipcz/trap_event_dispatcher.cc",
-        "third_party/ipcz/src/ipcz/trap_set.cc",
-        "third_party/ipcz/src/util/ref_counted.cc",
-      ]
-    } else {
-      sources += [
-        "third_party/ipcz/src/disable_api.cc",
-      ]
-    }
 
     #get_target_outputs(":mojom_bindings_native_gen")
 

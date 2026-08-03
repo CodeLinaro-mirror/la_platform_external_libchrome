@@ -1,0 +1,37 @@
+From 85fc63505e4785687eb5dd049f9b0ca2730c524a Mon Sep 17 00:00:00 2001
+From: Di Wu <diwux@google.com>
+Date: Mon, 3 Aug 2026 09:32:19 +0000
+Subject: [PATCH] Mark wrapped_ptr [[maybe_unused]] in
+ RawPtrNoOpImpl::ReportIfDangling
+
+Upstream commit 998ee10b6540 ("MiraclePtr: Add ReportIfDangling stub to
+RawPtrNoOpImpl") added a static no-op method ReportIfDangling(T* wrapped_ptr)
+to RawPtrNoOpImpl. Because wrapped_ptr is named but unused in the function
+body, ChromeOS packages compiling with -Werror and -Wunused-parameter
+(e.g., dev-util/puffin) fail to build.
+
+This patch marks wrapped_ptr with [[maybe_unused]] to avoid unused
+parameter compiler errors while preserving the no-op method signature.
+
+patch-name: long-term-3200-Mark-wrapped_ptr-maybe_unused-in-RawPtrNoOpImpl.patch
+Change-Id: I1f353367cfc59c25c27706f7d798e5bf0a5c7e60
+---
+ .../src/partition_alloc/pointers/raw_ptr_noop_impl.h            | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h b/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h
+index ffee82dc63..608c795abc 100644
+--- a/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h
++++ b/base/allocator/partition_allocator/src/partition_alloc/pointers/raw_ptr_noop_impl.h
+@@ -113,7 +113,7 @@ struct RawPtrNoOpImpl {
+   // to create a new raw_ptr<T> from another raw_ptr<T> of a different flavor.
+   // Report the current wrapped pointer if pointee isn't alive anymore.
+   template <typename T>
+-  PA_ALWAYS_INLINE static void ReportIfDangling(T* wrapped_ptr) {}
++  PA_ALWAYS_INLINE static void ReportIfDangling([[maybe_unused]] T* wrapped_ptr) {}
+ 
+   template <typename T>
+   PA_ALWAYS_INLINE static constexpr T* WrapRawPtrForDuplication(T* ptr) {
+-- 
+2.55.0.571.g244d577d93-goog
+

@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <array>
+#include "partition_alloc/buildflags.h"
 
-#include "partition_alloc/bucket_lookup.h"
-#include "partition_alloc/slot_start.h"
 #if !PA_BUILDFLAG(MEMORY_TOOL_REPLACES_ALLOCATOR)
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -23,8 +23,8 @@
 
 #include "partition_alloc/address_space_randomization.h"
 #include "partition_alloc/bounds_checks.h"
+#include "partition_alloc/bucket_lookup.h"
 #include "partition_alloc/build_config.h"
-#include "partition_alloc/buildflags.h"
 #include "partition_alloc/dangling_raw_ptr_checks.h"
 #include "partition_alloc/in_slot_metadata.h"
 #include "partition_alloc/internal/partition_root_internal.h"
@@ -53,6 +53,7 @@
 #include "partition_alloc/reservation_offset_table.h"
 #include "partition_alloc/scheduler_loop_quarantine_support.h"
 #include "partition_alloc/slot_address_and_size.h"
+#include "partition_alloc/slot_start.h"
 #include "partition_alloc/tagging.h"
 #include "partition_alloc/thread_isolation/thread_isolation.h"
 #include "partition_alloc/use_death_tests.h"
@@ -1680,6 +1681,42 @@ TEST_P(PartitionAllocTest, MTEProtectsFreedPtr) {
 
   // We don't check anything about ptr3, but we do clean it up to avoid DCHECKs.
   allocator.root()->Free(ptr3);
+}
+
+TEST_P(PartitionAllocTest, MTEProtectsFreedPtrViaSchedulerLoopQuarantine) {
+  base::CPU cpu;
+  if (!cpu.has_mte()) {
+    // This test won't pass on systems without MTE.
+    GTEST_SKIP();
+  }
+
+  ChangeMemoryTaggingModeForCurrentThread(
+      TagViolationReportingMode::kSynchronous);
+  ASSERT_TRUE(GetMemoryTaggingModeForCurrentThread() !=
+              TagViolationReportingMode::kDisabled)
+      << "Test was built with MTE enabled and the CPU supports it, but MTE is "
+         "currently disabled in the device.";
+
+  internal::ScopedSchedulerLoopQuarantineBranchAccessorForTesting branch(
+      allocator.root());
+
+  size_t alloc_size = 64 - ExtraAllocSize(allocator);
+  uint64_t* ptr1 =
+      static_cast<uint64_t*>(allocator.root()->Alloc(alloc_size, type_name));
+  EXPECT_TRUE(ptr1);
+
+  allocator.root()->Free<FreeFlags::kSchedulerLoopQuarantine>(ptr1);
+  EXPECT_TRUE(branch.IsQuarantined(ptr1));
+  branch.Purge();
+
+  // When we reallocate after purging from quarantine, we expect the same memory
+  // slot to be reused but with a different MTE tag.
+  uint64_t* ptr2 =
+      static_cast<uint64_t*>(allocator.root()->Alloc(alloc_size, type_name));
+  PA_EXPECT_PTR_EQ(ptr1, ptr2);
+  EXPECT_NE(ptr1, ptr2);
+
+  allocator.root()->Free(ptr2);
 }
 #endif  // PA_BUILDFLAG(HAS_MEMORY_TAGGING)
 
@@ -5155,7 +5192,7 @@ TEST_P(PartitionAllocDeathTest, AcquireAfterQuarantined) {
   // Make the object in-freelist or MO-quarantined.
   allocator.root()->Free(ptr);
   EXPECT_FALSE(in_slot_metadata->IsAlive());
-  EXPECT_FALSE(in_slot_metadata->HasNonZeroRefsForTesting());
+  EXPECT_FALSE(in_slot_metadata->HasNonZeroRefs());
 
   // Because of PA_CHECK, expect Acquire() always crash if death test is
   // supported.
@@ -5588,7 +5625,7 @@ TEST_P(PartitionAllocDeathTest, AcquireUnprotectedAfterQuarantined) {
   // Make the object in-freelist or MO-quarantined.
   allocator.root()->Free(ptr);
   EXPECT_FALSE(in_slot_metadata->IsAlive());
-  EXPECT_FALSE(in_slot_metadata->HasNonZeroRefsForTesting());
+  EXPECT_FALSE(in_slot_metadata->HasNonZeroRefs());
 
   // Because of PA_CHECK, expect AcquireFromProtectedPtr() always crash
   // if death test is supported.
@@ -6011,7 +6048,7 @@ TEST_P(PartitionAllocTest, ConfigurablePool) {
   const size_t min_pool_size = PartitionAddressSpace::ConfigurablePoolMinSize();
   for (size_t pool_size = max_pool_size; pool_size >= min_pool_size;
        pool_size /= 2) {
-    PA_DCHECK(base::bits::HasSingleBit(pool_size));
+    PA_DCHECK(std::has_single_bit(pool_size));
     EXPECT_FALSE(IsConfigurablePoolAvailable());
     uintptr_t pool_base =
         AllocPages(pool_size, pool_size,
