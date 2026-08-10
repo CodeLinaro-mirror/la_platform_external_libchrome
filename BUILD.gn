@@ -1285,6 +1285,7 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/async_flusher.cc",
           "mojo/public/cpp/bindings/connection_group.cc",
           "mojo/public/cpp/bindings/connection_group_ref.cc",
+          "mojo/public/cpp/bindings/deserialization_error.cc",
           "mojo/public/cpp/bindings/lib/array_internal.cc",
           "mojo/public/cpp/bindings/lib/associated_group.cc",
           "mojo/public/cpp/bindings/lib/associated_group_controller.cc",
