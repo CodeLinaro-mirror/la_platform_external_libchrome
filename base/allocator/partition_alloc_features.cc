@@ -132,6 +132,7 @@ constinit const FeatureParam<std::string>
     kPartitionAllocSchedulerLoopQuarantineConfig{
         &kPartitionAllocSchedulerLoopQuarantine,
         "PartitionAllocSchedulerLoopQuarantineConfig",
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
         R"({
           "browser":{
             "main":{
@@ -149,7 +150,20 @@ constinit const FeatureParam<std::string>
               "leak-on-destruction":false
             }
           }
-        })"};
+        })"
+#else
+        R"({
+          "*":{
+            "amsc":{
+              "branch-capacity-in-bytes":524288,
+              "enable-quarantine":true,
+              "enable-zapping":true,
+              "leak-on-destruction":false
+            }
+          }
+        })"
+#endif
+};
 
 BASE_FEATURE(kPartitionAllocEventuallyZeroFreedMemory,
              FEATURE_DISABLED_BY_DEFAULT);
@@ -233,15 +247,6 @@ constinit const FeatureParam<MemtagMode> kMemtagModeParam{
 #endif
     &kMemtagModeOptions};
 
-constexpr FeatureParam<RetagMode>::Option kRetagModeOptions[] = {
-    {RetagMode::kIncrement, "increment"},
-    {RetagMode::kRandom, "random"},
-};
-
-// Note: Do not use the prepared macro as of no need for a local cache.
-constinit const FeatureParam<RetagMode> kRetagModeParam{
-    &kPartitionAllocMemoryTagging, "retag-mode", RetagMode::kIncrement,
-    &kRetagModeOptions};
 
 constexpr FeatureParam<MemoryTaggingEnabledProcesses>::Option
     kMemoryTaggingEnabledProcessesOptions[] = {
@@ -432,13 +437,5 @@ BASE_FEATURE(kPartitionAllocUsePriorityInheritanceLocks,
              FEATURE_DISABLED_BY_DEFAULT);
 #endif  // PA_BUILDFLAG(ENABLE_PARTITION_LOCK_PRIORITY_INHERITANCE)
 
-// Note: There are two ChromeOS platforms (OVIS & REX) that are disabled for
-// this feature because of https://crbug.com/495493036.
-BASE_FEATURE(kPartitionAllocFreeWithSize, FEATURE_ENABLED_BY_DEFAULT);
-BASE_FEATURE_PARAM(bool,
-                   kPartitionAllocStrictFreeSizeCheck,
-                   &kPartitionAllocFreeWithSize,
-                   "strict-free-size-check",
-                   true);
 
 }  // namespace base::features

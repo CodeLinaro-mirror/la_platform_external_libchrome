@@ -110,11 +110,10 @@ diff --git a/base/system/sys_info_chromeos.cc b/base/system/sys_info_chromeos.cc
 index 9ed5257b87..445cbb63df 100644
 --- a/base/system/sys_info_chromeos.cc
 +++ b/base/system/sys_info_chromeos.cc
-@@ -9,12 +9,15 @@
+@@ -9,11 +9,14 @@
  #include <sys/utsname.h>
 
 +#include "base/command_line.h"
- #include "base/compiler_specific.h"
  #include "base/environment.h"
  #include "base/files/file.h"
  #include "base/files/file_path.h"

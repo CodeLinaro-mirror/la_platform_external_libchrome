@@ -1058,9 +1058,6 @@ void PartitionRoot::Init(PartitionOptions opts) {
     PA_CHECK(!settings_.memory_tagging_enabled_ ||
              settings_.pool_handle != internal::kConfigurablePoolHandle);
 
-    settings_.use_random_memory_tagging_ =
-        opts.memory_tagging.random_memory_tagging == PartitionOptions::kEnabled;
-
     settings_.memory_tagging_reporting_mode_ =
         opts.memory_tagging.reporting_mode;
 #endif  // PA_BUILDFLAG(HAS_MEMORY_TAGGING)
@@ -1154,11 +1151,6 @@ void PartitionRoot::Init(PartitionOptions opts) {
     settings_.metadata_offset_ =
         internal::GetMetadataOffset(settings_.pool_handle);
 #endif  // PA_CONFIG(MOVE_METADATA_OUT_OF_GIGACAGE)
-
-    settings_.enable_free_with_size =
-        (opts.free_with_size == PartitionOptions::kEnabled);
-    settings_.enable_strict_free_size_check =
-        (opts.strict_free_size_check == PartitionOptions::kEnabled);
 
     initialized_ = true;
   }
