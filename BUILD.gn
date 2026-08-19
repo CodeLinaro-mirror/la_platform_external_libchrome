@@ -18,9 +18,6 @@ libchrome_basever = read_file("BASE_VER", "trim string")
 # Enable //base/allocator shim for non-sanitizer builds.
 use_allocator_shim = !(use.asan || use.fuzzer || use.msan || use.ubsan)
 
-# Legacy Mojo Core was deleted upstream.
-mojo_support_legacy_core = false
-
 group("all") {
   deps = [
     ":install_basever",
@@ -83,14 +80,6 @@ config("libchrome_config") {
     defines += [
       "LEAK_SANITIZER",
       "DISABLE_ALLOCATOR_SANITIZER",
-    ]
-  }
-  if (use.ipcz) {
-    defines += [ "ENABLE_IPCZ_ON_CHROMEOS" ]
-  }
-  if (mojo_support_legacy_core) {
-    defines += [
-      "MOJO_CORE_LEGACY_PROTOCOL",
     ]
   }
 
@@ -389,10 +378,7 @@ buildflag_header("message_pump_buildflags") {
 
 buildflag_header("mojo_buildflags") {
   header = "mojo/buildflags.h"
-  flags = [
-    "MOJO_USE_APPLE_CHANNEL=false",
-    "MOJO_SUPPORT_LEGACY_CORE=$mojo_support_legacy_core",
-  ]
+  flags = [ "MOJO_USE_APPLE_CHANNEL=false" ]
 }
 
 buildflag_header("mojo_cpp_bindings_buildflags") {
@@ -1067,12 +1053,6 @@ if (use.asan) {
   libchrome_exported_cflags += [
     "-DLEAK_SANITIZER",
     "-DDISABLE_ALLOCATOR_SANITIZER",
-  ]
-}
-
-if (use.ipcz) {
-  libchrome_exported_cflags += [
-    "-DENABLE_IPCZ_ON_CHROMEOS",
   ]
 }
 
