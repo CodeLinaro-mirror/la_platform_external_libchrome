@@ -9,6 +9,7 @@ Updated in r1477790 (crrev.com/c/6665689).
 Updated in r1624070 (crrev.com/c/7812144).
 Updated in r1626560 (crrev.com/c/7828277).
 Updated in r1632053 (crrev.com/c/7856143).
+Updated in r1682187 (crrev.com/c/8265040).
 
 In the most recent update, upstream removed all of the previous
 functionality this patch has been using, so this adds it back in.  Also,
@@ -18,27 +19,33 @@ related.
 Change-Id: I465dc418929f7ed936d5a2c8be114ca8194acc7e
 patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
 ---
- base/rand_util_posix.cc | 11 +----------
- 1 file changed, 1 insertion(+), 10 deletions(-)
+ base/rand_util_posix.cc | 11 -----------
+ 1 file changed, 11 deletions(-)
 
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 49bf347d51..1cf96c589d 100644
+index 6560a29287..597fc33fa3 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
-@@ -22,11 +22,8 @@
- #include "base/system/sys_info.h"
+@@ -13,7 +13,6 @@
+ #include "base/feature_list.h"
  #include "base/time/time.h"
  #include "build/build_config.h"
 -#include "third_party/boringssl/src/include/openssl/rand.h"
  
+ #if BUILDFLAG(IS_MAC)
+ #include <sys/random.h>
+@@ -31,10 +30,6 @@
+ #include "base/system/sys_info.h"
+ #endif  // BUILDFLAG(IS_MAC)
+ 
 -#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
 -#include "third_party/lss/linux_syscall_support.h"
--#elif BUILDFLAG(IS_MAC)
-+#if BUILDFLAG(IS_MAC)
- #include <sys/random.h>
- #elif BUILDFLAG(IS_IOS)
- #include <CommonCrypto/CommonRandom.h>
-@@ -114,12 +111,6 @@ bool UseBoringSSLForRandBytes() {
+-#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+-
+ namespace base {
+ 
+ namespace {
+@@ -121,12 +116,6 @@ bool UseBoringSSLForRandBytes() {
  namespace {
  
  void RandBytesInternal(span<uint8_t> output, bool avoid_allocation) {
@@ -48,8 +55,8 @@ index 49bf347d51..1cf96c589d 100644
 -    (void)RAND_bytes(output.data(), output.size());
 -    return;
 -  }
- #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
-   // On Android it is mandatory to check that the kernel _version_ has the
-   // support for a syscall before calling. The same check is made on Linux and
+ #if BUILDFLAG(IS_MAC)
+   CHECK(getentropy(output.data(), output.size()) == 0);
+ #elif BUILDFLAG(IS_APPLE)
 -- 
-2.54.0.669.g59709faab0-goog
+2.55.0.737.g08866a6d13-goog
