@@ -5,6 +5,9 @@
 #ifndef BASE_I18N_ICUBRIDGE_DEFAULT_ICU_LOCALE_H_
 #define BASE_I18N_ICUBRIDGE_DEFAULT_ICU_LOCALE_H_
 
+#include <string>
+#include <string_view>
+
 #include "base/i18n/base_i18n_export.h"
 #include "base/i18n/language_tag.h"
 
@@ -32,6 +35,14 @@ namespace android_webview {
 void InitIcuAndResourceBundleBrowserSide();
 }
 
+namespace blink {
+class LocaleController;
+}
+
+namespace l10n_util {
+std::string GetApplicationLocale(std::string_view, bool);
+}
+
 namespace base::i18n {
 
 class ScopedDefaultIcuLocale;
@@ -50,7 +61,9 @@ class BASE_I18N_EXPORT DefaultIcuLocaleSetterKey {
 
  private:
   friend class ScopedDefaultIcuLocale;
-  friend void android_webview::InitIcuAndResourceBundleBrowserSide();
+  friend class ::blink::LocaleController;
+  friend void ::android_webview::InitIcuAndResourceBundleBrowserSide();
+  friend std::string(::l10n_util::GetApplicationLocale)(std::string_view, bool);
 
   DefaultIcuLocaleSetterKey() = default;
 };

@@ -1,98 +1,54 @@
-From 24247090d47c2708078214334c53ab379aa43de2 Mon Sep 17 00:00:00 2001
+From b61cbacbafeb4ad5071c3bf4ec2993e39ce5fbeb Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Tue, 2 Sep 2025 11:33:23 -0600
-Subject: [PATCH] Revert "base: remove support for RTLD_DEEPBIND in
- NativeLibrary"
+Subject: [PATCH] Support RTLD_DEEPBIND in NativeLibrary
 
-This reverts commit 7c39f1b44e2f341ae2f304de8de04c3aded9b21f.
+RTLD_DEEPBIND support in NativeLibrary was removed in upstream
+CL:6898456. However, it remains critical for several ChromeOS packages
+(including ML and Camera) to prevent symbol conflicts between
+proprietary libraries and system libraries (e.g., tflite).
+
+This patch adds `prefer_own_symbols` to base::NativeLibraryOptions and
+passes RTLD_DEEPBIND in base::LoadNativeLibraryWithOptions() on POSIX,
+preserving the API and ScopedNativeLibrary integration for ChromeOS
+clients.
+
+BUG=b:442614181
+TEST=sudo emerge libchrome
+
+Change-Id: I3177a0a84ea01969f17662b3b0e0d1201afe21e0
+patch-name: long-term-3100-Support-RTLD_DEEPBIND-in-NativeLibrary.patch
 ---
- base/native_library.cc                 | 15 +++++++
- base/native_library.h                  | 17 +++++++
- base/native_library_apple.mm           |  5 ++-
- base/native_library_posix.cc           | 18 ++++++--
+ base/native_library.h                  |  6 +++++
+ base/native_library_posix.cc           | 26 ++++++++---
  base/native_library_unittest.cc        | 61 ++++++++++++++++++++++++--
  base/test/native_library_test_utils.cc | 25 +++++++++++
  base/test/native_library_test_utils.h  | 29 ++++++++++++
  base/test/test_shared_library.cc       | 24 +++++++---
- 8 files changed, 178 insertions(+), 16 deletions(-)
- create mode 100644 base/native_library.cc
+ 6 files changed, 153 insertions(+), 18 deletions(-)
  create mode 100644 base/test/native_library_test_utils.cc
  create mode 100644 base/test/native_library_test_utils.h
 
-diff --git a/base/native_library.cc b/base/native_library.cc
-new file mode 100644
-index 0000000000..32c00e7673
---- /dev/null
-+++ b/base/native_library.cc
-@@ -0,0 +1,15 @@
-+// Copyright 2016 The Chromium Authors
-+// Use of this source code is governed by a BSD-style license that can be
-+// found in the LICENSE file.
-+
-+#include "base/native_library.h"
-+
-+namespace base {
-+
-+NativeLibrary LoadNativeLibrary(const FilePath& library_path,
-+                                NativeLibraryLoadError* error) {
-+  return LoadNativeLibraryWithOptions(library_path, NativeLibraryOptions(),
-+                                      error);
-+}
-+
-+}  // namespace base
 diff --git a/base/native_library.h b/base/native_library.h
-index bbd78d8f32..5c45d3b278 100644
+index 6145aa19c4..670c9f31cd 100644
 --- a/base/native_library.h
 +++ b/base/native_library.h
-@@ -57,6 +57,15 @@ struct BASE_EXPORT NativeLibraryLoadError {
- #endif  // BUILDFLAG(IS_WIN)
- };
- 
-+struct BASE_EXPORT NativeLibraryOptions {
+@@ -65,6 +65,12 @@ struct BASE_EXPORT NativeLibraryOptions {
+   // If true, enforces verification in non-release branded builds.
+   bool force_verify_in_dev_builds = false;
+ #endif
 +  // If |true|, a loaded library is required to prefer local symbol resolution
 +  // before considering global symbols. Note that this is already the default
 +  // behavior on most systems. Setting this to |false| does not guarantee the
 +  // inverse, i.e., it does not force a preference for global symbols over local
 +  // ones.
 +  bool prefer_own_symbols = false;
-+};
-+
+ };
+ 
  // Loads a native library from disk.  Release it with UnloadNativeLibrary when
- // you're done.  Returns NULL on failure.
- // If |error| is not NULL, it may be filled in on load error.
-@@ -82,6 +91,14 @@ PinSystemLibrary(FilePath::StringViewType name,
-                  NativeLibraryLoadError* error = nullptr);
- #endif
  
-+// Loads a native library from disk.  Release it with UnloadNativeLibrary when
-+// you're done.  Returns NULL on failure.
-+// If |error| is not NULL, it may be filled in on load error.
-+BASE_EXPORT NativeLibrary
-+LoadNativeLibraryWithOptions(const FilePath& library_path,
-+                             const NativeLibraryOptions& options,
-+                             NativeLibraryLoadError* error);
-+
- // Unloads a native library.
- BASE_EXPORT void UnloadNativeLibrary(NativeLibrary library);
- 
-diff --git a/base/native_library_apple.mm b/base/native_library_apple.mm
-index ab882f0764..d2ab98387f 100644
---- a/base/native_library_apple.mm
-+++ b/base/native_library_apple.mm
-@@ -26,8 +26,9 @@ std::string NativeLibraryLoadError::ToString() const {
-   return message;
- }
- 
--NativeLibrary LoadNativeLibrary(const FilePath& library_path,
--                                NativeLibraryLoadError* error) {
-+NativeLibrary LoadNativeLibraryWithOptions(const FilePath& library_path,
-+                                           const NativeLibraryOptions& options,
-+                                           NativeLibraryLoadError* error) {
-   // dlopen() etc. open the file off disk.
-   if (library_path.Extension() == "dylib" || !DirectoryExists(library_path)) {
-     void* dylib = dlopen(library_path.value().c_str(), RTLD_LAZY);
 diff --git a/base/native_library_posix.cc b/base/native_library_posix.cc
-index 56944c9ac2..e8fd06328d 100644
+index 7f8d25e6df..1c8ffbd2c4 100644
 --- a/base/native_library_posix.cc
 +++ b/base/native_library_posix.cc
 @@ -23,8 +23,9 @@ std::string NativeLibraryLoadError::ToString() const {
@@ -127,8 +83,23 @@ index 56944c9ac2..e8fd06328d 100644
    if (!dl && error) {
      error->message = dlerror();
    }
+@@ -40,10 +52,10 @@ NativeLibrary LoadNativeLibrary(const FilePath& library_path,
+   return dl;
+ }
+ 
+-NativeLibrary LoadNativeLibraryWithOptions(const FilePath& library_path,
+-                                           const NativeLibraryOptions& options,
+-                                           NativeLibraryLoadError* error) {
+-  return LoadNativeLibrary(library_path, error);
++NativeLibrary LoadNativeLibrary(const FilePath& library_path,
++                                NativeLibraryLoadError* error) {
++  return LoadNativeLibraryWithOptions(library_path, NativeLibraryOptions(),
++                                      error);
+ }
+ 
+ void UnloadNativeLibrary(NativeLibrary library) {
 diff --git a/base/native_library_unittest.cc b/base/native_library_unittest.cc
-index 142ae42f92..9c397d1c01 100644
+index 3b1e44bdcb..5beb772ef8 100644
 --- a/base/native_library_unittest.cc
 +++ b/base/native_library_unittest.cc
 @@ -7,6 +7,7 @@
@@ -136,10 +107,10 @@ index 142ae42f92..9c397d1c01 100644
  #include "base/files/file_path.h"
  #include "base/path_service.h"
 +#include "base/test/native_library_test_utils.h"
+ #include "build/branding_buildflags.h"
  #include "build/build_config.h"
  #include "testing/gtest/include/gtest/gtest.h"
- 
-@@ -88,7 +89,10 @@ const char kTestLibraryName[] =
+@@ -101,7 +102,10 @@ const char kTestLibraryName[] =
  
  class TestLibrary {
   public:
@@ -151,7 +122,7 @@ index 142ae42f92..9c397d1c01 100644
      base::FilePath exe_path;
  
  #if !BUILDFLAG(IS_FUCHSIA)
-@@ -97,11 +101,10 @@ class TestLibrary {
+@@ -110,11 +114,10 @@ class TestLibrary {
      CHECK(base::PathService::Get(base::DIR_EXE, &exe_path));
  #endif
  
@@ -165,7 +136,7 @@ index 142ae42f92..9c397d1c01 100644
    TestLibrary(const TestLibrary&) = delete;
    TestLibrary& operator=(const TestLibrary&) = delete;
    ~TestLibrary() { UnloadNativeLibrary(library_); }
-@@ -128,6 +131,56 @@ TEST(NativeLibraryTest, LoadLibrary) {
+@@ -208,6 +211,56 @@ TEST(NativeLibraryTest, LoadWithOptions_VerifySignatureDefault) {
  
  #endif  // !BUILDFLAG(IS_ANDROID)
  
@@ -330,5 +301,5 @@ index 72774323f7..56bfaa95c8 100644
 +
  }  // extern "C"
 -- 
-2.51.0.338.gd7d06c2dae-goog
+2.55.0.766.g2966f0265a-goog
 

@@ -593,7 +593,6 @@ libbase_sublibs = [
       "base/metrics/sample_vector.cc",
       "base/metrics/sparse_histogram.cc",
       "base/metrics/statistics_recorder.cc",
-      "base/native_library.cc",
       "base/native_library_posix.cc",
       "base/observer_list_internal.cc",
       "base/observer_list_threadsafe.cc",

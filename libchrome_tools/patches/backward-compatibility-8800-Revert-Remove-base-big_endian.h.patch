@@ -1,0 +1,81 @@
+From d89b100323f09aaff0329998d3401b72f37d7085 Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@google.com>
+Date: Mon, 24 Aug 2026 15:15:16 +0800
+Subject: [PATCH] Revert "Remove //base/big_endian.h"
+
+This reverts commit 9601f4775eab6fd3ca389b8525d3bb1d29cdb358.
+
+Change-Id: Id929e3cf9edcafde4b4faab5172eb24f01ea126a
+patch-name: backward-compatibility-8800-Revert-Remove-base-big_endian.h.patch
+---
+ base/big_endian.h                             | 24 +++++++++++++++++++
+ ...ons_perftest.cc => big_endian_perftest.cc} |  6 ++---
+ 2 files changed, 27 insertions(+), 3 deletions(-)
+ create mode 100644 base/big_endian.h
+ rename base/{byte_conversions_perftest.cc => big_endian_perftest.cc} (98%)
+
+diff --git a/base/big_endian.h b/base/big_endian.h
+new file mode 100644
+index 0000000000..fe4ee134ee
+--- /dev/null
++++ b/base/big_endian.h
+@@ -0,0 +1,24 @@
++// Copyright 2014 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef BASE_BIG_ENDIAN_H_
++#define BASE_BIG_ENDIAN_H_
++
++// TODO(danakj): Remove this header file, but it might be a pain since it's
++// included in a lot of places, and they may depend on these includes.
++
++#include <stddef.h>
++#include <stdint.h>
++#include <string.h>
++
++#include <optional>
++#include <string_view>
++#include <type_traits>
++
++#include "base/base_export.h"
++#include "base/compiler_specific.h"
++#include "base/containers/span.h"
++#include "base/memory/raw_span.h"
++
++#endif  // BASE_BIG_ENDIAN_H_
+diff --git a/base/byte_conversions_perftest.cc b/base/big_endian_perftest.cc
+similarity index 98%
+rename from base/byte_conversions_perftest.cc
+rename to base/big_endian_perftest.cc
+index 4b835cc5bf..8c68c032ba 100644
+--- a/base/byte_conversions_perftest.cc
++++ b/base/big_endian_perftest.cc
+@@ -2,13 +2,13 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-#include "base/numerics/byte_conversions.h"
++#include "base/big_endian.h"
+ 
+-#include <stddef.h>
+ #include <stdint.h>
+ 
+ #include "base/check.h"
+ #include "base/containers/span.h"
++#include "base/numerics/byte_conversions.h"
+ #include "testing/gtest/include/gtest/gtest.h"
+ #include "third_party/google_benchmark/src/include/benchmark/benchmark.h"
+ 
+@@ -125,7 +125,7 @@ void BM_ReadBigEndianMisaligned(::benchmark::State& state) {
+ // --gtest_filter and --gtest_list_tests.
+ // TODO(https://crbug.com/40251982): Clean this up after transitioning to
+ // --benchmark_filter and --benchmark_list_tests.
+-TEST(ByteConversionsPerfTest, All) {
++TEST(BigEndianPerfTest, All) {
+   BENCHMARK_FOR_INT_TYPES(BM_WriteBigEndianAligned);
+   BENCHMARK_FOR_INT_TYPES(BM_WriteBigEndianMisaligned);
+   BENCHMARK_FOR_INT_TYPES(BM_ReadBigEndianAligned);
+-- 
+2.55.0.766.g2966f0265a-goog
+
