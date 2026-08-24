@@ -1,0 +1,81 @@
+From 76bf8f31f2921c5a4550ebc9b17911ab9ebe098d Mon Sep 17 00:00:00 2001
+From: Kevin Lin <kevinptt@google.com>
+Date: Mon, 24 Aug 2026 12:38:15 +0800
+Subject: [PATCH] Adapt HashingLRUCache to Abseil 20240116.3
+
+Upstream Chromium migrated HashingLRUCache and HashingLRUCacheSet
+to use Abseil container defaults from
+<third_party/abseil-cpp/absl/container/hash_container_defaults.h>
+(absl::DefaultHashContainerHash and absl::DefaultHashContainerEq).
+
+However, hash_container_defaults.h was only introduced in Abseil
+20240722.rc1, whereas ChromeOS currently uses Abseil 20240116.3.
+
+Update base/containers/hashing_lru_cache.h to include
+<third_party/abseil-cpp/absl/container/internal/hash_function_defaults.h>
+and default to absl::container_internal::hash_default_hash and
+absl::container_internal::hash_default_eq.
+
+Also include base/containers/hashing_lru_cache.h in
+base/containers/lru_cache.h for backward compatibility with downstream
+packages.
+
+BUG=b:532384728
+TEST=sudo emerge libchrome
+
+Change-Id: I4d290f3eca79edd372ebcecd7e6b1bfb01e48e13
+---
+ base/containers/hashing_lru_cache.h | 10 +++++-----
+ base/containers/lru_cache.h         |  1 +
+ 2 files changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/base/containers/hashing_lru_cache.h b/base/containers/hashing_lru_cache.h
+index 3e2f7a49c6..13cc4404b2 100644
+--- a/base/containers/hashing_lru_cache.h
++++ b/base/containers/hashing_lru_cache.h
+@@ -10,7 +10,7 @@
+ 
+ #include "base/containers/lru_cache_internal.h"  // IWYU pragma: export
+ #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
+-#include "third_party/abseil-cpp/absl/container/hash_container_defaults.h"
++#include "third_party/abseil-cpp/absl/container/internal/hash_function_defaults.h"
+ 
+ namespace base {
+ 
+@@ -31,8 +31,8 @@ struct HashingLRUCacheKeyIndex {
+ // is defined as a call to `Put(k, v)` or `Get(k)`.
+ template <class KeyType,
+           class ValueType,
+-          class KeyHash = absl::DefaultHashContainerHash<KeyType>,
+-          class KeyEqual = absl::DefaultHashContainerEq<KeyType>>
++          class KeyHash = absl::container_internal::hash_default_hash<KeyType>,
++          class KeyEqual = absl::container_internal::hash_default_eq<KeyType>>
+ using HashingLRUCache = internal::LRUCacheBase<
+     std::pair<KeyType, ValueType>,
+     internal::GetKeyFromKVPair,
+@@ -45,8 +45,8 @@ using HashingLRUCache = internal::LRUCacheBase<
+ // `rbegin()` to `rend()`, where a "use" is defined as a call to `Put(v)` or
+ // `Get(v)`.
+ template <class ValueType,
+-          class Hash = absl::DefaultHashContainerHash<ValueType>,
+-          class Equal = absl::DefaultHashContainerEq<ValueType>>
++          class Hash = absl::container_internal::hash_default_hash<ValueType>,
++          class Equal = absl::container_internal::hash_default_eq<ValueType>>
+ using HashingLRUCacheSet =
+     internal::LRUCacheBase<ValueType,
+                            std::identity,
+diff --git a/base/containers/lru_cache.h b/base/containers/lru_cache.h
+index c56192f30b..134c1acc4a 100644
+--- a/base/containers/lru_cache.h
++++ b/base/containers/lru_cache.h
+@@ -23,6 +23,7 @@
+ #include <map>
+ #include <utility>
+ 
++#include "base/containers/hashing_lru_cache.h"  // IWYU pragma: export
+ #include "base/containers/lru_cache_internal.h"  // IWYU pragma: export
+ 
+ namespace base {
+-- 
+2.55.0.766.g2966f0265a-goog
+
