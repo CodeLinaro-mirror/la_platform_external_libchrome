@@ -373,8 +373,8 @@ static size_t PartitionPurgeSlotSpan(PartitionRoot* root,
   size_t discardable_bytes = 0;
 
   if (slot_span->CanStoreRawSize()) {
-    uint32_t utilized_slot_size = static_cast<uint32_t>(
-        RoundUpToSystemPage(slot_span->GetUtilizedSlotSize()));
+    uint32_t utilized_slot_size =
+        static_cast<uint32_t>(RoundUpToSystemPage(slot_span->GetRawSize()));
     discardable_bytes = bucket->slot_size - utilized_slot_size;
     if (discardable_bytes && !accounting_only) {
       SlotSpanStart slot_span_start =
@@ -1151,6 +1151,9 @@ void PartitionRoot::Init(PartitionOptions opts) {
     settings_.metadata_offset_ =
         internal::GetMetadataOffset(settings_.pool_handle);
 #endif  // PA_CONFIG(MOVE_METADATA_OUT_OF_GIGACAGE)
+
+    settings_.use_tighter_aligned_alloc_bound =
+        (opts.tighter_aligned_alloc_bound == PartitionOptions::kEnabled);
 
     initialized_ = true;
   }

@@ -1,0 +1,43 @@
+From ebc0a7fa71efe0f9fab36dae114cfd385b31b6bd Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Wed, 26 Aug 2026 07:56:56 +0000
+Subject: [PATCH] disable boringssl in memory_allocator_dump_guid
+
+Libchrome does not support boringssl. Revert crrev.com/c/8259782 in
+base/trace_event/memory_allocator_dump_guid.cc to use base::SHA1Hash
+instead of BoringSSL SHA256.
+
+Change-Id: I8d7936a245e0f5ab51d7e5afad80f076186fe099
+patch-name: long-term-0850-disable-boringssl-in-memory_allocator_dump_guid.patch
+---
+ base/trace_event/memory_allocator_dump_guid.cc | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/base/trace_event/memory_allocator_dump_guid.cc b/base/trace_event/memory_allocator_dump_guid.cc
+index 7197ad0d58..c3b25b0177 100644
+--- a/base/trace_event/memory_allocator_dump_guid.cc
++++ b/base/trace_event/memory_allocator_dump_guid.cc
+@@ -6,18 +6,16 @@
+ 
+ #include "base/containers/span.h"
+ #include "base/format_macros.h"
++#include "base/hash/sha1.h"
+ #include "base/numerics/byte_conversions.h"
+ #include "base/strings/stringprintf.h"
+-#include "third_party/boringssl/src/include/openssl/sha2.h"
+ 
+ namespace base::trace_event {
+ 
+ namespace {
+ 
+ uint64_t HashString(const std::string& str) {
+-  std::array<uint8_t, SHA256_DIGEST_LENGTH> digest;
+-  ::SHA256(reinterpret_cast<const uint8_t*>(str.data()), str.size(),
+-           digest.data());
++  SHA1Digest digest = SHA1Hash(base::as_byte_span(str));
+   return base::U64FromLittleEndian(base::span(digest).first<8u>());
+ }
+ 
+-- 
+2.55.0.860.g4b6b3295ed-goog
+

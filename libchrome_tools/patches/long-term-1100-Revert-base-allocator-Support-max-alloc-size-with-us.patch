@@ -1,6 +1,6 @@
-From 11e32bb7bfbcc3b4ec100de92aa62f752bfe10e9 Mon Sep 17 00:00:00 2001
-From: Nathan Muggli <nmuggli@google.com>
-Date: Mon, 8 Jul 2024 10:15:38 -0600
+From 27c455bccdc5a0582521f941d83d61741c2e1fd3 Mon Sep 17 00:00:00 2001
+From: Jeff Lin <jeffulin@google.com>
+Date: Wed, 26 Aug 2026 07:29:20 +0000
 Subject: [PATCH] Revert "[base/allocator] Support max alloc size with
  use_allocator = "none"."
 
@@ -19,11 +19,11 @@ This partially reverts
 Change-Id: If83feeb40d469d4f91e5f13255b96d5a986a459a
 patch-name: long-term-1100-Revert-base-allocator-Support-max-alloc-size-with-us.patch
 ---
- ...llocator_shim_default_dispatch_to_glibc.cc | 60 ++-----------------
- 1 file changed, 4 insertions(+), 56 deletions(-)
+ ...llocator_shim_default_dispatch_to_glibc.cc | 76 +------------------
+ 1 file changed, 4 insertions(+), 72 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
-index b82bf2187d..ebdb706d09 100644
+index 9532bcd45d..5360a71c75 100644
 --- a/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 +++ b/base/allocator/partition_allocator/src/partition_alloc/shim/allocator_shim_default_dispatch_to_glibc.cc
 @@ -28,28 +28,7 @@ namespace {
@@ -101,7 +101,7 @@ index b82bf2187d..ebdb706d09 100644
    return __libc_realloc(address, size);
  }
  
-@@ -103,10 +50,6 @@ void* GlibcMemalign(size_t alignment,
+@@ -103,21 +50,6 @@ void* GlibcMemalign(size_t alignment,
                      size_t size,
                      allocator_shim::AllocToken,
                      void* context) {
@@ -109,25 +109,38 @@ index b82bf2187d..ebdb706d09 100644
 -    partition_alloc::TerminateBecauseOutOfMemory(size);
 -  }
 -
+-  return __libc_memalign(alignment, size);
+-}
+-
+-void* GlibcUncheckedMemalign(size_t alignment,
+-                             size_t size,
+-                             allocator_shim::AllocToken,
+-                             void* context) {
+-  if (size >= kMaxAllowedSize) [[unlikely]] {
+-    return nullptr;
+-  }
+-
    return __libc_memalign(alignment, size);
  }
  
-@@ -147,12 +90,12 @@ size_t GlibcGetSizeEstimate(void* address, void* context) {
+@@ -158,13 +90,13 @@ size_t GlibcGetSizeEstimate(void* address, void* context) {
  
  const AllocatorDispatch AllocatorDispatch::default_dispatch = {
-     &GlibcMalloc,           /* alloc_function */
--    &GlibcUncheckedMalloc,  /* alloc_unchecked_function */
-+    &GlibcMalloc,           /* alloc_unchecked_function */
-     &GlibcCalloc,           /* alloc_zero_initialized_function */
--    &GlibcUncheckedCalloc,  /* alloc_zero_initialized_unchecked_function */
-+    &GlibcCalloc,           /* alloc_zero_initialized_unchecked_function */
-     &GlibcMemalign,         /* alloc_aligned_function */
-     &GlibcRealloc,          /* realloc_function */
--    &GlibcUncheckedRealloc, /* realloc_unchecked_function */
-+    &GlibcRealloc,          /* realloc_unchecked_function */
-     &GlibcFree,             /* free_function */
-     GlibcFreeWithSize,      /* free_with_size_function */
+     &GlibcMalloc,            /* alloc_function */
+-    &GlibcUncheckedMalloc,   /* alloc_unchecked_function */
++    &GlibcMalloc,            /* alloc_unchecked_function */
+     &GlibcCalloc,            /* alloc_zero_initialized_function */
+-    &GlibcUncheckedCalloc,   /* alloc_zero_initialized_unchecked_function */
++    &GlibcCalloc,            /* alloc_zero_initialized_unchecked_function */
+     &GlibcMemalign,          /* alloc_aligned_function */
+-    &GlibcUncheckedMemalign, /* alloc_aligned_unchecked_function */
++    &GlibcMemalign,          /* alloc_aligned_unchecked_function */
+     &GlibcRealloc,           /* realloc_function */
+-    &GlibcUncheckedRealloc,  /* realloc_unchecked_function */
++    &GlibcRealloc,           /* realloc_unchecked_function */
+     &GlibcFree,              /* free_function */
+     GlibcFreeWithSize,       /* free_with_size_function */
      GlibcFreeWithAlignment,
 -- 
-2.53.0.rc1.217.geba53bf80e-goog
+2.55.0.860.g4b6b3295ed-goog
 
