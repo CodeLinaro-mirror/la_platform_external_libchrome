@@ -16,13 +16,18 @@ Update base/containers/hashing_lru_cache.h to include
 and default to absl::container_internal::hash_default_hash and
 absl::container_internal::hash_default_eq.
 
+Also include base/containers/hashing_lru_cache.h in
+base/containers/lru_cache.h for backward compatibility with downstream
+packages.
+
 BUG=b:532384728
 TEST=sudo emerge libchrome
 
 Change-Id: I4d290f3eca79edd372ebcecd7e6b1bfb01e48e13
 ---
  base/containers/hashing_lru_cache.h | 10 +++++-----
- 1 file changed, 5 insertions(+), 5 deletions(-)
+ base/containers/lru_cache.h         |  1 +
+ 2 files changed, 6 insertions(+), 5 deletions(-)
 
 diff --git a/base/containers/hashing_lru_cache.h b/base/containers/hashing_lru_cache.h
 index 3e2f7a49c6..13cc4404b2 100644
@@ -59,6 +64,18 @@ index 3e2f7a49c6..13cc4404b2 100644
  using HashingLRUCacheSet =
      internal::LRUCacheBase<ValueType,
                             std::identity,
+diff --git a/base/containers/lru_cache.h b/base/containers/lru_cache.h
+index c56192f30b..134c1acc4a 100644
+--- a/base/containers/lru_cache.h
++++ b/base/containers/lru_cache.h
+@@ -23,6 +23,7 @@
+ #include <map>
+ #include <utility>
+ 
++#include "base/containers/hashing_lru_cache.h"  // IWYU pragma: export
+ #include "base/containers/lru_cache_internal.h"  // IWYU pragma: export
+ 
+ namespace base {
 -- 
 2.55.0.766.g2966f0265a-goog
 
