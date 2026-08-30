@@ -1,0 +1,71 @@
+From f768ced1d8f5d833087ed90f2001a82f0ed3f23e Mon Sep 17 00:00:00 2001
+From: Georg Neis <neis@chromium.org>
+Date: Tue, 1 Sep 2026 04:12:28 +0000
+Subject: [PATCH] Revert "Remove base::KiBU, MiBU, etc."
+
+This reverts commit 36f2e0c9d8e3401858badcb275d6e122c74b3dbd.
+---
+ base/byte_size.h                              | 33 +++++++++++++++++++
+ .../memory_limit_unittest.cc                  |  2 +-
+ 2 files changed, 34 insertions(+), 1 deletion(-)
+
+diff --git a/base/byte_size.h b/base/byte_size.h
+index 57f718c320..71299612f8 100644
+--- a/base/byte_size.h
++++ b/base/byte_size.h
+@@ -562,6 +562,39 @@ constexpr ByteSizeDelta EiBS(T eib) {
+                                              1024.0 * 1024.0 * 1024.0));
+ }
+ 
++// Deprecated aliases for unsigned KiB()/MiB(), etc.
++// TODO(crbug.com/448661443): Remove all uses of these.
++
++template <typename T>
++constexpr ByteSize KiBU(T kib) {
++  return KiB(kib);
++}
++
++template <typename T>
++constexpr ByteSize MiBU(T mib) {
++  return MiB(mib);
++}
++
++template <typename T>
++constexpr ByteSize GiBU(T gib) {
++  return GiB(gib);
++}
++
++template <typename T>
++constexpr ByteSize TiBU(T tib) {
++  return TiB(tib);
++}
++
++template <typename T>
++constexpr ByteSize PiBU(T pib) {
++  return PiB(pib);
++}
++
++template <typename T>
++constexpr ByteSize EiBU(T eib) {
++  return EiB(eib);
++}
++
+ // Stream operators for logging and testing.
+ 
+ BASE_EXPORT std::ostream& operator<<(std::ostream& os, ByteSize size);
+diff --git a/base/memory_coordinator/memory_limit_unittest.cc b/base/memory_coordinator/memory_limit_unittest.cc
+index 9be1ab976b..0de207dd4d 100644
+--- a/base/memory_coordinator/memory_limit_unittest.cc
++++ b/base/memory_coordinator/memory_limit_unittest.cc
+@@ -78,7 +78,7 @@ TEST(MemoryLimitTest, ScaleIntegral) {
+ 
+ TEST(MemoryLimitTest, ScaleByteSize) {
+   constexpr MemoryLimit limit_50 = MemoryLimit::FromPercent(50);
+-  EXPECT_EQ(limit_50.Scale(KiB(100)), KiB(50));
++  EXPECT_EQ(limit_50.Scale(KiBU(100)), KiBU(50));
+ }
+ 
+ #if defined(GTEST_HAS_DEATH_TEST)
+-- 
+2.55.0.897.gb25b4bd76c-goog
+
