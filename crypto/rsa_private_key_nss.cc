@@ -13,6 +13,7 @@
 #include <memory>
 
 #include "base/logging.h"
+#include "base/notreached.h"
 #include "base/strings/string_util.h"
 #include "crypto/nss_key_util.h"
 #include "crypto/nss_util.h"
@@ -97,9 +98,7 @@ RSAPrivateKey* RSAPrivateKey::CreateFromKey(SECKEYPrivateKey* key) {
   copy->key_ = SECKEY_CopyPrivateKey(key);
   copy->public_key_ = SECKEY_ConvertToPublicKey(key);
   if (!copy->key_ || !copy->public_key_) {
-    NOTREACHED_IN_MIGRATION();
-    delete copy;
-    return NULL;
+    NOTREACHED();
   }
   return copy;
 }
