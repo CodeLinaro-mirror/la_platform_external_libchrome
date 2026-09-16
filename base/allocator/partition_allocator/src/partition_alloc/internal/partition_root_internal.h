@@ -14,6 +14,7 @@
 #include "partition_alloc/buildflags.h"
 #include "partition_alloc/in_slot_metadata.h"
 #include "partition_alloc/internal/partition_page_internal.h"
+#include "partition_alloc/internal/partition_root_internal_forward.h"
 #include "partition_alloc/internal/reservation_offset_table_internal.h"
 #include "partition_alloc/internal/thread_cache_internal.h"
 #include "partition_alloc/partition_address_space.h"
@@ -928,9 +929,9 @@ PA_ALWAYS_INLINE void PartitionRoot::RawFreeWithThreadCache(
   // direct-mapped allocations are uncommon.
   internal::ThreadCache* thread_cache = GetThreadCache();
   // TODO(crbug.com/467243745): Once
-  // `internal::ThreadCache::active_bucket_count_` becomes a per-class
+  // `internal::ThreadCache::largest_active_bucket_index_` becomes a per-class
   // variable, remove the initialization check in `IsValid` and reuse the
-  // `bucket_index >= active_bucket_count_` within `MaybePutInCache`.
+  // `bucket_index > largest_active_bucket_index_` within `MaybePutInCache`.
   if (internal::ThreadCache::IsValid(thread_cache) &&
       (size_details.slot_size <= BucketIndexLookup::kMaxBucketSize))
       [[likely]] {
