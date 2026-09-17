@@ -1,4 +1,4 @@
-From 812237934487ce10c2c7eee36842138970842648 Mon Sep 17 00:00:00 2001
+From 19e20d6cd79b8d60963749b1556360394fa629b4 Mon Sep 17 00:00:00 2001
 From: Sami Kyostila <skyostil@chromium.org>
 Date: Mon, 14 Aug 2023 04:50:32 +0000
 Subject: [PATCH] base/trace_event: Don't initialize Perfetto for testing
@@ -14,10 +14,10 @@ patch-name: long-term-1050-Don-t-initialize-Perfetto-for-testing.patch
  1 file changed, 4 insertions(+)
 
 diff --git a/base/trace_event/trace_event_impl.cc b/base/trace_event/trace_event_impl.cc
-index 71322477f2..e73ade4bbf 100644
+index 599cb19de2..b46007b572 100644
 --- a/base/trace_event/trace_event_impl.cc
 +++ b/base/trace_event/trace_event_impl.cc
-@@ -341,7 +341,9 @@ void TraceEvent::AppendPrettyPrinted(std::ostringstream* out) const {
+@@ -85,7 +85,9 @@ void TraceEvent::InitArgs(TraceArguments* args) {
  }
  
  void SetPerfettoInitializedForTesting() {
@@ -27,15 +27,15 @@ index 71322477f2..e73ade4bbf 100644
  }
  
  bool IsPerfettoInitializedForTesting() {
-@@ -349,6 +351,7 @@ bool IsPerfettoInitializedForTesting() {
+@@ -93,6 +95,7 @@ bool IsPerfettoInitializedForTesting() {
  }
  
- void InitializeInProcessPerfettoBackend() {
+ void InitializeInProcessPerfettoBackend(perfetto::Platform* platform) {
 +#if 0
    perfetto::TracingInitArgs init_args;
+   init_args.platform = platform;
    init_args.backends = perfetto::BackendType::kInProcessBackend;
-   init_args.shmem_batch_commits_duration_ms = 1000;
-@@ -357,6 +360,7 @@ void InitializeInProcessPerfettoBackend() {
+@@ -102,6 +105,7 @@ void InitializeInProcessPerfettoBackend(perfetto::Platform* platform) {
    init_args.disallow_merging_with_system_tracks = true;
    perfetto::Tracing::Initialize(init_args);
    TrackEvent::Register();
@@ -44,5 +44,5 @@ index 71322477f2..e73ade4bbf 100644
  
  }  // namespace base::trace_event
 -- 
-2.51.0.318.gd7df087d1a-goog
+2.55.0.1082.g2b9226bbc0-goog
 
