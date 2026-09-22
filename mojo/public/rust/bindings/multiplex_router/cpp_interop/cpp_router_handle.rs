@@ -20,7 +20,7 @@ use system::scoped_handle_interop::ScopedMessageHandleWrapper;
 
 use crate::message::{MojomMessage, ReadableWithHandlesMessage, SendableMessage};
 use crate::multiplex_router::response_sender::ResponseSender;
-use crate::multiplex_router::{EndpointInfo, InterfaceId};
+use crate::multiplex_router::{EndpointInfo, InterfaceId, INVALID_INTERFACE_ID};
 
 use super::cxx::ffi;
 
@@ -32,12 +32,6 @@ use super::cxx::ffi;
 /// C++ concepts.
 pub struct CppRouterHandle {
     adapter: cxx::UniquePtr<ffi::AssociatedEndpointRustAdapter>,
-}
-
-impl Drop for CppRouterHandle {
-    fn drop(&mut self) {
-        self.close();
-    }
 }
 
 impl CppRouterHandle {
@@ -69,9 +63,13 @@ impl CppRouterHandle {
         interface_id: Option<InterfaceId>,
         endpoint_info: Option<EndpointInfo>,
     ) -> Option<Self> {
-        // `InterfaceId::MAX` is a signal for `RegisterNewEndpoint` to generate
-        // a fresh interface ID.
-        let id_val = interface_id.unwrap_or(InterfaceId::MAX);
+        assert!(
+            interface_id != Some(INVALID_INTERFACE_ID),
+            "kInvalidInterfaceId is not a valid interface ID"
+        );
+        // Here, INVALID_INTERFACE_ID is used as a signal to request a new ID be
+        // allocated.
+        let id_val = interface_id.unwrap_or(INVALID_INTERFACE_ID);
         let new_adapter = self.adapter.RegisterNewEndpoint(id_val);
         let mut handle = Self::new(new_adapter)?;
         if let Some(info) = endpoint_info {
@@ -90,13 +88,6 @@ impl CppRouterHandle {
         let info = Box::new(endpoint_info);
         let runner = task_runner.as_scoped_refptr();
         self.adapter.pin_mut().Bind(runner, info);
-    }
-
-    /// Close the endpoint and send disconnect notification over the IPC pipe.
-    pub fn close(&mut self) {
-        if let Some(adapter) = self.adapter.as_mut() {
-            adapter.Close();
-        }
     }
 }
 
@@ -126,18 +117,10 @@ impl CppResponseSender {
         Self { responder }
     }
 
-    /// Create a copy of this sender which can be used to register new
-    /// endpoints, but can't be used to send messages (since the underlying
-    /// C++ message sending part can't be cloned).
-    pub(crate) fn registrar_only(&self) -> Self {
-        Self::new(self.responder.CloneAsRegistrar())
-    }
-
-    pub(crate) fn send_message(&self, msg: MojomMessage) {
+    pub(crate) fn send_message(self, msg: MojomMessage) {
         assert!(
-            self.responder.CanSendResponse(),
-            "Tried to send a response to a message that didn't expect one \
-            (or via a ResponseSender that was cloned as registrar-only)."
+            !self.responder.is_null() && self.responder.CanSendResponse(),
+            "Tried to send a response to a message that didn't expect one."
         );
         let sendable: SendableMessage = msg.into();
         let handle = MessageHandle::from(sendable);
@@ -150,9 +133,13 @@ impl CppResponseSender {
         interface_id: Option<InterfaceId>,
         endpoint_info: Option<EndpointInfo>,
     ) -> Option<CppRouterHandle> {
-        // `InterfaceId::MAX` is a signal for `RegisterNewEndpoint` to generate
-        // a fresh interface ID.
-        let id_val = interface_id.unwrap_or(InterfaceId::MAX);
+        assert!(
+            interface_id != Some(INVALID_INTERFACE_ID),
+            "kInvalidInterfaceId is not a valid interface ID"
+        );
+        // Here, INVALID_INTERFACE_ID is used as a signal to request a new ID be
+        // allocated.
+        let id_val = interface_id.unwrap_or(INVALID_INTERFACE_ID);
         let new_adapter = self.responder.RegisterNewEndpoint(id_val);
         let mut handle = CppRouterHandle::new(new_adapter)?;
         if let Some(info) = endpoint_info {

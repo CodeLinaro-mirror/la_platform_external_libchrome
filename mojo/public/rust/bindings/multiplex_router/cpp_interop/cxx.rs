@@ -60,9 +60,6 @@ pub mod ffi {
         /// Returns the associated interface ID assigned to this endpoint.
         fn GetInterfaceId(self: &AssociatedEndpointRustAdapter) -> u32;
 
-        /// Closes `self` and notifies its peer that the interface is closed
-        fn Close(self: Pin<&mut AssociatedEndpointRustAdapter>);
-
         /// Sends an outgoing Mojom IPC message through the C++ endpoint.
         fn SendMessage(
             self: &AssociatedEndpointRustAdapter,
@@ -82,15 +79,12 @@ pub mod ffi {
         type MojoResponderWrapper;
 
         /// Sends a reply message through the C++ responder object.
+        /// May only be called once.
         /// The name is counterintuitive, but that's the C++ naming scheme.
         fn Accept(
             self: &MojoResponderWrapper,
             message_wrapper: UniquePtr<ScopedMessageHandleWrapper>,
-        ) -> bool;
-
-        /// Creates a copy of the responder that cannot send messages, but can
-        /// still register new associated endpoints.
-        fn CloneAsRegistrar(self: &MojoResponderWrapper) -> UniquePtr<MojoResponderWrapper>;
+        );
 
         /// Returns true if this responder can send messages.
         fn CanSendResponse(self: &MojoResponderWrapper) -> bool;
@@ -107,14 +101,12 @@ pub mod ffi {
 // SAFETY: Neither of the fields of `AssociatedEndpointRustAdapter` care about
 // which thread they're on.
 unsafe impl Send for ffi::AssociatedEndpointRustAdapter {}
-// SAFETY: All `&self` methods on `AssociatedEndpointRustAdapter`
-// (`SendMessage`, `Close`, `RegisterNewEndpoint`) are thread-safe or
-// sequence-bound. The only danger is that `Bind` must not be called
-// concurrently with anything else, which is enforced by taking &mut.
+// SAFETY: All `&self` methods on `AssociatedEndpointRustAdapter` are
+// thread-safe. `SendMessage()` automatically bounces to the bound sequence if
+// called off-sequence. `Bind()` mutates the adapter and is safely protected by
+// taking `&mut self`.
 unsafe impl Sync for ffi::AssociatedEndpointRustAdapter {}
 
 // SAFETY: `MojoResponderWrapper` wraps a C++ `base::SequenceBound`, so
-// all its methods are thread-safe by design.
+// it can be safely transferred across threads.
 unsafe impl Send for ffi::MojoResponderWrapper {}
-// SAFETY: As Above
-unsafe impl Sync for ffi::MojoResponderWrapper {}
