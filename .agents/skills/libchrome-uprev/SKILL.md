@@ -48,19 +48,21 @@ Provide the subagent with these exact instructions:
      4. Run `cros workon --board=<BOARD> start libchrome`.
      5. Run `cros build-packages --board=<BOARD> libchrome` again to reproduce the failure locally and redirect the output/error into `build_failure.log`. (Note: If `libchrome` builds cleanly locally because the failure was in a downstream client package unit test such as `update_engine`, keep the remote `build_failure.log` downloaded by `--fetch-logs` in step 2).
    - **If `Standalone Tryjob Mode`**:
-     1. Fetch and check out the target CL directly via Git using `<GERRIT_REF>` from `get_cq_status.py`:
+     1. Fetch and check out the target CL directly via Git using `<GERRIT_REF>` from `get_cq_status.py` (prefixing with `GIT_CONFIG_GLOBAL=/dev/null` so `sso://chromium/` rewrites in `~/.gitconfig` do not fail when CorpSSO cookies expire):
         ```bash
-        git fetch https://chromium.googlesource.com/chromiumos/platform/libchrome <GERRIT_REF>
+        GIT_CONFIG_GLOBAL=/dev/null git fetch https://chromium.googlesource.com/chromiumos/platform/libchrome <GERRIT_REF>
         git checkout -B uprev-fix FETCH_HEAD
         ```
-     2. Use the remote failure log already downloaded into `build_failure.log` by `get_cq_status.py --fetch-logs`. No local build is required.
+     2. Check `Build Compilation Status` printed by `get_cq_status.py`:
+        - If `Build Compilation Status: PASSED (All failures are downstream HW/VM test suites; no compilation fixes needed)` and `Representative Failing Board: None`, **skip local/tryjob compilation** and proceed directly to Step 2.6 (Full CQ Monitoring & Failure Triage) to check if the failing HW/VM Tast tests have open Buganizer bugs and re-trigger CQ!
+        - Otherwise, use the remote failure log already downloaded into `build_failure.log` by `get_cq_status.py --fetch-logs` (including `Generator Build (libchrome-uprev)` failures when the automated uprev builder failed before CQ).
 4. **Generate Git History**:
    - Find the base commit prior to the uprev merge commit (`<MERGE_COMMIT>`) and save the commit history diff:
      ```bash
      git log --stat <MERGE_COMMIT>...HEAD > git_history.log
      ```
 5. **Report to Main Agent**:
-   - Tell the main agent you have completed setup, stating the detected mode (`Local Chroot Mode` or `Standalone Tryjob Mode`), the chosen `<BOARD>`, and a brief summary of the failure from `build_failure.log`.
+   - Tell the main agent you have completed setup, stating the detected mode (`Local Chroot Mode` or `Standalone Tryjob Mode`), `Build Compilation Status`, the chosen `<BOARD>`, and a brief summary of the failure from `build_failure.log`.
 
 ---
 
@@ -81,28 +83,24 @@ Provide the subagent with these exact instructions:
    - **If `Local Chroot Mode`**:
      1. Verify the fix locally by running `cros build-packages --board=<BOARD> libchrome`. If this local build fails, write the new build errors to `build_failure.log` and immediately loop back to step 3 to propose a modified fix. Do NOT invoke a new setup process or recreate the workspace.
      2. Once the local build succeeds, **ask the human user for permission to upload**. You MUST include a coherent summary of the fixes you applied compared to the base uprev CL. Do NOT upload without human approval.
-     3. Upon human approval, amend your commit (`git commit -a --amend`) and **update the commit message body** so that any changes made on top of the automated uprev are clearly described in the commit body (do NOT use `--no-edit` without describing the fixes). Then run `repo upload` (or `git push https://chromium.googlesource.com/chromiumos/platform/libchrome HEAD:refs/for/main`), and apply a `CQ+1` label:
+     3. Upon human approval, amend your commit (`git commit -a --amend`) and **update the commit message body** so that any changes made on top of the automated uprev are clearly described in the commit body (do NOT use `--no-edit` without describing the fixes). Then push to Gerrit and apply a `CQ+1` label using `get_cq_status.py --push --set-cq 1`:
         ```bash
-        python3 .agents/skills/libchrome-uprev/scripts/get_cq_status.py <CL_NUMBER> --set-cq 1
+        python3 .agents/skills/libchrome-uprev/scripts/get_cq_status.py <CL_NUMBER> --push --set-cq 1
         ```
      4. Proceed to step 6 (Full CQ Monitoring).
 
    - **If `Standalone Tryjob Mode`**:
      1. Because remote tryjobs build patches directly from Gerrit, testing a fix requires uploading a new patchset first. **Ask the human user for permission** to upload the candidate patchset to Gerrit, launch a single-board `<BOARD>-cq` tryjob, and automatically trigger `CQ+1` if the tryjob passes. You MUST include a coherent summary of the proposed fixes. Do NOT upload without human approval.
-     2. Upon human approval, amend the commit (`git commit -a --amend`) and **update the commit message body** so that any changes made on top of the automated uprev are clearly described in the commit body (do NOT use `--no-edit` without describing the fixes), then push the new patchset to Gerrit:
+     2. Upon human approval, amend the commit (`git commit -a --amend`) and **update the commit message body** so that any changes made on top of the automated uprev are clearly described in the commit body (do NOT use `--no-edit` without describing the fixes), then push the new patchset and launch the single-board tryjob using `get_cq_status.py`:
         ```bash
         git commit -a --amend -m "<updated commit message with description of uprev fixes in body>"
-        git push https://chromium.googlesource.com/chromiumos/platform/libchrome HEAD:refs/for/main
+        python3 .agents/skills/libchrome-uprev/scripts/get_cq_status.py <CL_NUMBER> --push --tryjob <BOARD>
         ```
-     3. Launch a fast single-board CQ tryjob (`chromeos/<BOARD>/<BOARD>-cq`) directly via `bb add` using `get_cq_status.py --tryjob <BOARD>` (this runs only `<BOARD>-cq` using prebuilt Chrome and CQ caches rather than a slow multi-board `try release` orchestrator):
+     3. Wait for the single-board tryjob to finish (either via `--wait --fetch-logs build_failure.log` in a background task or via the `schedule` tool with cron expression `*/10 * * * *`):
         ```bash
-        python3 .agents/skills/libchrome-uprev/scripts/get_cq_status.py <CL_NUMBER> --tryjob <BOARD>
+        python3 .agents/skills/libchrome-uprev/scripts/get_cq_status.py <CL_NUMBER> --wait --fetch-logs build_failure.log
         ```
-     4. Use the `schedule` tool (e.g., cron expression `*/10 * * * *`) to periodically check the single-board tryjob status without remaining blocked:
-        ```bash
-        python3 .agents/skills/libchrome-uprev/scripts/get_cq_status.py <CL_NUMBER> --fetch-logs build_failure.log
-        ```
-     5. When the tryjob status check completes (`Run Type: Single-Board Tryjob`):
+     4. When the tryjob status check completes (`Run Type: Single-Board Tryjob`):
         - If `CQ Status: FAILURE` or `INFRA_FAILURE`: Cancel active schedules/timers, inspect the newly downloaded `build_failure.log`, loop back to step 3 to revise the fix, request human approval to upload the updated patchset, and re-run `--tryjob <BOARD>`.
         - If `CQ Status: SUCCESS`: Cancel the tryjob timer, verify that the commit message body describes all changes made on top of the automated uprev (amending and re-pushing if needed), and trigger full `CQ+1` on Gerrit:
           ```bash

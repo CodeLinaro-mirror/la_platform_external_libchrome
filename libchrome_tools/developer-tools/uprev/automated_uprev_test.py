@@ -219,3 +219,13 @@ class TestParseGitMergeSummary(unittest.TestCase):
         added_files, removed_files = ParseGitMergeSummary(merge_summary)
         self.assertEqual(added_files, [])
         self.assertEqual(removed_files, ["init_file.cc"])
+
+    def test_renamed_files(self):
+        merge_summary = [
+            " rename base/{old_foo.cc => new_foo.cc} (94%)",
+            " rename ipc/old_bar.cc => mojo/new_bar.cc (88%)",
+            " rename base/{foo_unittest.cc => bar_unittest.cc} (99%)",
+        ]
+        added_files, removed_files = ParseGitMergeSummary(merge_summary)
+        self.assertEqual(added_files, ["base/new_foo.cc", "mojo/new_bar.cc"])
+        self.assertEqual(removed_files, ["base/old_foo.cc", "ipc/old_bar.cc"])

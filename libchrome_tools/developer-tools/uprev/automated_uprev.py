@@ -486,16 +486,43 @@ def UpdatePatches(revision: int) -> (typing.List[str]):
     return obsolete_patches
 
 
+def _ExpandGitRenamePath(rename_expr: str) -> typing.Tuple[str, str]:
+    """Expands a git rename expression (e.g. 'base/{old.cc => new.cc}' or 'a.cc => b.cc')."""
+    # Strip trailing similarity score such as ' (95%)'
+    if " (" in rename_expr and rename_expr.endswith("%)"):
+        rename_expr = rename_expr[: rename_expr.rfind(" (")].strip()
+    if "{" in rename_expr and "}" in rename_expr and " => " in rename_expr:
+        prefix = rename_expr[: rename_expr.index("{")]
+        suffix = rename_expr[rename_expr.index("}") + 1 :]
+        inner = rename_expr[rename_expr.index("{") + 1 : rename_expr.index("}")]
+        old_part, new_part = inner.split(" => ", 1)
+        old_path = os.path.normpath(f"{prefix}{old_part}{suffix}")
+        new_path = os.path.normpath(f"{prefix}{new_part}{suffix}")
+        return old_path, new_path
+    if " => " in rename_expr:
+        old_path, new_path = rename_expr.split(" => ", 1)
+        return old_path.strip(), new_path.strip()
+    return "", ""
+
+
 def ParseGitMergeSummary(merge_summary: typing.List[str]) -> GitMergeSummary:
     """Returns list of non-test .cc source files added and deleted according to
     git merge command output.
     """
-    # Each of the added files and deleted files will be shown in a line in form
-    # 'create mode <permission> foo.cc' or 'delete mode <permission> foo.cc'.
+    # Each of the added, deleted, or renamed files will be shown in a line in form
+    # 'create mode <permission> foo.cc', 'delete mode <permission> foo.cc', or
+    # 'rename path/{old.cc => new.cc} (95%)'.
     added_files = []
     deleted_files = []
     for line in merge_summary:
         line = line.strip()
+        if line.startswith("rename "):
+            old_file, new_file = _ExpandGitRenamePath(line[len("rename ") :])
+            if old_file.endswith(".cc") and "unittest" not in old_file:
+                deleted_files.append(old_file)
+            if new_file.endswith(".cc") and "unittest" not in new_file:
+                added_files.append(new_file)
+            continue
         if not line.startswith("create") and not line.startswith("delete"):
             continue
 
@@ -628,11 +655,14 @@ def CreateUprevCommit(
 
     UpdateBaseVer(revision)
 
-    _, removed_files = ParseGitMergeSummary(merge_summary)
+    added_files, removed_files = ParseGitMergeSummary(merge_summary)
     removed_from_gn_files = UpdateBuildGn(removed_files)
     if removed_from_gn_files:
         message.append(f"Update to {BUILD_GN_FILE} sources:")
         message.extend(["  * remove " + f for f in removed_from_gn_files])
+    if added_files:
+        message.append("Added non-test .cc files in upstream merge:")
+        message.extend(["  * " + f for f in added_files])
 
     removed_patches = UpdatePatches(revision)
     if removed_patches:

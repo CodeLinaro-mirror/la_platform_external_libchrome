@@ -90,14 +90,65 @@ def resolve_cq_builder(board):
   return f'chromeos/{base_board}/{builder_name}'
 
 
+def get_unmerged_cq_depend_urls(commit_msg):
+  """Parse Cq-Depend lines and return Gerrit patchset URLs for any unmerged dependent CLs."""
+  import re
+  dep_urls = []
+  token = None
+  for line in commit_msg.splitlines():
+    if not line.lower().startswith('cq-depend:'):
+      continue
+    rhs = line.split(':', 1)[1]
+    for item in rhs.split(','):
+      item = item.strip()
+      m = re.match(r'^(?:(chromium|chrome-internal):)?(\d+)$', item)
+      if not m:
+        continue
+      host_prefix = m.group(1) or 'chromium'
+      dep_cl = m.group(2)
+      host = (
+          'chrome-internal-review.googlesource.com'
+          if host_prefix == 'chrome-internal'
+          else 'chromium-review.googlesource.com'
+      )
+      api_prefix = '/a' if host_prefix == 'chrome-internal' else ''
+      url = f'https://{host}{api_prefix}/changes/{dep_cl}?o=CURRENT_REVISION'
+      req = urllib.request.Request(url)
+      if host_prefix == 'chrome-internal':
+        if token is None:
+          token = get_auth_token(
+              scopes=(
+                  'https://www.googleapis.com/auth/gerritcodereview'
+                  ' https://www.googleapis.com/auth/userinfo.email'
+              )
+          )
+        req.add_header('Authorization', f'Bearer {token}')
+      try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+          raw = resp.read().decode('utf-8')
+          if raw.startswith(")]}'"):
+            raw = raw.split('\n', 1)[1]
+          data = json.loads(raw)
+          if data.get('status') == 'NEW':
+            proj = data.get('project', '')
+            ps = (
+                data.get('revisions', {})
+                .get(data.get('current_revision', ''), {})
+                .get('_number', 1)
+            )
+            dep_urls.append(f'https://{host}/c/{proj}/+/{dep_cl}/{ps}')
+      except Exception:
+        continue
+  return dep_urls
+
+
 def launch_single_board_tryjob(cl_number, board, patchset=None):
   """Schedule a single-board <board>-cq build directly via `bb add`."""
   change = get_change_info(cl_number)
-  latest_ps_num = (
-      change.get('revisions', {})
-      .get(change.get('current_revision', ''), {})
-      .get('_number')
+  cur_rev = change.get('revisions', {}).get(
+      change.get('current_revision', ''), {}
   )
+  latest_ps_num = cur_rev.get('_number')
   if patchset is None:
     patchset = latest_ps_num
 
@@ -105,10 +156,17 @@ def launch_single_board_tryjob(cl_number, board, patchset=None):
   builder = resolve_cq_builder(board)
   bb_bin = get_bb_binary()
 
+  cmd = [bb_bin, 'add', '-cl', cl_url]
+  commit_msg = cur_rev.get('commit', {}).get('message', '')
+  for dep_url in get_unmerged_cq_depend_urls(commit_msg):
+    print(f'Including unmerged Cq-Depend CL in tryjob: {dep_url}')
+    cmd.extend(['-cl', dep_url])
+  cmd.append(builder)
+
   print(f'Launching single-board CQ tryjob: {builder} for CL {cl_number} (patchset {patchset})...')
   try:
     output = subprocess.check_output(
-        [bb_bin, 'add', '-cl', cl_url, builder],
+        cmd,
         stderr=subprocess.STDOUT,
     ).decode('utf-8', errors='replace')
     print(output.strip())
@@ -117,9 +175,8 @@ def launch_single_board_tryjob(cl_number, board, patchset=None):
     sys.exit(1)
 
 
-
 def get_change_info(cl_number):
-  url = f'https://chromium-review.googlesource.com/changes/{cl_number}?o=CURRENT_REVISION'
+  url = f'https://chromium-review.googlesource.com/changes/{cl_number}?o=CURRENT_REVISION&o=CURRENT_COMMIT'
   req = urllib.request.Request(url)
   try:
     with urllib.request.urlopen(req) as response:
@@ -134,14 +191,53 @@ def get_change_info(cl_number):
 
 def set_gerrit_review(cl_number, cq_vote=None, comment=None):
   token = get_auth_token(
-      scopes='https://www.googleapis.com/auth/gerritcodereview'
+      scopes=(
+          'https://www.googleapis.com/auth/gerritcodereview'
+          ' https://www.googleapis.com/auth/userinfo.email'
+      )
   )
   url = f'https://chromium-review.googlesource.com/a/changes/{cl_number}/revisions/current/review'
   payload = {}
   if cq_vote is not None:
     payload['labels'] = {'Commit-Queue': int(cq_vote)}
+    if int(cq_vote) == 2:
+      payload['labels']['Verified'] = 1
   if comment:
     payload['message'] = comment
+
+  # Also propagate matching CQ vote to any unmerged Cq-Depend CLs so LUCI CV
+  # does not reject the run due to missing/mismatched dependency CQ modes.
+  if cq_vote in (1, 2):
+    try:
+      change = get_change_info(cl_number)
+      cur_rev = change.get('revisions', {}).get(
+          change.get('current_revision', ''), {}
+      )
+      commit_msg = cur_rev.get('commit', {}).get('message', '')
+      for dep_url in get_unmerged_cq_depend_urls(commit_msg):
+        dep_host = (
+            'chrome-internal-review.googlesource.com'
+            if 'chrome-internal-review' in dep_url
+            else 'chromium-review.googlesource.com'
+        )
+        parts = dep_url.rstrip('/').split('/')
+        dep_cl = parts[-2]
+        dep_rev_url = f'https://{dep_host}/a/changes/{dep_cl}/revisions/current/review'
+        dep_payload = {'labels': dict(payload['labels'])}
+        dep_req = urllib.request.Request(
+            dep_rev_url,
+            data=json.dumps(dep_payload).encode('utf-8'),
+            method='POST',
+        )
+        dep_req.add_header('Authorization', f'Bearer {token}')
+        dep_req.add_header('Content-Type', 'application/json')
+        urllib.request.urlopen(dep_req, timeout=5)
+        print(
+            f'Propagated {dep_payload["labels"]} to unmerged Cq-Depend CL'
+            f' {dep_host} {dep_cl}'
+        )
+    except Exception as e:
+      print(f'Warning: Failed to propagate CQ label to Cq-Depend CLs: {e}')
 
   req = urllib.request.Request(
       url, data=json.dumps(payload).encode('utf-8'), method='POST'
@@ -249,6 +345,9 @@ def extract_board_name(builder_name):
     if ex in builder_name:
       return None
 
+  if builder_name == 'libchrome-uprev':
+    return 'amd64-generic'
+
   # Exclude staging CQ builders (e.g. staging-brya-cq), but allow cros-try builders (staging-brya-release-main)
   if builder_name.startswith('staging-') and builder_name.endswith('-cq'):
     return None
@@ -268,6 +367,168 @@ def extract_board_name(builder_name):
   return None
 
 
+def is_compile_or_unit_test_failure(details, summary_markdown=''):
+  """Return True if a builder failed during compilation, package install, or unit tests."""
+  compile_keywords = (
+      'build_packages',
+      'buildpackages',
+      'installpackages',
+      'install_packages',
+      'verify uprev commit',
+      'ebuild_tests',
+      'testpackages',
+      'unit tests',
+      'failed compilation',
+      'emerge',
+  )
+  test_only_prefixes = (
+      'suite executions',
+      'summarize|bvt-',
+      'summarize|cq-',
+      'bvt-tast',
+      'hw test',
+  )
+  steps = details.get('steps', [])
+  failed_steps = [s for s in steps if s.get('status') == 'FAILURE']
+  for s in failed_steps:
+    name_lower = s.get('name', '').lower()
+    reason_lower = s.get('summaryMarkdown', '').lower()
+    if any(k in name_lower or k in reason_lower for k in compile_keywords):
+      return True
+  summary_lower = (
+      summary_markdown or details.get('summaryMarkdown', '')
+  ).lower()
+  if any(k in summary_lower for k in compile_keywords):
+    return True
+  if details.get('status') == 'INFRA_FAILURE':
+    return False
+  if failed_steps and all(
+      any(p in s.get('name', '').lower() for p in test_only_prefixes)
+      or s.get('name', '').lower() == 'summarize'
+      for s in failed_steps
+  ):
+    return False
+  return True
+
+
+def push_to_gerrit(remote_ref=None):
+  """Push current HEAD to Gerrit over HTTPS using luci-auth OAuth2 token."""
+  token = get_auth_token(
+      scopes=(
+          'https://www.googleapis.com/auth/gerritcodereview'
+          ' https://www.googleapis.com/auth/userinfo.email'
+      )
+  )
+  env = os.environ.copy()
+  env['GIT_CONFIG_GLOBAL'] = '/dev/null'
+  env['GERRIT_TOKEN'] = token
+  helper = (
+      '!f() { echo username=git-luci; echo "password=${GERRIT_TOKEN}"; }; f'
+  )
+
+  # Ensure HEAD commit has a Gerrit Change-Id footer before pushing
+  try:
+    commit_msg = subprocess.check_output(
+        ['git', 'log', '-1', '--format=%B'],
+        env=env,
+        stderr=subprocess.DEVNULL,
+    ).decode('utf-8', errors='replace')
+    if 'Change-Id:' not in commit_msg:
+      git_dir = (
+          subprocess.check_output(
+              ['git', 'rev-parse', '--git-dir'],
+              env=env,
+              stderr=subprocess.DEVNULL,
+          )
+          .decode('utf-8')
+          .strip()
+      )
+      hook_path = os.path.join(git_dir, 'hooks', 'commit-msg')
+      os.makedirs(os.path.dirname(hook_path), exist_ok=True)
+      if not os.path.exists(hook_path):
+        urllib.request.urlretrieve(
+            'https://chromium-review.googlesource.com/tools/hooks/commit-msg',
+            hook_path,
+        )
+        os.chmod(hook_path, 0o755)
+      subprocess.check_call(
+          ['git', 'commit', '--amend', '--no-edit'],
+          env=env,
+      )
+  except Exception:
+    pass
+
+  repo_url = 'https://chromium.googlesource.com/chromiumos/platform/libchrome'
+  try:
+    origin_url = (
+        subprocess.check_output(
+            ['git', 'remote', 'get-url', 'origin'],
+            env=env,
+            stderr=subprocess.DEVNULL,
+        )
+        .decode('utf-8')
+        .strip()
+    )
+    if origin_url.startswith('sso://chromium/'):
+      repo_url = 'https://chromium.googlesource.com/' + origin_url[
+          len('sso://chromium/') :
+      ]
+    elif origin_url.startswith('sso://chrome-internal/'):
+      repo_url = 'https://chrome-internal.googlesource.com/' + origin_url[
+          len('sso://chrome-internal/') :
+      ]
+    elif origin_url.startswith('https://'):
+      repo_url = origin_url
+  except Exception:
+    pass
+
+  if not remote_ref:
+    branch = 'main'
+    try:
+      sym = (
+          subprocess.check_output(
+              ['git', 'symbolic-ref', 'refs/remotes/origin/HEAD'],
+              env=env,
+              stderr=subprocess.DEVNULL,
+          )
+          .decode('utf-8')
+          .strip()
+      )
+      if sym.endswith('/master'):
+        branch = 'master'
+    except Exception:
+      pass
+    remote_ref = f'HEAD:refs/for/{branch}'
+
+  cmd = [
+      'git',
+      '-c',
+      f'credential.helper={helper}',
+      'push',
+      repo_url,
+      remote_ref,
+  ]
+  print(f'Pushing {remote_ref} to {repo_url} via luci-auth...')
+  try:
+    output = subprocess.check_output(
+        cmd, env=env, stderr=subprocess.STDOUT
+    ).decode('utf-8', errors='replace')
+    print(output.strip())
+  except subprocess.CalledProcessError as e:
+    err_text = e.output.decode('utf-8', errors='replace')
+    if 'branch main not found' in err_text and 'refs/for/main' in remote_ref:
+      fallback_ref = remote_ref.replace('refs/for/main', 'refs/for/master')
+      cmd[-1] = fallback_ref
+      print(f'Retrying with {fallback_ref}...')
+      output = subprocess.check_output(
+          cmd, env=env, stderr=subprocess.STDOUT
+      ).decode('utf-8', errors='replace')
+      print(output.strip())
+      return
+    print(f'Error pushing to Gerrit:\n{err_text}')
+    sys.exit(1)
+
+
 def fetch_failure_logs(failing_builders_details, output_path):
   """Fetch failed step logs using `bb log` and write them to output_path."""
   bb_bin = get_bb_binary()
@@ -283,7 +544,9 @@ def fetch_failure_logs(failing_builders_details, output_path):
       step_name = s.get('name', '')
       for log_meta in s.get('logs', []):
         log_name = log_meta.get('name', '')
-        if log_name.endswith(' log') and log_name not in seen_log_names:
+        if (
+            log_name.endswith(' log') or 'libchrome' in log_name
+        ) and log_name not in seen_log_names:
           seen_log_names.add(log_name)
           collected_logs.append((builder_name, build_id, step_name, log_name))
 
@@ -334,7 +597,15 @@ def fetch_failure_logs(failing_builders_details, output_path):
   print(f'\nSaved detailed failure logs to: {output_path} ({size_bytes} bytes)')
 
 
-def get_cq_status(cl_number, patchset=None, fetch_logs_path=None):
+def get_cq_status(
+    cl_number,
+    patchset=None,
+    fetch_logs_path=None,
+    wait=False,
+    poll_interval=120,
+):
+  import time
+
   change = get_change_info(cl_number)
   latest_ps_num = (
       change.get('revisions', {})
@@ -351,135 +622,163 @@ def get_cq_status(cl_number, patchset=None, fetch_logs_path=None):
   print(f'Patchset: {patchset}')
   print(f'Gerrit Fetch Ref: {gerrit_ref}')
 
-  builds = search_builds(cl_number, patchset)
+  while True:
+    builds = search_builds(cl_number, patchset)
+    if not builds:
+      if (
+          change.get('status') == 'MERGED'
+          and int(patchset) >= int(latest_ps_num)
+      ):
+        print('CQ Status: SUCCESS (MERGED)')
+        print('No failing boards identified (CL was submitted).')
+      else:
+        print('CQ Status: UNKNOWN (No builds found)')
+        print('No failing boards identified.')
+      return
 
-  if not builds:
-    if change.get('status') == 'MERGED' and int(patchset) >= int(latest_ps_num):
-      print('CQ Status: SUCCESS (MERGED)')
-      print('No failing boards identified (CL was submitted).')
-    else:
-      print('CQ Status: UNKNOWN (No builds found)')
-      print('No failing boards identified.')
-    return
+    # Buildbucket IDs use inverted timestamps: smaller int(id) == newer build
+    builds.sort(key=lambda b: int(b['id']))
 
-  # Buildbucket IDs use inverted timestamps: smaller int(id) == newer build
-  builds.sort(key=lambda b: int(b['id']))
+    # Find all orchestrator runs sorted newest first
+    orchestrators = [
+        b
+        for b in builds
+        if b['builder']['builder']
+        in ('cq-orchestrator', 'staging-release-main-orchestrator')
+    ]
 
-  # Find all orchestrator runs sorted newest first
-  orchestrators = [
-      b
-      for b in builds
-      if b['builder']['builder']
-      in ('cq-orchestrator', 'staging-release-main-orchestrator')
-  ]
+    def get_builds_for_orch(orch_index):
+      """Return latest build per builder within the time window of orchestrators[orch_index]."""
+      orch_build = orchestrators[orch_index]
+      max_id = int(orch_build['id'])
+      min_id = int(orchestrators[orch_index - 1]['id']) if orch_index > 0 else 0
+      window_builds = {}
+      for b in builds:
+        bid = int(b['id'])
+        if min_id < bid <= max_id:
+          name = b['builder']['builder']
+          if name not in window_builds:
+            window_builds[name] = b
+      return window_builds
 
-  def get_builds_for_orch(orch_index):
-    """Return latest build per builder within the time window of orchestrators[orch_index]."""
-    orch_build = orchestrators[orch_index]
-    max_id = int(orch_build['id'])
-    min_id = int(orchestrators[orch_index - 1]['id']) if orch_index > 0 else 0
-    window_builds = {}
-    for b in builds:
-      bid = int(b['id'])
-      # Child builds are spawned after or at the same time as their parent orchestrator (bid <= max_id)
-      # and before the newer orchestrator started (bid > min_id)
-      if min_id < bid <= max_id:
-        name = b['builder']['builder']
-        if name not in window_builds:
-          window_builds[name] = b
-    return window_builds
-
-  # Standalone single-board tryjobs are root builds (no ancestorIds) that are not orchestrators
-  all_standalone = [
-      b
-      for b in builds
-      if not b.get('ancestorIds')
-      and 'orchestrator' not in b['builder']['builder']
-  ]
-  standalone_builds = []
-  if all_standalone:
-    if not orchestrators:
+    # Standalone single-board tryjobs are root builds (no ancestorIds) that are not orchestrators
+    # Exclude `libchrome-uprev` generator build if an orchestrator or board tryjob also exists
+    all_standalone = [
+        b
+        for b in builds
+        if not b.get('ancestorIds')
+        and 'orchestrator' not in b['builder']['builder']
+    ]
+    non_generator_standalone = [
+        b
+        for b in all_standalone
+        if b['builder']['builder'] != 'libchrome-uprev'
+    ]
+    standalone_builds = []
+    if non_generator_standalone:
+      if not orchestrators:
+        standalone_builds = non_generator_standalone
+      else:
+        latest_orch_id = int(orchestrators[0]['id'])
+        standalone_builds = [
+            b
+            for b in non_generator_standalone
+            if int(b['id']) < latest_orch_id
+        ]
+    elif not orchestrators and all_standalone:
       standalone_builds = all_standalone
+
+    if standalone_builds or not orchestrators:
+      if (
+          len(standalone_builds) == 1
+          and standalone_builds[0]['builder']['builder'] == 'libchrome-uprev'
+      ):
+        run_type = 'Generator Build (libchrome-uprev)'
+      else:
+        run_type = 'Single-Board Tryjob'
+      target_pool = standalone_builds if standalone_builds else builds
+      active_builders = {}
+      for b in target_pool:
+        name = b['builder']['builder']
+        if name not in active_builders:
+          active_builders[name] = b
+      running = any(
+          b['status'] in ('STARTED', 'SCHEDULED')
+          for b in active_builders.values()
+      )
+      failed = any(
+          b['status'] in ('FAILURE', 'INFRA_FAILURE', 'CANCELED')
+          for b in active_builders.values()
+      )
+      if running:
+        cq_status = 'RUNNING'
+      elif failed:
+        cq_status = 'FAILURE'
+      else:
+        cq_status = 'SUCCESS'
+      failing_builders = {
+          k: v
+          for k, v in active_builders.items()
+          if v['status'] in ('FAILURE', 'INFRA_FAILURE')
+      }
     else:
-      latest_orch_id = int(orchestrators[0]['id'])
-      # Inverted timestamps: smaller int(id) == newer build
-      standalone_builds = [
-          b for b in all_standalone if int(b['id']) < latest_orch_id
-      ]
+      orch = orchestrators[0]
+      run_type = (
+          'cros-try'
+          if orch['builder']['builder'] == 'staging-release-main-orchestrator'
+          else 'CQ'
+      )
+      active_builders = get_builds_for_orch(0)
 
-  if standalone_builds or not orchestrators:
-    run_type = 'Single-Board Tryjob'
-    target_pool = standalone_builds if standalone_builds else builds
-    active_builders = {}
-    for b in target_pool:
-      name = b['builder']['builder']
-      if name not in active_builders:
-        active_builders[name] = b
-    running = any(
-        b['status'] in ('STARTED', 'SCHEDULED')
-        for b in active_builders.values()
-    )
-    failed = any(
-        b['status'] in ('FAILURE', 'INFRA_FAILURE', 'CANCELED')
-        for b in active_builders.values()
-    )
-    if running:
-      cq_status = 'RUNNING'
-    elif failed:
-      cq_status = 'FAILURE'
-    else:
-      cq_status = 'SUCCESS'
-    failing_builders = {
-        k: v
-        for k, v in active_builders.items()
-        if v['status'] in ('FAILURE', 'INFRA_FAILURE')
-    }
-  else:
-    orch = orchestrators[0]
-    run_type = (
-        'cros-try'
-        if orch['builder']['builder'] == 'staging-release-main-orchestrator'
-        else 'CQ'
-    )
-    active_builders = get_builds_for_orch(0)
+      if orch['status'] == 'SUCCESS':
+        cq_status = 'SUCCESS'
+      elif orch['status'] in ('FAILURE', 'INFRA_FAILURE', 'CANCELED'):
+        cq_status = orch['status']
+      else:
+        cq_status = 'RUNNING'
 
-    if orch['status'] == 'SUCCESS':
-      cq_status = 'SUCCESS'
-    elif orch['status'] in ('FAILURE', 'INFRA_FAILURE', 'CANCELED'):
-      cq_status = orch['status']
-    else:
-      cq_status = 'RUNNING'
+      failing_builders = {
+          k: v
+          for k, v in active_builders.items()
+          if v['status'] in ('FAILURE', 'INFRA_FAILURE')
+      }
 
-    failing_builders = {
-        k: v
-        for k, v in active_builders.items()
-        if v['status'] in ('FAILURE', 'INFRA_FAILURE')
-    }
+      if (
+          cq_status == 'RUNNING'
+          and not failing_builders
+          and len(orchestrators) > 1
+      ):
+        for prev_idx in range(1, len(orchestrators)):
+          prev_orch = orchestrators[prev_idx]
+          if prev_orch['status'] in ('FAILURE', 'INFRA_FAILURE'):
+            prev_builders = get_builds_for_orch(prev_idx)
+            prev_failing = {
+                k: v
+                for k, v in prev_builders.items()
+                if v['status'] in ('FAILURE', 'INFRA_FAILURE')
+            }
+            if prev_failing:
+              print(
+                  f'Note: A new {run_type} run is currently RUNNING with no'
+                  ' failures yet. Showing failures from previous failed run.'
+              )
+              failing_builders = prev_failing
+              break
 
-    # If the newest orchestrator is RUNNING and has no failures yet, check if a previous orchestrator failed
-    if cq_status == 'RUNNING' and not failing_builders and len(orchestrators) > 1:
-      for prev_idx in range(1, len(orchestrators)):
-        prev_orch = orchestrators[prev_idx]
-        if prev_orch['status'] in ('FAILURE', 'INFRA_FAILURE'):
-          prev_builders = get_builds_for_orch(prev_idx)
-          prev_failing = {
-              k: v
-              for k, v in prev_builders.items()
-              if v['status'] in ('FAILURE', 'INFRA_FAILURE')
-          }
-          if prev_failing:
-            print(
-                f'Note: A new {run_type} run is currently RUNNING with no'
-                ' failures yet. Showing failures from previous failed run.'
-            )
-            failing_builders = prev_failing
-            break
+    if wait and cq_status == 'RUNNING':
+      print(
+          f'[{time.strftime("%H:%M:%S")}] {run_type} status is RUNNING;'
+          f' polling again in {poll_interval}s...'
+      )
+      time.sleep(poll_interval)
+      continue
+    break
 
   print(f'Run Type: {run_type}')
   print(f'CQ Status: {cq_status}')
 
-  if run_type == 'Single-Board Tryjob':
-    print('\nSingle-Board Tryjob Builders:')
+  if run_type in ('Single-Board Tryjob', 'Generator Build (libchrome-uprev)'):
+    print(f'\n{run_type} Builders:')
     for name, b in active_builders.items():
       print(
           f"- {name}: {b['status']}"
@@ -487,6 +786,7 @@ def get_cq_status(cl_number, patchset=None, fetch_logs_path=None):
       )
 
   if cq_status == 'SUCCESS':
+    print('Build Compilation Status: PASSED')
     print('No failing builders identified.')
     return
 
@@ -496,21 +796,6 @@ def get_cq_status(cl_number, patchset=None, fetch_logs_path=None):
     else:
       print('No failing builders identified.')
     return
-
-  # Pick representative failing board
-  rep_board = None
-  rep_builder_name = None
-  for name in failing_builders:
-    candidate = extract_board_name(name)
-    if candidate:
-      rep_board = candidate
-      rep_builder_name = name
-      # Prefer non-generic board if available
-      if 'generic' not in candidate and 'vm' not in candidate:
-        break
-
-  if rep_board:
-    print(f'Representative Failing Board: {rep_board} (from {rep_builder_name})')
 
   # Separate board builders from auxiliary test runners
   board_failing = {
@@ -522,14 +807,77 @@ def get_cq_status(cl_number, patchset=None, fetch_logs_path=None):
   }
   display_builders = board_failing if board_failing else failing_builders
 
-  print('\nFailing Builders & Failed Steps:')
   failing_details_list = []
+  compile_failing_builders = []
+  test_only_failing_builders = []
   for name, b in display_builders.items():
     if 'orchestrator' in name:
       continue
-    print(f"- {name} ({b['status']})")
     details = get_build_details(b['id'])
     failing_details_list.append((name, b, details))
+    if is_compile_or_unit_test_failure(details, b.get('summaryMarkdown', '')):
+      compile_failing_builders.append(name)
+    else:
+      test_only_failing_builders.append(name)
+
+  if compile_failing_builders:
+    print(
+        'Build Compilation Status: FAILED'
+        f' ({len(compile_failing_builders)} builder(s) failed compilation/unit'
+        ' tests)'
+    )
+  else:
+    print(
+        'Build Compilation Status: PASSED (All failures are downstream HW/VM'
+        ' test suites; no compilation fixes needed)'
+    )
+
+  # Pick representative failing board ONLY from compile/unit-test failing builders
+  rep_board = None
+  rep_builder_name = None
+  for name in compile_failing_builders:
+    candidate = extract_board_name(name)
+    if candidate:
+      rep_board = candidate
+      rep_builder_name = name
+      if 'generic' not in candidate and 'vm' not in candidate:
+        break
+
+  if rep_board:
+    print(
+        f'Representative Failing Board: {rep_board} (from {rep_builder_name})'
+    )
+  else:
+    print('Representative Failing Board: None')
+
+  pkg_to_builders = {}
+  for name, b, details in failing_details_list:
+    for s in details.get('steps', []):
+      if s.get('status') == 'FAILURE':
+        for log_meta in s.get('logs', []):
+          log_name = log_meta.get('name', '')
+          if log_name.endswith(' log') and '/' in log_name:
+            pkg = log_name[: -len(' log')]
+            pkg_to_builders.setdefault(pkg, []).append(name)
+
+  if pkg_to_builders:
+    print('\nFailed Packages Summary:')
+    for pkg, b_names in sorted(
+        pkg_to_builders.items(), key=lambda x: (-len(x[1]), x[0])
+    ):
+      sample = ', '.join(b_names[:3])
+      more = f' +{len(b_names) - 3} more' if len(b_names) > 3 else ''
+      print(f'- {pkg}: {len(b_names)} builder(s) ({sample}{more})')
+
+  print('\nFailing Builders & Failed Steps:')
+  for name, b, details in failing_details_list:
+    if name in compile_failing_builders:
+      failure_kind = 'COMPILE/UNIT-TEST'
+    elif b.get('status') == 'INFRA_FAILURE':
+      failure_kind = 'INFRA-FAILURE'
+    else:
+      failure_kind = 'HW/VM-TEST-ONLY'
+    print(f"- {name} ({b['status']}) [{failure_kind}]")
     steps = details.get('steps', [])
     failed_steps = [s for s in steps if s.get('status') == 'FAILURE']
 
@@ -544,7 +892,6 @@ def get_cq_status(cl_number, patchset=None, fetch_logs_path=None):
         print(f'    Reason: {reason}')
 
   if fetch_logs_path and failing_details_list:
-    # Prioritize representative failing builder when fetching logs
     if rep_builder_name:
       failing_details_list.sort(
           key=lambda x: 0 if x[0] == rep_builder_name else 1
@@ -554,9 +901,12 @@ def get_cq_status(cl_number, patchset=None, fetch_logs_path=None):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(
-      description='Check CQ or tryjob status, launch single-board tryjobs, extract failing boards/logs, or update Gerrit labels.'
+      description=(
+          'Check CQ or tryjob status, launch single-board tryjobs, extract'
+          ' failing boards/logs, push to Gerrit, or update Gerrit labels.'
+      )
   )
-  parser.add_argument('cl_number', help='Gerrit CL number')
+  parser.add_argument('cl_number', nargs='?', default=None, help='Gerrit CL number')
   parser.add_argument(
       'patchset', nargs='?', default=None, help='Optional patchset number'
   )
@@ -567,10 +917,30 @@ if __name__ == '__main__':
       help='Launch a fast single-board <BOARD>-cq tryjob directly via bb add',
   )
   parser.add_argument(
+      '--wait',
+      action='store_true',
+      help='Poll Buildbucket until the active tryjob or CQ run finishes',
+  )
+  parser.add_argument(
+      '--poll-interval',
+      dest='poll_interval',
+      type=int,
+      default=120,
+      help='Polling interval in seconds when --wait is enabled (default: 120)',
+  )
+  parser.add_argument(
       '--fetch-logs',
       dest='fetch_logs',
       metavar='FILE',
       help='Download failed build/test step logs from Buildbucket into FILE using bb log',
+  )
+  parser.add_argument(
+      '--push',
+      dest='push_ref',
+      nargs='?',
+      const='HEAD:refs/for/main',
+      default=None,
+      help='Push HEAD to Gerrit over HTTPS using luci-auth (default ref: HEAD:refs/for/main)',
   )
   parser.add_argument(
       '--set-cq',
@@ -587,10 +957,26 @@ if __name__ == '__main__':
 
   args = parser.parse_args()
 
+  if args.push_ref:
+    push_to_gerrit(args.push_ref)
+    if not args.cl_number:
+      sys.exit(0)
+
+  if not args.cl_number:
+    parser.error('cl_number is required unless --push is used alone')
+
   if args.tryjob_board:
     launch_single_board_tryjob(
         args.cl_number, args.tryjob_board, patchset=args.patchset
     )
+    if args.wait:
+      get_cq_status(
+          args.cl_number,
+          patchset=args.patchset,
+          fetch_logs_path=args.fetch_logs,
+          wait=True,
+          poll_interval=args.poll_interval,
+      )
   elif args.set_cq is not None or args.comment:
     set_gerrit_review(args.cl_number, cq_vote=args.set_cq, comment=args.comment)
   else:
@@ -598,4 +984,7 @@ if __name__ == '__main__':
         args.cl_number,
         patchset=args.patchset,
         fetch_logs_path=args.fetch_logs,
+        wait=args.wait,
+        poll_interval=args.poll_interval,
     )
+
