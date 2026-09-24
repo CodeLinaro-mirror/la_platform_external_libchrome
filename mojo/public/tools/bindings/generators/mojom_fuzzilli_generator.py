@@ -53,9 +53,10 @@ HANDLES_MAPPING = {
   mojom.NULLABLE_DCPIPE: "MojoDataPipeConsumerHandle",
   mojom.NULLABLE_SHAREDBUFFER: "MojoSharedBufferHandle",
 }
-# List of types skipped during profile generation.
-# These types should be hand-defined in MojoCommonProfile.swift; its definitions
-# are always used in every generated profile.
+# List of types skipped during profile generation. These types should be
+# hand-defined in testing/libfuzzer/research/fuzzilli_mojom_fuzzing/common/. The
+# files should then be copied over to the same directory as the rest of the
+# Fuzzilli profiles.
 IGNORED_TYPES = {
   "mojoBase.mojom.BigBuffer",
   "mojoBase.mojom.BigBufferSharedMemoryRegion",
@@ -99,6 +100,7 @@ class Generator(generator.Generator):
       "format_il_type": self._ILTypeName,
       "format_unique_name": self._FormatUniqueName,
       "fully_qualified_name": self._FullyQualifiedName,
+      "is_array_kind": mojom.IsArrayKind,
       "is_synchronous_method": self._IsSynchronousMethod,
       "namespace_as_array": self._NamespaceAsArray,
       "to_camel": generator.ToCamel,
