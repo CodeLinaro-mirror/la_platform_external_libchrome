@@ -975,7 +975,6 @@ if (use.dbus) {
       sources = [
         "dbus/mock_bus.cc",
         "dbus/mock_exported_object.cc",
-        "dbus/mock_object_manager.cc",
         "dbus/mock_object_proxy.cc",
       ]
     },
