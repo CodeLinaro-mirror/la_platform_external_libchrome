@@ -1,60 +1,27 @@
-From f448c661c2c2f57c572d423bd806947ee1a39271 Mon Sep 17 00:00:00 2001
+From a603db0b9f1cc73ca2fdbf49fa6f998d1b396e7c Mon Sep 17 00:00:00 2001
 From: Jeff Lin <jeffulin@google.com>
 Date: Tue, 15 Jul 2025 18:08:10 +0800
 Subject: [PATCH] Add libchrome-specific build configs
 
+patch-name: long-term-0000-Add-libchrome-specific-build-configs.patch
 Change-Id: I268af41407886833b211b5f68dd0f601d923358e
 ---
- build/build_config.h | 30 +++++++++++++++++++++++++++---
- 1 file changed, 27 insertions(+), 3 deletions(-)
+ build/build_config.h | 2 ++
+ 1 file changed, 2 insertions(+)
 
 diff --git a/build/build_config.h b/build/build_config.h
-index 41215c9fb8..bf977f7208 100644
+index 0e3bcb4558..340b19eb30 100644
 --- a/build/build_config.h
 +++ b/build/build_config.h
-@@ -54,15 +54,39 @@
+@@ -59,6 +59,8 @@
  
  #include "build/buildflag.h"  // IWYU pragma: export
  
-+// A brief primer on #defines:
-+//
-+// - __ANDROID__ is automatically defined by the Android toolchain (see
-+//   https://goo.gl/v61lXa). It's not defined when building host code.
-+// - __ANDROID_HOST__ is defined via -D by Android.mk when building host code
-+//   within an Android checkout.
-+// - ANDROID is defined via -D when building code for either Android targets or
-+//   hosts. Use __ANDROID__ and __ANDROID_HOST__ instead.
-+// - OS_ANDROID is a define used to build Chrome for Android within the NDK and
-+//   to build Android targets.
-+
-+// Android targets and hosts don't use tcmalloc.
-+#if defined(__ANDROID__) || defined(__ANDROID_HOST__)
-+#define NO_TCMALLOC
-+#endif  // defined(__ANDROID__) || defined(__ANDROID_HOST__)
-+
-+#if defined(__ANDROID__)  // Android targets
-+
-+#define OS_ANDROID 1
-+
-+#elif !defined(__ANDROID_HOST__)  // Chrome OS
-+
 +#define OS_CHROMEOS 1
-+
-+#endif  // defined(__ANDROID__)
 +
  // Clangd does not detect BUILDFLAG_INTERNAL_* indirect usage, so mark the
  // header as "always_keep" to avoid "unused include" warning.
  //
- // IWYU pragma: always_keep
- 
- // A set of macros to use for platform detection.
--#if defined(ANDROID)
--#define OS_ANDROID 1
--#elif defined(__APPLE__)
-+#if defined(__APPLE__)
- // Only include TargetConditionals after testing ANDROID as some Android builds
- // on the Mac have this header available and it's not needed unless the target
- // is really an Apple platform.
 -- 
-2.50.0.727.gbf7dc18ff4-goog
+2.56.0.rc1.315.gc6ed9934b7-goog
 
