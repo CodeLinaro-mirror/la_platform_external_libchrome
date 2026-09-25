@@ -1,19 +1,27 @@
-From cfca078f42e8546cb4e06745680e142d5cf6a718 Mon Sep 17 00:00:00 2001
-From: Sami Kyostila <skyostil@chromium.org>
-Date: Thu, 27 Jul 2023 09:49:14 +0000
-Subject: [PATCH] Don't set legacy trace event macro
+From 9a5f754eef02ee987ada50446056e6283cd66c66 Mon Sep 17 00:00:00 2001
+From: Jae Hoon Kim <kimjae@google.com>
+Date: Fri, 25 Sep 2026 19:52:33 +0000
+Subject: [PATCH] Don't set legacy trace event macro or initialize Perfetto for
+ testing
 
-Change-Id: Iae43089b3456a335fb1d957f06b0762d1973d673
+- Do not redefine PERFETTO_ENABLE_LEGACY_TRACE_EVENTS in
+  base/trace_event/common/trace_event_common.h.
+- Disable initializing Perfetto's in-process tracing backend for testing
+  in base/trace_event/trace_event_impl.cc (from
+  long-term-1050-Don-t-initialize-Perfetto-for-testing.patch).
+
 patch-name: long-term-1000-Don-t-set-legacy-trace-event-macro.patch
+Change-Id: Iae43089b3456a335fb1d957f06b0762d1973d673
 ---
  base/trace_event/common/trace_event_common.h | 3 ---
- 1 file changed, 3 deletions(-)
+ base/trace_event/trace_event_impl.cc         | 4 ++++
+ 2 files changed, 4 insertions(+), 3 deletions(-)
 
 diff --git a/base/trace_event/common/trace_event_common.h b/base/trace_event/common/trace_event_common.h
-index c1bb2e2ef1..b98b35bbbd 100644
+index aa8403cade..5c3c618b64 100644
 --- a/base/trace_event/common/trace_event_common.h
 +++ b/base/trace_event/common/trace_event_common.h
-@@ -208,9 +208,6 @@
+@@ -15,9 +15,6 @@
  #include "base/time/time.h"
  #include "build/build_config.h"
  
@@ -23,6 +31,36 @@ index c1bb2e2ef1..b98b35bbbd 100644
  // Macros for reading the current trace time (bypassing any virtual time
  // overrides).
  #define TRACE_TIME_TICKS_NOW() ::base::subtle::TimeTicksNowIgnoringOverride()
+diff --git a/base/trace_event/trace_event_impl.cc b/base/trace_event/trace_event_impl.cc
+index 599cb19de2..b46007b572 100644
+--- a/base/trace_event/trace_event_impl.cc
++++ b/base/trace_event/trace_event_impl.cc
+@@ -85,7 +85,9 @@ void TraceEvent::InitArgs(TraceArguments* args) {
+ }
+ 
+ void SetPerfettoInitializedForTesting() {
++#if 0
+   g_perfetto_initialized_for_testing = true;
++#endif
+ }
+ 
+ bool IsPerfettoInitializedForTesting() {
+@@ -93,6 +95,7 @@ bool IsPerfettoInitializedForTesting() {
+ }
+ 
+ void InitializeInProcessPerfettoBackend(perfetto::Platform* platform) {
++#if 0
+   perfetto::TracingInitArgs init_args;
+   init_args.platform = platform;
+   init_args.backends = perfetto::BackendType::kInProcessBackend;
+@@ -102,6 +105,7 @@ void InitializeInProcessPerfettoBackend(perfetto::Platform* platform) {
+   init_args.disallow_merging_with_system_tracks = true;
+   perfetto::Tracing::Initialize(init_args);
+   TrackEvent::Register();
++#endif
+ }
+ 
+ }  // namespace base::trace_event
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.56.0.rc1.315.gc6ed9934b7-goog
 
