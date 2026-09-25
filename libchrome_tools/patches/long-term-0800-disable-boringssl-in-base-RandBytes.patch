@@ -1,7 +1,8 @@
-From be1a1d809388f045f2c448e8cc9c556df6297feb Mon Sep 17 00:00:00 2001
+From 9854460c272fc06af53e5db1a9c4d98cf5b231e4 Mon Sep 17 00:00:00 2001
 From: Nathan Muggli <nmuggli@google.com>
 Date: Thu, 7 May 2026 11:25:20 -0600
-Subject: [PATCH] disable boringssl in base::RandBytes
+Subject: [PATCH] disable boringssl in base::RandBytes and
+ NonAllocatingRandomBitGenerator
 
 Introduced in r1045239 (crrev.com/c/3880863).
 Updated in r1321254 (crrev.com/c/5669584).
@@ -11,17 +12,52 @@ Updated in r1626560 (crrev.com/c/7828277).
 Updated in r1632053 (crrev.com/c/7856143).
 Updated in r1682187 (crrev.com/c/8265040).
 
-In the most recent update, upstream removed all of the previous
-functionality this patch has been using, so this adds it back in.  Also,
-this was combined with the long-term-0900 patch since they are both
-related.
+Also fold in long-term-2000 (disable boringssl used in
+base::NonAllocatingRandomBitGenerator in base/rand_util.h) since both
+remove <openssl/rand.h> from base/rand_util.
 
 Change-Id: I465dc418929f7ed936d5a2c8be114ca8194acc7e
 patch-name: long-term-0800-disable-boringssl-in-base-RandBytes.patch
 ---
+ base/rand_util.h        | 17 -----------------
  base/rand_util_posix.cc | 11 -----------
- 1 file changed, 11 deletions(-)
+ 2 files changed, 28 deletions(-)
 
+diff --git a/base/rand_util.h b/base/rand_util.h
+index ae5425cf17..c08d1e8246 100644
+--- a/base/rand_util.h
++++ b/base/rand_util.h
+@@ -23,7 +23,6 @@
+ #include "base/numerics/safe_conversions.h"
+ #include "base/time/time.h"
+ #include "build/build_config.h"
+-#include "third_party/boringssl/src/include/openssl/rand.h"
+ 
+ namespace memory_simulator {
+ class MemoryHolder;
+@@ -188,22 +187,6 @@ class RandomBitGenerator {
+   ~RandomBitGenerator() = default;
+ };
+ 
+-class NonAllocatingRandomBitGenerator {
+- public:
+-  using result_type = uint64_t;
+-  static constexpr result_type min() { return 0; }
+-  static constexpr result_type max() { return UINT64_MAX; }
+-  result_type operator()() const {
+-    uint64_t result;
+-    RAND_get_system_entropy_for_custom_prng(reinterpret_cast<uint8_t*>(&result),
+-                                            sizeof(result));
+-    return result;
+-  }
+-
+-  NonAllocatingRandomBitGenerator() = default;
+-  ~NonAllocatingRandomBitGenerator() = default;
+-};
+-
+ // Shuffles [first, last) randomly. Thread-safe.
+ template <typename Itr>
+ void RandomShuffle(Itr first, Itr last) {
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
 index 6560a29287..597fc33fa3 100644
 --- a/base/rand_util_posix.cc
@@ -59,4 +95,5 @@ index 6560a29287..597fc33fa3 100644
    CHECK(getentropy(output.data(), output.size()) == 0);
  #elif BUILDFLAG(IS_APPLE)
 -- 
-2.55.0.737.g08866a6d13-goog
+2.56.0.rc1.315.gc6ed9934b7-goog
+
