@@ -1,23 +1,27 @@
-From 637cbeaf49c64e9879dedcbfddb893c159ee4fd5 Mon Sep 17 00:00:00 2001
+From 8f493733dfbeea1441385b5bfe604ce4246abe5c Mon Sep 17 00:00:00 2001
 From: Grace Cham <hscham@chromium.org>
 Date: Wed, 15 Jun 2022 23:23:05 +0900
 Subject: [PATCH] Remove ICU dependency for base::Time::Explode
 
 ICU dependency was introduced for Explode implementation to tackle Y2038
-problem but it signigicantly increases binary size. Removed as Y2038
+problem but it significantly increases binary size. Removed as Y2038
 boards will be EOL by then.
+
+Also revert commit afd8319889fd ("Fix 32bit ARM Linux build for Cast.")
+in Time::Explode so 32-bit SysTime does not fail base::checked_cast when
+ExplodeUsingIcu is disabled.
 
 patch-name: long-term-0100-Remove-ICU-dependency-for-base-Time-Explode.patch
 Change-Id: I644b97c1c47481eb6ddff6b7b109d10e4ff27a82
 ---
- base/time/time_exploded_posix.cc | 2 ++
- 1 file changed, 2 insertions(+)
+ base/time/time_exploded_posix.cc | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/base/time/time_exploded_posix.cc b/base/time/time_exploded_posix.cc
-index 8cc737611a..3cba1afd6b 100644
+index 073b27e40f..41601ead50 100644
 --- a/base/time/time_exploded_posix.cc
 +++ b/base/time/time_exploded_posix.cc
-@@ -126,12 +126,14 @@ void Time::Explode(bool is_local, Exploded* exploded) const {
+@@ -128,19 +128,20 @@ void Time::Explode(bool is_local, Exploded* exploded) const {
  
    // For systems with a Y2038 problem, use ICU as the Explode() implementation.
    if (sizeof(SysTime) < 8) {
@@ -32,6 +36,14 @@ index 8cc737611a..3cba1afd6b 100644
    }
  
    // Split the |millis_since_unix_epoch| into separate seconds and millisecond
+   // components because the platform calendar-explode operates at one-second
+   // granularity.
+-  auto seconds = base::checked_cast<SysTime>(millis_since_unix_epoch /
+-                                             Time::kMillisecondsPerSecond);
++  SysTime seconds = millis_since_unix_epoch / Time::kMillisecondsPerSecond;
+   int64_t millisecond = millis_since_unix_epoch % Time::kMillisecondsPerSecond;
+   if (millisecond < 0) {
+     // Make the the |millisecond| component positive, within the range [0,999],
 -- 
-2.42.0.582.g8ccd20d70d-goog
+2.56.0.rc1.315.gc6ed9934b7-goog
 
