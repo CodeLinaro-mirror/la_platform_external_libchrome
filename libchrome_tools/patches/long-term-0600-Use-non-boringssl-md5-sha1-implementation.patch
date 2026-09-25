@@ -1,4 +1,4 @@
-From baea346ed42c78aafcebef7cb212e26cfa934113 Mon Sep 17 00:00:00 2001
+From cde46fc3f576d1522647de34bd7b1745233f61cb Mon Sep 17 00:00:00 2001
 From: Wei-Luan Wang <weiluanwang@google.com>
 Date: Thu, 26 Jun 2025 02:59:16 +0000
 Subject: [PATCH] Use non-boringssl md5 sha1 implementation.
@@ -13,11 +13,10 @@ patch-name: long-term-0600-Use-non-boringssl-md5-sha1-implementation.patch
  base/hash/md5.h                |  11 +-
  base/hash/md5_nacl.cc          | 297 +++++++++++++++++++++++++++++++++
  base/hash/md5_nacl.h           |  25 +++
- base/hash/sha1.h               |   6 +-
- base/hash/sha1_nacl.cc         | 204 ++++++++++++++++++++++
+ base/hash/sha1_nacl.cc         | 191 +++++++++++++++++++++
  base/hash/sha1_nacl.h          |  40 +++++
  base/metrics/metrics_hashes.cc |  39 +++--
- 7 files changed, 592 insertions(+), 30 deletions(-)
+ 6 files changed, 578 insertions(+), 25 deletions(-)
  create mode 100644 base/hash/md5_nacl.cc
  create mode 100644 base/hash/md5_nacl.h
  create mode 100644 base/hash/sha1_nacl.cc
@@ -387,33 +386,12 @@ index 0000000000..33d4155446
 +}  // namespace base
 +
 +#endif  // BASE_HASH_MD5_NACL_H_
-diff --git a/base/hash/sha1.h b/base/hash/sha1.h
-index edb521aa60..80e96351e0 100644
---- a/base/hash/sha1.h
-+++ b/base/hash/sha1.h
-@@ -15,15 +15,11 @@
- #include "base/base_export.h"
- #include "base/compiler_specific.h"
- #include "base/containers/span.h"
-+#include "base/hash/sha1_nacl.h"
- #include "build/build_config.h"
--#include "third_party/boringssl/src/include/openssl/sha.h"
- 
- namespace base {
- 
--// Used for storing intermediate data during an SHA1 computation. Callers
--// should not access the data.
--using SHA1Context = SHA_CTX;
--
- enum { kSHA1Length = 20 };  // Length in bytes of a SHA-1 hash.
- 
- // The output of an SHA-1 operation.
 diff --git a/base/hash/sha1_nacl.cc b/base/hash/sha1_nacl.cc
 new file mode 100644
-index 0000000000..0d92607f10
+index 0000000000..c0ebb026fd
 --- /dev/null
 +++ b/base/hash/sha1_nacl.cc
-@@ -0,0 +1,204 @@
+@@ -0,0 +1,191 @@
 +// Copyright 2011 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
@@ -427,6 +405,7 @@ index 0000000000..0d92607f10
 +#include <bit>
 +#include <string_view>
 +
++#include "base/hash/sha1_nacl.h"
 +#include "base/numerics/byte_conversions.h"
 +#include "base/strings/string_view_util.h"
 +
@@ -588,20 +567,6 @@ index 0000000000..0d92607f10
 +  cursor = 0;
 +}
 +
-+// These functions allow streaming SHA-1 operations.
-+void SHA1Init(SHA1Context& context) {
-+  context.Init();
-+}
-+
-+void SHA1Update(std::string_view data, SHA1Context& context) {
-+  context.Update(data.data(), data.size());
-+}
-+
-+void SHA1Final(SHA1Context& context, SHA1Digest& digest) {
-+  context.Final();
-+  memcpy(digest.data(), context.GetDigest(), kSHA1Length);
-+}
-+
 +SHA1Digest SHA1Hash(span<const uint8_t> data) {
 +  SHA1Context context;
 +  context.Init();
@@ -739,5 +704,5 @@ index d4bd2b98f4..e0fef601a7 100644
  
  }  // namespace base
 -- 
-2.54.0.545.g6539524ca2-goog
+2.56.0.rc1.315.gc6ed9934b7-goog
 
