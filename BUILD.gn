@@ -1361,6 +1361,7 @@ if (use.mojo) {
       "third_party/ipcz/src/ipcz/link_type.cc",
       "third_party/ipcz/src/ipcz/local_router_link.cc",
       "third_party/ipcz/src/ipcz/message.cc",
+      "third_party/ipcz/src/ipcz/metrics.cc",
       "third_party/ipcz/src/ipcz/node.cc",
       "third_party/ipcz/src/ipcz/node_connector.cc",
       "third_party/ipcz/src/ipcz/node_link.cc",

@@ -1,16 +1,59 @@
-From aa8e3c151a2e5d3c875c8d1d6a5aa33e89c66868 Mon Sep 17 00:00:00 2001
+From 9bd485a9d90b189fcc9adfb542c53d3290bed9bc Mon Sep 17 00:00:00 2001
 From: Di Wu <diwux@google.com>
 Date: Fri, 8 Aug 2025 03:56:56 +0000
 Subject: [PATCH] Use absl::Overload() instead of absl::Overload{}
 
 Change-Id: Ia22bdde5849efa1e2515e3474b4e1613eecde789
+patch-name: backward-compatibility-2100-Use-absl-Overload-function.patch
 ---
+ base/trace_event/traced_value.cc | 10 ++++------
  third_party/ipcz/src/ipcz/box.cc | 14 +++++++-------
  third_party/ipcz/src/ipcz/box.h  |  8 ++++----
- 2 files changed, 11 insertions(+), 11 deletions(-)
+ 3 files changed, 15 insertions(+), 17 deletions(-)
 
+diff --git a/base/trace_event/traced_value.cc b/base/trace_event/traced_value.cc
+index 0d05420..381b395 100644
+--- a/base/trace_event/traced_value.cc
++++ b/base/trace_event/traced_value.cc
+@@ -698,7 +698,7 @@ TracedValue::ValueHolder::ValueHolder(TracedValue::ValueHolder&&) = default;
+ TracedValue::ValueHolder::~ValueHolder() = default;
+ 
+ void TracedValue::ValueHolder::WriteToValue(TracedValue* value) const {
+-  std::visit(absl::Overload{
++  std::visit(absl::Overload(
+                  [value](int v) { value->AppendInteger(v); },
+                  [value](double v) { value->AppendDouble(v); },
+                  [value](bool v) { value->AppendBoolean(v); },
+@@ -714,15 +714,14 @@ void TracedValue::ValueHolder::WriteToValue(TracedValue* value) const {
+                    value->BeginDictionary();
+                    v.WriteToValue(value);
+                    value->EndDictionary();
+-                 },
+-             },
++                 }),
+              kept_value_);
+ }
+ 
+ void TracedValue::ValueHolder::WriteToValue(const char* name,
+                                             TracedValue* value) const {
+   std::visit(
+-      absl::Overload{
++      absl::Overload(
+           [name, value](int v) { value->SetInteger(name, v); },
+           [name, value](double v) { value->SetDouble(name, v); },
+           [name, value](bool v) { value->SetBoolean(name, v); },
+@@ -738,8 +737,7 @@ void TracedValue::ValueHolder::WriteToValue(const char* name,
+             value->BeginDictionary(name);
+             v.WriteToValue(value);
+             value->EndDictionary();
+-          },
+-      },
++          }),
+       kept_value_);
+ }
+ 
 diff --git a/third_party/ipcz/src/ipcz/box.cc b/third_party/ipcz/src/ipcz/box.cc
-index 0d936aae09..7415acda6d 100644
+index 0d936aa..7415acd 100644
 --- a/third_party/ipcz/src/ipcz/box.cc
 +++ b/third_party/ipcz/src/ipcz/box.cc
 @@ -36,7 +36,7 @@ IpczResult Box::Close() {
@@ -60,7 +103,7 @@ index 0d936aae09..7415acda6d 100644
 +}  // namespace ipcz
 \ No newline at end of file
 diff --git a/third_party/ipcz/src/ipcz/box.h b/third_party/ipcz/src/ipcz/box.h
-index 69a9ce627e..a5c6625d28 100644
+index 69a9ce6..a5c6625 100644
 --- a/third_party/ipcz/src/ipcz/box.h
 +++ b/third_party/ipcz/src/ipcz/box.h
 @@ -41,12 +41,12 @@ class Box : public APIObjectImpl<Box, APIObject::kBox> {
@@ -87,5 +130,5 @@ index 69a9ce627e..a5c6625d28 100644
 +#endif  // IPCZ_SRC_IPCZ_BOX_
 \ No newline at end of file
 -- 
-2.50.1.703.g449372360f-goog
+2.56.0.rc1.315.gc6ed9934b7-goog
 
