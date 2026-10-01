@@ -1,0 +1,89 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Byron Lee <byronlee@google.com>
+Date: Fri, 2 Oct 2026 07:06:00 +0000
+Subject: [PATCH] Allow untyped handle in mojom
+
+Upstream commit cf5755d96bb9f3b7f3789e3b17f5dca048be48f2
+(crrev.com/c/8424588, r1707440) disallowed untyped 'handle' in .mojom
+definitions and removed the temporary [Stable] compatibility exception
+allowing migration from 'handle' to 'handle<T>'. Comment out the untyped
+'handle' error in translate.py and retain the compatibility exception in
+compatibility_checker.py until ChromeOS .mojom files are migrated.
+
+BUG=b:568594484
+TEST=sudo emerge libchrome
+
+patch-name: backward-compatibility-2400-Allow-untyped-handle-in-mojom.patch
+---
+ .../mojom/mojom/generate/compatibility_checker.py | 16 +++++++++++++++-
+ .../public/tools/mojom/mojom/generate/translate.py | 27 +++++++++++++---------
+ 2 files changed, 30 insertions(+), 13 deletions(-)
+
+diff --git a/mojo/public/tools/mojom/mojom/generate/compatibility_checker.py b/mojo/public/tools/mojom/mojom/generate/compatibility_checker.py
+index b86f8cc..d2c87c7 100644
+--- a/mojo/public/tools/mojom/mojom/generate/compatibility_checker.py
++++ b/mojo/public/tools/mojom/mojom/generate/compatibility_checker.py
+@@ -47,7 +47,22 @@ class BackwardCompatibilityChecker:
+ 
+   @_CheckCompat.register(mojom.Kind)
+   def _(self, new: mojom.Kind, old: mojom.Kind):
+-    return new == old
++    if new == old:
++      return True
++    # TODO(b/568594484): Remove once all ChromeOS [Stable] .mojom files are
++    # migrated from untyped `handle` to typed `handle<T>`.
++    # Temporary exception: allow migration from an untyped handle (`handle`) to
++    # a typed handle (`handle<platform>`), as they have the same wire
++    # representation.
++    #
++    # The strict equality check above requires that both types have the same
++    # nullability, so continue enforcing that here, even though nullable and
++    # non-nullable handles are represented identically on the wire.
++    return (
++      mojom.IsGenericHandleKind(old)
++      and mojom.IsAnyHandleKind(new)
++      and new.is_nullable == old.is_nullable
++    )
+ 
+   @_CheckCompat.register(mojom.Field)
+   def _(self, new: mojom.Field, old: mojom.Field):
+diff --git a/mojo/public/tools/mojom/mojom/generate/translate.py b/mojo/public/tools/mojom/mojom/generate/translate.py
+index 1cf8a6d..04cc42b 100644
+--- a/mojo/public/tools/mojom/mojom/generate/translate.py
++++ b/mojo/public/tools/mojom/mojom/generate/translate.py
+@@ -410,18 +410,21 @@ def _MapKind(typename, enclosing_kind=None):
+   if isinstance(ident, ast.Receiver):
+     t = 'rcv' if not ident.associated else 'rca'
+     return f'{t}:{_MapKind(ident.interface, enclosing_kind)}'
+-  if ident.id == 'handle' and not (
+-    enclosing_kind and enclosing_kind.spec in _UNTYPED_HANDLE_ALLOWLIST
+-  ):
+-    location = (
+-      f' (in {enclosing_kind.qualified_name})' if enclosing_kind else ''
+-    )
+-    raise Error(
+-      ident.filename,
+-      f"Untyped 'handle' is disallowed{location}; please specify a subtype "
+-      "such as 'handle<platform>' or 'handle<message_pipe>'",
+-      lineno=ident.start.line,
+-    )
++  # TODO(b/568594484): Uncomment to re-enable the untyped 'handle' error once
++  # all ChromeOS .mojom files are migrated to typed handles (e.g.
++  # 'handle<platform>').
++  # if ident.id == 'handle' and not (
++  #   enclosing_kind and enclosing_kind.spec in _UNTYPED_HANDLE_ALLOWLIST
++  # ):
++  #   location = (
++  #     f' (in {enclosing_kind.qualified_name})' if enclosing_kind else ''
++  #   )
++  #   raise Error(
++  #     ident.filename,
++  #     f"Untyped 'handle' is disallowed{location}; please specify a subtype "
++  #     "such as 'handle<platform>' or 'handle<message_pipe>'",
++  #     lineno=ident.start.line,
++  #   )
+   if ident.id in map_to_kind:
+     return map_to_kind[ident.id]
+   return f'x:{ident.id}'
+-- 
+2.47.0
