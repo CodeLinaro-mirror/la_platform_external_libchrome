@@ -38,8 +38,6 @@ BAD_KEYWORDS = {
     r'NOTREACHED_IN_MIGRATION\(':
     'CrOS libchrome NOTREACHED migration, do NOT use NOTREACHED_IN_MIGRATION. Use NOTREACHED which is now fatal and [[noreturn]]. See b/356312475',
     r'HistogramBase::Sample[^3]': 'base::HistogramBase::Sample is deprecated. Use base::HistogramBase::Sample32.',
-    r'mojo::(Wrap|Unwrap)PlatformFile\(':
-    'mojo::WrapPlatformFile and mojo::UnwrapPlatformFile were removed in libchrome r1705373 (crrev.com/c/8424587). Use mojo::WrapPlatformHandle(mojo::PlatformHandle(...)) and mojo::UnwrapPlatformHandle(...) instead. See b/568122729.',
 }
 
 LINE_NUMBER_RE=re.compile(r'^@@ [0-9\,\+\-]+ \+([0-9]+)[ \,][0-9 ]*@@')
