@@ -1,4 +1,4 @@
-From 9bd485a9d90b189fcc9adfb542c53d3290bed9bc Mon Sep 17 00:00:00 2001
+From ead59c1e6a98aad020982391e0dc98853066244e Mon Sep 17 00:00:00 2001
 From: Di Wu <diwux@google.com>
 Date: Fri, 8 Aug 2025 03:56:56 +0000
 Subject: [PATCH] Use absl::Overload() instead of absl::Overload{}
@@ -6,13 +6,52 @@ Subject: [PATCH] Use absl::Overload() instead of absl::Overload{}
 Change-Id: Ia22bdde5849efa1e2515e3474b4e1613eecde789
 patch-name: backward-compatibility-2100-Use-absl-Overload-function.patch
 ---
- base/trace_event/traced_value.cc | 10 ++++------
- third_party/ipcz/src/ipcz/box.cc | 14 +++++++-------
- third_party/ipcz/src/ipcz/box.h  |  8 ++++----
- 3 files changed, 15 insertions(+), 17 deletions(-)
+ base/files/important_file_writer.cc | 10 ++++------
+ base/trace_event/traced_value.cc    | 10 ++++------
+ third_party/ipcz/src/ipcz/box.cc    | 14 +++++++-------
+ third_party/ipcz/src/ipcz/box.h     |  8 ++++----
+ 4 files changed, 19 insertions(+), 23 deletions(-)
 
+diff --git a/base/files/important_file_writer.cc b/base/files/important_file_writer.cc
+index 14a702d112..05d758d066 100644
+--- a/base/files/important_file_writer.cc
++++ b/base/files/important_file_writer.cc
+@@ -431,12 +431,11 @@ ImportantFileWriter::ImportantFileWriter(
+       commit_interval_(interval),
+       histogram_suffix_(histogram_suffix),
+       replace_file_callback_(BindRepeating(&ReplaceFile)) {
+-  std::visit(absl::Overload{
++  std::visit(absl::Overload(
+                  [](const scoped_refptr<SequencedTaskRunner>& task_runner) {
+                    DCHECK(task_runner);
+                  },
+-                 [](BlockCurrentSequenceTag) { AssertBlockingAllowed(); },
+-             },
++                 [](BlockCurrentSequenceTag) { AssertBlockingAllowed(); }),
+              task_runner_);
+   ImportantFileWriterCleaner::AddDirectory(path.DirName());
+ }
+@@ -483,7 +482,7 @@ void ImportantFileWriter::WriteNowWithBackgroundDataProducer(
+   ClearPendingWrite();
+ 
+   std::visit(
+-      absl::Overload{
++      absl::Overload(
+           [&write_task](const scoped_refptr<SequencedTaskRunner>& task_runner) {
+             // Failing to post highlights an ordering problem between a desired
+             // write and the destination sequence's shutdown.
+@@ -491,8 +490,7 @@ void ImportantFileWriter::WriteNowWithBackgroundDataProducer(
+           },
+           [&write_task](BlockCurrentSequenceTag) {
+             std::move(write_task).Run();
+-          },
+-      },
++          }),
+       task_runner_);
+ }
+ 
 diff --git a/base/trace_event/traced_value.cc b/base/trace_event/traced_value.cc
-index 0d05420..381b395 100644
+index 0d05420b9e..381b395003 100644
 --- a/base/trace_event/traced_value.cc
 +++ b/base/trace_event/traced_value.cc
 @@ -698,7 +698,7 @@ TracedValue::ValueHolder::ValueHolder(TracedValue::ValueHolder&&) = default;
@@ -53,7 +92,7 @@ index 0d05420..381b395 100644
  }
  
 diff --git a/third_party/ipcz/src/ipcz/box.cc b/third_party/ipcz/src/ipcz/box.cc
-index 0d936aa..7415acd 100644
+index 0d936aae09..7415acda6d 100644
 --- a/third_party/ipcz/src/ipcz/box.cc
 +++ b/third_party/ipcz/src/ipcz/box.cc
 @@ -36,7 +36,7 @@ IpczResult Box::Close() {
@@ -103,7 +142,7 @@ index 0d936aa..7415acd 100644
 +}  // namespace ipcz
 \ No newline at end of file
 diff --git a/third_party/ipcz/src/ipcz/box.h b/third_party/ipcz/src/ipcz/box.h
-index 69a9ce6..a5c6625 100644
+index 69a9ce627e..a5c6625d28 100644
 --- a/third_party/ipcz/src/ipcz/box.h
 +++ b/third_party/ipcz/src/ipcz/box.h
 @@ -41,12 +41,12 @@ class Box : public APIObjectImpl<Box, APIObject::kBox> {
