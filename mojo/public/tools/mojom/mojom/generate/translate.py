@@ -410,18 +410,21 @@ def _MapKind(typename, enclosing_kind=None):
   if isinstance(ident, ast.Receiver):
     t = 'rcv' if not ident.associated else 'rca'
     return f'{t}:{_MapKind(ident.interface, enclosing_kind)}'
-  if ident.id == 'handle' and not (
-    enclosing_kind and enclosing_kind.spec in _UNTYPED_HANDLE_ALLOWLIST
-  ):
-    location = (
-      f' (in {enclosing_kind.qualified_name})' if enclosing_kind else ''
-    )
-    raise Error(
-      ident.filename,
-      f"Untyped 'handle' is disallowed{location}; please specify a subtype "
-      "such as 'handle<platform>' or 'handle<message_pipe>'",
-      lineno=ident.start.line,
-    )
+  # TODO(b/568594484): Uncomment to re-enable the untyped 'handle' error once
+  # all ChromeOS .mojom files are migrated to typed handles (e.g.
+  # 'handle<platform>').
+  # if ident.id == 'handle' and not (
+  #   enclosing_kind and enclosing_kind.spec in _UNTYPED_HANDLE_ALLOWLIST
+  # ):
+  #   location = (
+  #     f' (in {enclosing_kind.qualified_name})' if enclosing_kind else ''
+  #   )
+  #   raise Error(
+  #     ident.filename,
+  #     f"Untyped 'handle' is disallowed{location}; please specify a subtype "
+  #     "such as 'handle<platform>' or 'handle<message_pipe>'",
+  #     lineno=ident.start.line,
+  #   )
   if ident.id in map_to_kind:
     return map_to_kind[ident.id]
   return f'x:{ident.id}'
