@@ -1284,6 +1284,7 @@ if (use.mojo) {
           "mojo/public/cpp/bindings/lib/connector.cc",
           "mojo/public/cpp/bindings/lib/control_message_handler.cc",
           "mojo/public/cpp/bindings/lib/control_message_proxy.cc",
+          "mojo/public/cpp/bindings/lib/enum_util.cc",
           "mojo/public/cpp/bindings/lib/generated_code_util.cc",
           "mojo/public/cpp/bindings/lib/handle_serialization.cc",
           "mojo/public/cpp/bindings/lib/interface_endpoint_client.cc",
