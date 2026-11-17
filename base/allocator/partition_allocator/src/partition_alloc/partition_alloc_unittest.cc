@@ -91,6 +91,8 @@
 
 // Headers for the AmountOfPhysicalMemory() function.
 #if PA_BUILDFLAG(IS_FUCHSIA)
+#include <lib/zx/vmar.h>
+#include <lib/zx/vmo.h>
 #include <zircon/syscalls.h>
 #elif PA_BUILDFLAG(IS_WIN)
 #include <windows.h>
@@ -6572,10 +6574,8 @@ TEST_P(PartitionAllocDeathTest, CheckTriggered) {
 #endif  // !PA_BUILDFLAG(OFFICIAL) && PA_BUILDFLAG(IS_DEBUG)
 #endif  // PA_USE_DEATH_TESTS()
 
-// Not on chromecast, since gtest considers extra output from itself as a test
-// failure:
-// https://ci.chromium.org/ui/p/chromium/builders/ci/Cast%20Audio%20Linux/98492/overview
-#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && PA_USE_DEATH_TESTS()
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && PA_USE_DEATH_TESTS() && \
+    PA_CONFIG(HAS_ATFORK_HANDLER)
 
 namespace {
 
@@ -6614,10 +6614,15 @@ class ThreadDelegateForPreforkHandler
 
 }  // namespace
 
-// Disabled because executing it causes Gtest to show a warning in the output,
-// which confuses the runner on some platforms, making the test report an
-// "UNKNOWN" status even though it succeeded.
-TEST_P(PartitionAllocTest, DISABLED_PreforkHandler) {
+// Verifies that PartitionAlloc's prefork and postfork handlers prevent
+// deadlocks when `fork()` is called while other threads are concurrently
+// calling `malloc()` and `free()`.
+TEST(PartitionAllocPreforkTest, PreforkHandler) {
+  // Force `"fast"` death test style (`fork()` without `exec()`) so
+  // `EXPECT_EXIT()` exercises the `pthread_atfork()` handlers in the forked
+  // child instead of re-executing the test binary under `"threadsafe"` mode.
+  GTEST_FLAG_SET(death_test_style, "fast");
+
   std::atomic<bool> please_stop;
   std::atomic<int> started_threads{0};
 
@@ -6637,11 +6642,16 @@ TEST_P(PartitionAllocTest, DISABLED_PreforkHandler) {
   while (started_threads != kThreads) {
   }
 
+  // Call `std::_Exit(1)` instead of `std::exit(1)` to avoid running
+  // `atexit()` handlers and C++ static destructors (such as
+  // `XmlUnitTestResultPrinter`) in the forked child process, which would
+  // prematurely close the test runner's XML output stream and cause
+  // `"UNKNOWN"` test status.
   EXPECT_EXIT(
       {
         void* ptr = malloc(kAllocSize);
         FreeForTest(ptr);
-        exit(1);
+        std::_Exit(1);
       },
       ::testing::ExitedWithCode(1), "");
 
@@ -6652,7 +6662,7 @@ TEST_P(PartitionAllocTest, DISABLED_PreforkHandler) {
 }
 
 #endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
-        // PA_USE_DEATH_TESTS()
+        // PA_USE_DEATH_TESTS() && PA_CONFIG(HAS_ATFORK_HANDLER)
 
 // Checks the bucket index logic.
 TEST_P(PartitionAllocTest, GetIndex) {
@@ -6810,7 +6820,11 @@ TEST_P(PartitionAllocTest, ConfigurablePoolPkey) {
   ASSERT_NE(0u, pool_base);
   PA_PCHECK(PkeyMprotect(reinterpret_cast<void*>(pool_base), pool_size,
                          PROT_NONE, pkey) == 0);
-  PartitionAddressSpace::InitConfigurablePool(pool_base, pool_size, pkey);
+  PartitionAddressSpace::InitConfigurablePool({
+      .pool_base = pool_base,
+      .size = pool_size,
+      .pkey = pkey,
+  });
   EXPECT_TRUE(IsConfigurablePoolAvailable());
 
   PartitionOptions opts = GetCommonPartitionOptions();
@@ -6846,6 +6860,74 @@ TEST_P(PartitionAllocTest, ConfigurablePoolPkey) {
 }
 
 #endif  // PA_BUILDFLAG(PA_ARCH_CPU_64_BITS) && PA_BUILDFLAG(ENABLE_PKEYS)
+
+#if PA_BUILDFLAG(IS_FUCHSIA) && PA_BUILDFLAG(PA_ARCH_CPU_64_BITS)
+// Test that the ConfigurablePool works when backed by a child VMAR.
+TEST_P(PartitionAllocTest, ConfigurablePoolChildVmar) {
+  EXPECT_FALSE(IsConfigurablePoolAvailable());
+
+  const size_t pool_size = PartitionAddressSpace::ConfigurablePoolMinSize();
+  PA_DCHECK(std::has_single_bit(pool_size));
+  const zx_vm_option_t align_flag =
+      static_cast<zx_vm_option_t>(std::countr_zero(pool_size))
+      << ZX_VM_ALIGN_BASE;
+
+  zx::vmar child_vmar;
+  zx_vaddr_t pool_base = 0;
+  zx_status_t status = zx::vmar::root_self()->allocate(
+      ZX_VM_CAN_MAP_READ | ZX_VM_CAN_MAP_WRITE | ZX_VM_CAN_MAP_SPECIFIC |
+          align_flag,
+      /*vmar_offset=*/0, pool_size, &child_vmar, &pool_base);
+  ASSERT_EQ(ZX_OK, status);
+  ASSERT_NE(0u, pool_base);
+
+  zx::vmo vmo;
+  ASSERT_EQ(ZX_OK, zx::vmo::create(pool_size, /*options=*/0, &vmo));
+  zx_vaddr_t mapped_base = 0;
+  ASSERT_EQ(ZX_OK, child_vmar.map(ZX_VM_SPECIFIC, /*vmar_offset=*/0, vmo,
+                                  /*vmo_offset=*/0, pool_size, &mapped_base));
+  ASSERT_EQ(pool_base, mapped_base);
+
+  PartitionAddressSpace::InitConfigurablePool({
+      .pool_base = pool_base,
+      .size = pool_size,
+      .vmar = child_vmar.borrow(),
+  });
+  EXPECT_TRUE(IsConfigurablePoolAvailable());
+  EXPECT_EQ(child_vmar.borrow(),
+            PartitionAddressSpace::GetConfigurablePoolVmar());
+
+  PartitionOptions opts = GetCommonPartitionOptions();
+  opts.use_configurable_pool = PartitionOptions::kAllowed;
+  std::unique_ptr<PartitionRoot> root = CreateCustomTestRoot(
+      opts, PartitionTestOptions{.uncap_empty_slot_span_memory = true,
+                                 .set_bucket_distribution = true});
+
+  const size_t count = 250;
+  std::vector<void*> allocations(count, nullptr);
+  for (size_t i = 0; i < count; ++i) {
+    const size_t size =
+        PA_UNSAFE_TODO(kTestSizes[base::RandGenerator(kTestSizesCount)]);
+    allocations[i] = root->Alloc(size);
+    ASSERT_NE(nullptr, allocations[i]);
+    *static_cast<uint8_t*>(allocations[i]) = 0x5a;
+    EXPECT_EQ(0x5a, *static_cast<uint8_t*>(allocations[i]));
+    uintptr_t allocation_base = reinterpret_cast<uintptr_t>(allocations[i]);
+    EXPECT_TRUE(allocation_base >= pool_base &&
+                allocation_base < pool_base + pool_size);
+  }
+
+  for (void* ptr : allocations) {
+    root->Free(ptr);
+  }
+  root->PurgeMemory(PurgeFlags::kDecommitEmptySlotSpans |
+                    PurgeFlags::kDiscardUnusedSystemPages);
+
+  PartitionRoot::DeleteForTesting(root.release());
+  PartitionAddressSpace::UninitConfigurablePoolForTesting();
+  ASSERT_EQ(ZX_OK, child_vmar.destroy());
+}
+#endif  // PA_BUILDFLAG(IS_FUCHSIA) && PA_BUILDFLAG(PA_ARCH_CPU_64_BITS)
 
 TEST_P(PartitionAllocTest, EmptySlotSpanSizeIsCapped) {
   // Use another root, since the ones from the test harness disable the empty

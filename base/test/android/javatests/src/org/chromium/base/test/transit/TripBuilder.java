@@ -348,7 +348,10 @@ public class TripBuilder {
         return destination;
     }
 
-    /** Exit |lastStation|. */
+    /**
+     * Exit |lastStation| without entering another Station, expecting its Activity (if any) to be
+     * destroyed.
+     */
     @CheckReturnValue
     public TripBuilder reachLastStopAnd(Station<?> lastStation) {
         assert mOriginStation == null : "Origin already set to " + mOriginStation.getName();
@@ -356,11 +359,18 @@ public class TripBuilder {
                 : "Last stop should not have a destination Station "
                         + mDestinationStation.getName();
         lastStation.assertInPhase(Phase.ACTIVE);
+        ActivityElement<?> activityElement = lastStation.getActivityElement();
+        if (activityElement != null) {
+            activityElement.expectActivityDestroyed();
+        }
         mOriginStation = lastStation;
         return this;
     }
 
-    /** Execute the transition synchronously, exiting the context Station and not entering any. */
+    /**
+     * Execute the transition synchronously, exiting the context Station without entering another
+     * Station and expecting its Activity (if any) to be destroyed.
+     */
     public void reachLastStop() {
         assert mContextStation != null : "Context Station not set";
         reachLastStopAnd(mContextStation).complete();
@@ -417,24 +427,19 @@ public class TripBuilder {
                 }
             }
             for (Facility<?> facility : mFacilitiesToEnter) {
-                mDestinationStation.registerFacility(facility);
+                facility.setParent(mDestinationStation);
             }
-        } else {
+        } else if (!mFacilitiesToEnter.isEmpty()) {
+            assert mContextStation != null : "No Station to enter the Facilities in";
+            mContextStation.assertInPhase(Phase.ACTIVE);
             // TODO(crbug.com/406325581): Support entering Facilities from multiple Stations in
             // multi-window.
             for (Facility<?> facility : mFacilitiesToEnter) {
-                mContextStation.registerFacility(facility);
+                facility.setParent(mContextStation);
             }
         }
 
-        if (mOriginStation != null) {
-            for (Facility<?> facility : mOriginStation.getFacilitiesWithPhase(Phase.ACTIVE)) {
-                // Avoid trying to exit the same facility multiple times.
-                if (!mFacilitiesToExit.contains(facility)) {
-                    mFacilitiesToExit.add(facility);
-                }
-            }
-        }
+        addActiveDescendantsToExit();
 
         if (!mConditions.isEmpty()) {
             mOptions =
@@ -489,6 +494,42 @@ public class TripBuilder {
      */
     public <StateT extends ConditionalState> StateT completeAndGet(Class<StateT> stateClass) {
         return complete().get(stateClass);
+    }
+
+    /**
+     * Add the ACTIVE children of the ConditionalStates to exit, and their children, to the
+     * ConditionalStates to exit, e.g. the Facilities of the origin Station.
+     */
+    private void addActiveDescendantsToExit() {
+        List<ConditionalState> statesToExpand = new ArrayList<>(mFacilitiesToExit);
+        statesToExpand.addAll(mStatesToExit);
+        if (mOriginStation != null) {
+            statesToExpand.add(mOriginStation);
+        }
+        for (int i = 0; i < statesToExpand.size(); i++) {
+            for (ConditionalState child : statesToExpand.get(i).getActiveChildren()) {
+                // Avoid trying to exit the same ConditionalState multiple times.
+                boolean added = false;
+                if (child instanceof Facility<?> facility) {
+                    if (!mFacilitiesToExit.contains(facility)) {
+                        mFacilitiesToExit.add(facility);
+                        added = true;
+                    }
+                } else if (child instanceof State state) {
+                    if (!mStatesToExit.contains(state)) {
+                        mStatesToExit.add(state);
+                        added = true;
+                    }
+                } else {
+                    throw new AssertionError(
+                            String.format(
+                                    "Unexpected child %s of %s", child, statesToExpand.get(i)));
+                }
+                if (added) {
+                    statesToExpand.add(child);
+                }
+            }
+        }
     }
 
     /**
