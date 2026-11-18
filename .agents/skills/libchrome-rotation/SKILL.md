@@ -5,10 +5,11 @@ description: >-
   updates the standardized weekly log in Libchrome Uprev Rotation On-duty Notes
   (go/libchrome-uprev-onduty), audits daily automated uprev CLs (including
   auto-abandoned runs, stale-parent regeneration, and 2-parent merge conflict
-  rebases), and routes tasks across libchrome-uprev, libchrome-cleanup, and
-  libchrome-bug-filer. Use when starting or running a ChromeOS libchrome uprev
-  rotation shift, adding or updating a weekly entry in the on-duty notes doc,
-  checking weekly uprev status, or resolving merge conflicts on automated uprev
+  rebases), routes tasks across libchrome-uprev, libchrome-cleanup, and
+  libchrome-bug-filer, and executes end-of-shift handoff (incoming rotator
+  lookup, bug reassignment, and Handover Notes summary). Use when starting,
+  running, or handing off a ChromeOS libchrome uprev rotation shift, updating
+  the weekly on-duty notes doc, or resolving merge conflicts on automated uprev
   CLs. Don't use for Android/Clank browser rolls or non-ChromeOS library uprevs.
 ---
 
@@ -54,3 +55,19 @@ Coordinates the weekly `chromiumos/platform/libchrome` rotation ([handbook](http
 - **When an uprev CL has `Mergeable: false` on `main` (2-parent merge conflict)**:
   - **Untouched robot PS1 (stale parent / `BASE_VER` only)**: Clear `CQ=0` on the stale CL and run `bb add chromeos/infra/libchrome-uprev`. Do **not** manually rebase/push as a human—that strips `Bot-Commit+1` and forces manual `CR+2` + `V+1`. Log the superseded CL as `Auto-abandoned`.
   - **Manual `BUILD.gn` / patch fix also required**: Do **not** run `git rebase origin/main` (flattens the 2-parent merge and replays upstream commits). Recreate the 2-parent merge on `origin/main` (`git checkout -B uprev-{cl} origin/main && git merge --no-commit --no-ff {upstream_hash}`), update `BASE_VER` + fixes, verify `python3 libchrome_tools/apply_patches.py` (then `git reset --hard HEAD-before-patching && git tag -d HEAD-before-patching`), preserve `Change-Id:`, confirm with the user before pushing, and run `libchrome-uprev`.
+
+## 4. End-of-Shift Handoff
+
+When wrapping up the week (shifts rotate Saturday PDT / Sunday APAC with no handover meeting—the incoming rotator relies entirely on [go/libchrome-uprev-onduty](http://go/libchrome-uprev-onduty) and Buganizer):
+
+1. **Look up the incoming rotator**:
+   ```bash
+   /google/bin/releases/gemini-agents-rotations/rotations_cli --action=get_rotation --rotation_id=4615501217529856
+   ```
+   Take the `schedule_range.primary` entry immediately following `current_primary`'s week (`{next_ldap}@google.com`).
+2. **Finalize `Handover Notes` & Dropdown chips in `go/libchrome-uprev-onduty`**:
+   - Update every Uprev (`kix.id8xyhuv1z3q`) and Cleanup Bug (`kix.3fjprwl01tlo`) Dropdown Smart Chip to its end-of-week state (`Committed` / `CQ` / `WIP` / `Auto-abandoned` and `Fixed` / `WIP (updated)` / `WIP (no update)`).
+   - Replace `- TBD` under `Handover Notes` with the exact last working context so `{next_ldap}` can resume without re-investigating: any unmerged uprev CL (root cause, staged fix/tryjob, pending reviewers), any in-flight downstream migration or patch-removal CLs (who was pinged for `CR+2`, `Cq-Depend` links), or `- N/A` if all uprevs and cleanups landed cleanly.
+3. **Handoff open cleanup bugs (`hotlistid:4448649`)**:
+   - List open cleanup bugs via `/google/bin/releases/issues-cli/issues readonly search "hotlistid:4448649 status:open" --limit=50`.
+   - Exclude bugs snoozed on `bugjuggler@google.com` or already in final patch-removal CQ verification. After getting explicit user authorization for `issues mutate`, post a concise status comment with the latest CL links/remaining blockers and reassign each active bug to `{next_ldap}@google.com` (`issues mutate comment` + `issues mutate update safe-reassign --issue_id={id} --assignee={next_ldap}`).
