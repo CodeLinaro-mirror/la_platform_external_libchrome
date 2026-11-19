@@ -77,10 +77,7 @@ config("libchrome_config") {
     "PERFETTO_ENABLE_LEGACY_TRACE_EVENTS",
   ]
   if (use.asan) {
-    defines += [
-      "LEAK_SANITIZER",
-      "DISABLE_ALLOCATOR_SANITIZER",
-    ]
+    defines += [ "LEAK_SANITIZER" ]
   }
 
   include_dirs = [
@@ -1076,10 +1073,7 @@ libchrome_exported_cflags = [
 ]
 
 if (use.asan) {
-  libchrome_exported_cflags += [
-    "-DLEAK_SANITIZER",
-    "-DDISABLE_ALLOCATOR_SANITIZER",
-  ]
+  libchrome_exported_cflags += [ "-DLEAK_SANITIZER" ]
 }
 
 generate_pkg_config("libchrome") {
