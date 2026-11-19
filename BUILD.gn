@@ -85,7 +85,7 @@ config("libchrome_config") {
 
   include_dirs = [
     ".",
-    "${root_gen_dir}/libchrome",  # for generated buildflags headers
+    "${root_gen_dir}/libchrome",  # for generated headers
     "third_party/perfetto/include",  # for generated protozero headers
   ]
   cflags = [
@@ -158,6 +158,23 @@ config("mojo_export_config") {
 source_set("buildflag_header_h") {
   sources = [ "build/buildflag.h" ]
 }
+
+# Generate base/check_version_internal.h (mirrors upstream Chromium's
+# process_version("check_version_internal")).
+write_file("${root_gen_dir}/libchrome/base/check_version_internal.h",
+           [
+             "// Copyright 2023 The Chromium Authors",
+             "// Use of this source code is governed by a BSD-style license that can be",
+             "// found in the LICENSE file.",
+             "",
+             "#ifndef BASE_CHECK_VERSION_INTERNAL_H_",
+             "#define BASE_CHECK_VERSION_INTERNAL_H_",
+             "",
+             "#define BASE_CHECK_VERSION_INTERNAL 9998",
+             "#define BASE_CHECK_NEXT_VERSION_INTERNAL 9999",
+             "",
+             "#endif  // BASE_CHECK_VERSION_INTERNAL_H_",
+           ])
 
 buildflag_header("allocator_buildflags") {
   header = "base/allocator/buildflags.h"
