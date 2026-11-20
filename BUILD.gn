@@ -22,6 +22,7 @@ group("all") {
   deps = [
     ":install_basever",
     ":install_buildflag_header",
+    ":install_crubit_stub_header",
     ":install_header",
     ":install_protozero_generated",
     ":libchrome",
@@ -164,6 +165,48 @@ write_file("${root_gen_dir}/libchrome/base/check_version_internal.h",
              "",
              "#endif  // BASE_CHECK_VERSION_INTERNAL_H_",
            ])
+
+# Generate a no-op stub third_party/crubit/support/annotations.h.
+# Chromium includes this header from core //base headers (e.g., weak_ptr.h,
+# observer_list.h, lock.h) for Rust/C++ Crubit interop, which libchrome does
+# not build or support.
+write_file(
+    "${root_gen_dir}/libchrome/third_party/crubit/support/annotations.h",
+    [
+      "// Copyright 2026 The ChromiumOS Authors",
+      "// Use of this source code is governed by a BSD-style license that can be",
+      "// found in the LICENSE file.",
+      "",
+      "#ifndef THIRD_PARTY_CRUBIT_SUPPORT_ANNOTATIONS_H_",
+      "#define THIRD_PARTY_CRUBIT_SUPPORT_ANNOTATIONS_H_",
+      "",
+      "#define CRUBIT_MUST_BIND",
+      "#define CRUBIT_DO_NOT_BIND",
+      "#define CRUBIT_PUB_CRATE",
+      "#define CRUBIT_OVERRIDE_UNSAFE(function_is_unsafe)",
+      "#define CRUBIT_RUST_NAME(crubit_rust_name)",
+      "#define CRUBIT_UNSAFE",
+      "#define CRUBIT_UNSAFE_MARK_SAFE",
+      "#define CRUBIT_OVERRIDE_DEBUG(should_bind)",
+      "#define CRUBIT_TRAIT_DERIVE(...)",
+      "#define CRUBIT_UNSAFE_IMPL(...)",
+      "#define CRUBIT_BRIDGE(...)",
+      "#define CRUBIT_UNSAFE_IGNORE_ATTR(...)",
+      "#define CRUBIT_OWNED_POINTER",
+      "#define CRUBIT_OWNED_POINTEE(...)",
+      "#define CRUBIT_OVERRIDE_DISPLAY(should_bind)",
+      "#define CRUBIT_THREAD_SAFE",
+      "#define CRUBIT_ALWAYS_INSTANTIATE",
+      "#define CRUBIT_BIND_INSTANTIATION(...) static_assert(true)",
+      "#define CRUBIT_ALLOW_UNBINDABLE_TYPE",
+      "#define CRUBIT_UNSAFE_BITWISE_RELOCATABLE",
+      "#define CRUBIT_NEVER_BITWISE_RELOCATABLE",
+      "#define CRUBIT_UNSAFE_BITWISE_RELOCATABLE_IF_ELIGIBLE",
+      "#define CRUBIT_UNSAFE_BITWISE_RELOCATABLE_FIELD",
+      "#define CRUBIT_BITWISE_RELOCATABLE_STD_STRING_ONLY_ON_LIBCXX",
+      "",
+      "#endif  // THIRD_PARTY_CRUBIT_SUPPORT_ANNOTATIONS_H_",
+    ])
 
 buildflag_header("allocator_buildflags") {
   header = "base/allocator/buildflags.h"
@@ -1556,5 +1599,13 @@ install_config("install_protozero_generated") {
       "${root_gen_dir}/include/base/tracing/protos/{{source_name_part}}.pbzero.h")
   deps = [ ":tracing_protozero" ]
   tree_relative_to = "${root_gen_dir}/include"
+  install_path = "/usr/include/libchrome"
+}
+
+install_config("install_crubit_stub_header") {
+  sources = [
+    "${root_gen_dir}/libchrome/third_party/crubit/support/annotations.h",
+  ]
+  tree_relative_to = "${root_gen_dir}/libchrome"
   install_path = "/usr/include/libchrome"
 }
