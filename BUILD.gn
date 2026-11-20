@@ -24,6 +24,8 @@ group("all") {
     ":install_buildflag_header",
     ":install_crubit_stub_header",
     ":install_header",
+    ":install_partition_alloc_buildflag_header",
+    ":install_partition_alloc_header",
     ":install_protozero_generated",
     ":libchrome",
     ":libchrome-test",
@@ -76,6 +78,8 @@ config("libchrome_config") {
   include_dirs = [
     ".",
     "${root_gen_dir}/libchrome",  # for generated headers
+    "base/allocator/partition_allocator/src",  # for "partition_alloc/..."
+    "${root_gen_dir}/libchrome/base/allocator/partition_allocator/src",
     "third_party/perfetto/include",  # for generated protozero headers
   ]
   cflags = [
@@ -1435,19 +1439,21 @@ install_config("install_basever") {
   install_path = "/usr/share/libchrome"
 }
 
+partition_alloc_headers = [
+  "base/allocator/partition_allocator/src/partition_alloc/*.h",
+  "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/*.h",
+  "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/cxx_wrapper/*.h",
+  "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/types/*.h",
+  "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/*.h",
+  "base/allocator/partition_allocator/src/partition_alloc/pointers/*.h",
+]
+
 install_config("install_header") {
   sources = []
+  sources += partition_alloc_headers
   sources += [
     "base/*.h",
     "base/allocator/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/augmentations/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/cxx_wrapper/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/types/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/partition_alloc_base/strings/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/pointers/*.h",
-    "base/allocator/partition_allocator/src/partition_alloc/starscan/*.h",
     "base/containers/*.h",
     "base/debug/*.h",
     "base/files/*.h",
@@ -1608,4 +1614,21 @@ install_config("install_crubit_stub_header") {
   ]
   tree_relative_to = "${root_gen_dir}/libchrome"
   install_path = "/usr/include/libchrome"
+}
+
+install_config("install_partition_alloc_header") {
+  sources = partition_alloc_headers
+  install_path = "/usr/include/libchrome"
+  glob = true
+  tree_relative_to = "base/allocator/partition_allocator/src"
+}
+
+install_config("install_partition_alloc_buildflag_header") {
+  sources = [
+    "${root_gen_dir}/libchrome/base/allocator/partition_allocator/src/partition_alloc/buildflags.h",
+  ]
+  deps = [ ":partition_allocator_buildflags" ]
+  install_path = "/usr/include/libchrome"
+  tree_relative_to =
+      "${root_gen_dir}/libchrome/base/allocator/partition_allocator/src"
 }

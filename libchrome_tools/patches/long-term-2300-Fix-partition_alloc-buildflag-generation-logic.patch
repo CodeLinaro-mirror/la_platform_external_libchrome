@@ -1,13 +1,11 @@
-From 8620de939a858f804430077c5b6eefb6876fc7e3 Mon Sep 17 00:00:00 2001
+From a01f493a1169c02edb5a21189bda7f753d4a750f Mon Sep 17 00:00:00 2001
 From: Cici Ruan <cuicuiruan@google.com>
 Date: Wed, 5 Jun 2024 15:47:08 -0700
 Subject: [PATCH] Fix partition_alloc buildflag generation logic for libchrome
 
-- Fix buildflag_header.gni to locate the script correctly, and to remove
-  the dependency on the build_config source set which doesn't exist in
-  libchrome.
-- Fix write_buildflag_header.py to fix the include paths in the
-  generated header files.
+Fix buildflag_header.gni to locate the script correctly, and to remove
+the dependency on the buildflag_macro source set which doesn't exist in
+libchrome.
 
 Introduced in r1294816 (crrev.com/c/5504598).
 Updated in r1321254 (crrev.com/c/5669584).
@@ -16,8 +14,7 @@ Change-Id: Id342a17dd2e912d4d681fc64bb7ea642d72d5de4
 patch-name: long-term-2300-Fix-partition_alloc-buildflag-generation-logic.patch
 ---
  .../src/partition_alloc/buildflag_header.gni                   | 3 +--
- .../src/partition_alloc/write_buildflag_header.py              | 2 +-
- 2 files changed, 2 insertions(+), 3 deletions(-)
+ 1 file changed, 1 insertion(+), 2 deletions(-)
 
 diff --git a/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni b/base/allocator/partition_allocator/src/partition_alloc/buildflag_header.gni
 index 979042758e..8b0b76f921 100644
@@ -39,19 +36,6 @@ index 979042758e..8b0b76f921 100644
 -    public_deps = [ "${_current_dir}:buildflag_macro" ]
    }
  }
-diff --git a/base/allocator/partition_allocator/src/partition_alloc/write_buildflag_header.py b/base/allocator/partition_allocator/src/partition_alloc/write_buildflag_header.py
-index 904effb2e1..96d600b21d 100755
---- a/base/allocator/partition_allocator/src/partition_alloc/write_buildflag_header.py
-+++ b/base/allocator/partition_allocator/src/partition_alloc/write_buildflag_header.py
-@@ -96,7 +96,7 @@ def WriteHeader(options):
-     output_file.write('\n#ifndef %s\n' % options.header_guard)
-     output_file.write('#define %s\n\n' % options.header_guard)
-     output_file.write(
--      '#include "partition_alloc/buildflag.h" // IWYU pragma: export\n\n'
-+      '#include "base/allocator/partition_allocator/src/partition_alloc/buildflag.h" // IWYU pragma: export\n\n'
-     )
- 
-     for pair in options.flags:
 -- 
-2.56.0.455.g6c5a503b38-goog
+2.56.1.750.gf70dc682cf-goog
 
