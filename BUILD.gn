@@ -38,7 +38,6 @@ group("all") {
 group("all_buildflags") {
   deps = [
     ":allocator_buildflags",
-    ":allocator_logging_buildflags",
     ":blink_buildflags",
     ":branding_buildflags",
     ":cfi_buildflags",
@@ -51,14 +50,11 @@ group("all_buildflags") {
     ":fuzzing_buildflags",
     ":ios_buildflags",
     ":ios_cronet_buildflags",
-    ":ipc_buildflags",
-    ":message_pump_buildflags",
     ":mojo_buildflags",
     ":mojo_cpp_bindings_buildflags",
     ":partition_allocator_buildflags",
     ":profiler_buildflags",
     ":robolectric_buildflags",
-    ":rust_buildflags",
     ":synchronization_buildflags",
     ":tracing_buildflags",
     ":protected_memory_buildflags",
@@ -70,10 +66,6 @@ config("libchrome_config") {
   defines = [
     "OS_CHROMEOS",
     "USE_NSS_CERTS",
-    "USE_SYSTEM_LIBEVENT",
-    "NO_TCMALLOC",
-    "MOJO_BACKWARDS_COMPAT",
-    "BASE_USE_PERFETTO_CLIENT_LIBRARY",
     "PERFETTO_ENABLE_LEGACY_TRACE_EVENTS",
   ]
   if (use.asan) {
@@ -183,12 +175,6 @@ buildflag_header("allocator_buildflags") {
     "USE_ASAN_BACKUP_REF_PTR=false",
     "USE_MTE_CHECKED_PTR=false",
   ]
-}
-
-buildflag_header("allocator_logging_buildflags") {
-  header = "base/allocator/partition_allocator/src/partition_alloc/logging_buildflags.h"
-
-  flags = [ "PA_ENABLE_LOG_ERROR_NOT_REACHED=false" ]
 }
 
 pa_buildflag_header("partition_allocator_buildflags") {
@@ -379,16 +365,6 @@ buildflag_header("ios_cronet_buildflags") {
   flags = [ "CRONET_BUILD=false" ]
 }
 
-buildflag_header("ipc_buildflags") {
-  header = "ipc/ipc_buildflags.h"
-  flags = [ "IPC_MESSAGE_LOG_ENABLED=false" ]
-}
-
-buildflag_header("message_pump_buildflags") {
-  header = "base/message_loop/message_pump_buildflags.h"
-  flags = [ "ENABLE_MESSAGE_PUMP_EPOLL=true" ]
-}
-
 buildflag_header("mojo_buildflags") {
   header = "mojo/buildflags.h"
   flags = [ "MOJO_USE_APPLE_CHANNEL=false" ]
@@ -415,14 +391,6 @@ buildflag_header("robolectric_buildflags") {
   header = "build/robolectric_buildflags.h"
   flags = [
     "IS_ROBOLECTRIC=false",
-  ]
-}
-
-buildflag_header("rust_buildflags") {
-  header = "base/rust_buildflags.h"
-  flags = [
-    "BUILD_RUST_JSON_READER=false",
-    "BUILD_RUST_BASE_CONVERSIONS=false",
   ]
 }
 
@@ -1068,7 +1036,6 @@ libchrome_exported_cflags = [
   "-I/usr/include/libchrome",
   "-Wno-unused-local-typedefs",
   "-DBASE_VER=${libchrome_basever}",
-  "-DBASE_USE_PERFETTO_CLIENT_LIBRARY",
   "-DPERFETTO_ENABLE_LEGACY_TRACE_EVENTS=1",
 ]
 
@@ -1574,7 +1541,6 @@ install_config("install_buildflag_header") {
   ]
   if (use.mojo) {
     sources += [
-      "${root_gen_dir}/libchrome/ipc/**/*buildflags.h",
       "${root_gen_dir}/libchrome/mojo/**/*buildflags.h",
     ]
   }
