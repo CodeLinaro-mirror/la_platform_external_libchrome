@@ -7,6 +7,7 @@
 import atexit
 import contextlib
 import fnmatch
+import functools
 import json
 import logging
 import os
@@ -55,9 +56,14 @@ JAVA_HOME = os.path.relpath(java_home.JAVA_HOME)
 JAVA_PATH = os.path.join(JAVA_HOME, 'bin', 'java')
 JAVA_PATH_FOR_INPUTS = f'{JAVA_PATH}.chromium'
 JAVAC_PATH = os.path.join(JAVA_HOME, 'bin', 'javac')
-JAVAP_PATH = os.path.join(JAVA_HOME, 'bin', 'javap')
+JDK_TOOLS_GRAALVM_PATH = os.path.join(JAVA_HOME, 'bin', 'jdk-tools-graalvm')
+IS_LINUX_X64 = java_home.IS_LINUX_X64
 KOTLIN_HOME = os.path.join(DIR_SOURCE_ROOT, 'third_party', 'kotlinc', 'current')
 KOTLINC_PATH = os.path.join(KOTLIN_HOME, 'bin', 'kotlinc')
+
+
+def JdkToolCmd(tool):
+    return java_home.ToolCmd(tool, java_home_dir=JAVA_HOME)
 
 
 def JavaCmd(xmx='1G'):
@@ -182,6 +188,27 @@ def FilterReflectiveAccessJavaWarnings(output):
     )
 
 
+# The JVM writes these lines to stderr when one of these environment variables
+# is set, and there is no flag to silence them:
+#   Picked up _JAVA_OPTIONS: -XX:UseAVX=2
+#   Picked up JAVA_TOOL_OPTIONS: ...
+#   NOTE: Picked up JDK_JAVA_OPTIONS: ...
+_JVM_OPTIONS_NOTICE_RE = re.compile(
+    r'^(?:NOTE: )?Picked up '
+    r'(?:_JAVA_OPTIONS|JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS):.*\n?',
+    re.MULTILINE,
+)
+
+
+def FilterJvmOptionsNotice(output):
+    """Removes the JVM's "Picked up _JAVA_OPTIONS" notices.
+
+    They describe the machine's environment and not the command, so they
+    should neither fail the build nor be printed for every Java step.
+    """
+    return _JVM_OPTIONS_NOTICE_RE.sub('', output)
+
+
 # This filter applies globally to all CheckOutput calls. We use this to prevent
 # messages from failing the build, without actually removing them.
 def _FailureFilter(output):
@@ -227,6 +254,8 @@ def CheckOutput(
             before_join_callback()
         stdout, stderr = child.communicate()
 
+    stderr = FilterJvmOptionsNotice(stderr)
+
     if stdout_filter is not None:
         stdout = stdout_filter(stdout)
 
@@ -263,6 +292,8 @@ def HandleCommandOutput(
     """
     if not cwd:
         cwd = os.getcwd()
+
+    stderr = FilterJvmOptionsNotice(stderr)
 
     if print_stdout:
         sys.stdout.write(stdout)
@@ -461,3 +492,51 @@ def ReadSourcesList(sources_list_file_name):
     """
     with open(sources_list_file_name, encoding='utf-8') as f:
         return [file_name.strip() for file_name in f]
+
+
+@functools.cache
+def GetFileSizeCached(path):
+    return os.path.getsize(path)
+
+
+@functools.cache
+def GetUsableCpuCount():
+    """Returns the number of CPUs this process may use (e.g. with taskset)."""
+    try:
+        return len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):  # Not available on macOS, or sandboxed.
+        return os.cpu_count() or 1
+
+
+def ComputeNumShardsForCpus(paths, min_files, min_shard_size, max_shards):
+    """Returns how many processes to split |paths| across on this machine.
+
+    At most one per |min_shard_size| bytes, half of the usable CPUs (which
+    bounds oversubscription on machines with few CPUs) and |max_shards|. Fewer
+    than |min_files| paths are not split, and not stat()ed.
+    """
+    if len(paths) < min_files:
+        return 1
+    total_size = sum(GetFileSizeCached(p) for p in paths)
+    num_shards = min(
+        max_shards, total_size // min_shard_size, GetUsableCpuCount() // 2
+    )
+    return max(1, num_shards)
+
+
+def ShardFilesBySize(paths, num_shards):
+    """Splits |paths| into at most |num_shards| lists of similar total size.
+
+    Files are kept in sorted order so that files within the same package
+    (which are most likely to reference one another) end up in the same shard.
+    """
+    sizes = [(p, GetFileSizeCached(p)) for p in sorted(paths)]
+    total_size = sum(s for _, s in sizes) or 1
+    shards = [[] for _ in range(num_shards)]
+    cumulative_size = 0
+    for path, size in sizes:
+        # Assign each file to the shard that contains its midpoint.
+        idx = (cumulative_size + size // 2) * num_shards // total_size
+        shards[min(idx, num_shards - 1)].append(path)
+        cumulative_size += size
+    return [s for s in shards if s]

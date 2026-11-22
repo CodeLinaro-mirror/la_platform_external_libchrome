@@ -26,12 +26,6 @@ POLICY_EXPORT BASE_DECLARE_FEATURE(
 // Enables the addition of new security fields for SecOps.
 POLICY_EXPORT BASE_DECLARE_FEATURE(kEnhancedSecurityEventFields);
 
-// Returns true if `kEnhancedSecurityEventFields` is enabled and supported on
-// the current platform. On Windows 11 24H2+, this returns false due to hangs
-// during synchronous WLAN API queries.
-// TODO(crbug.com/577109904): Re-enable once network name query is asynchronous.
-POLICY_EXPORT bool IsEnhancedSecurityEventFieldsEnabled();
-
 // Controls if we can use the cec flag in PolicyData.
 POLICY_EXPORT BASE_DECLARE_FEATURE(kUseCECFlagInPolicyData);
 
@@ -44,6 +38,11 @@ POLICY_EXPORT BASE_DECLARE_FEATURE(kUserPolicyCacheSizeLimit2MB);
 // Enables policy initialization for signed-in users in new entry points.
 POLICY_EXPORT BASE_DECLARE_FEATURE(
     kInitializePoliciesForSignedInUserInNewEntryPoints);
+
+// When enabled, the CBCM enrollment token is read again right before the
+// deferred initialization enrolls the browser.
+POLICY_EXPORT BASE_DECLARE_FEATURE(
+    kCbcmRefreshEnrollmentTokenBeforeDeferredInit);
 #endif
 
 // Enables a configurable delay for policy registration.
@@ -68,14 +67,6 @@ POLICY_EXPORT BASE_DECLARE_FEATURE(kEnableExtensionInstallPolicyFetching);
 // Note: Only has an effect on Mac and Windows where ShouldHonorPolicies()
 // performs platform-specific checks.
 POLICY_EXPORT BASE_DECLARE_FEATURE(kUseManagementServiceForSensitivePolicies);
-
-// When enabled, AzureActiveDirectoryDeviceStatusProvider only returns
-// CLOUD_DOMAIN for device-joined Azure AD accounts. When disabled (kill
-// switch), it falls back to the behavior of AzureActiveDirectoryStatusProvider,
-// returning CLOUD_DOMAIN for all Azure AD joined accounts (including
-// workplace-joined).
-POLICY_EXPORT BASE_DECLARE_FEATURE(
-    kFilterSensitivePoliciesOnWorkplaceJoinedDevices);
 
 // Modifies behavior of policies utilizing URLBlocklistManager.
 // When enabled, bypasses the wildcard "*" in the blocklist for internal

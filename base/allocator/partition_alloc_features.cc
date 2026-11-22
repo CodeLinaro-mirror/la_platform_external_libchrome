@@ -132,41 +132,38 @@ constinit const FeatureParam<PartitionAllocWithAdvancedChecksEnabledProcesses>
 // remains effectively disabled.
 BASE_FEATURE(kPartitionAllocSchedulerLoopQuarantine,
              FEATURE_ENABLED_BY_DEFAULT);
+// Strip excess whitespace from multiline JSON strings.
+#define PA_JSON_STRING(...) #__VA_ARGS__
+
 // Scheduler Loop Quarantine's config.
 // Note: Do not use the prepared macro as of no need for a local cache.
 constinit const FeatureParam<std::string>
     kPartitionAllocSchedulerLoopQuarantineConfig{
         &kPartitionAllocSchedulerLoopQuarantine,
         "PartitionAllocSchedulerLoopQuarantineConfig",
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-        R"({
-          "browser":{
-            "main":{
-              "branch-capacity-in-bytes":524288,
-              "enable-quarantine":true,
-              "leak-on-destruction":false
+        // clang-format off
+        PA_JSON_STRING({
+          "*": {
+            "amsc": {
+              "branch-capacity-in-bytes": 524288,
+              "enable-quarantine": true,
+              "enable-zapping": true,
+              "leak-on-destruction": false
             }
           },
-          "*":{
-            "amsc":{
-              "branch-capacity-in-bytes":524288,
-              "enable-quarantine":true,
-              "leak-on-destruction":false
+          "browser": {
+            "main": {
+              "branch-capacity-in-bytes": 2147483647,
+              "enable-quarantine": true,
+              "enable-task-controlled-purge": true,
+              "enable-zapping": true,
+              "leak-on-destruction": false,
+              "pause-in-between-tasks": true
             }
           }
-        })"
-#else
-        R"({
-          "*":{
-            "amsc":{
-              "branch-capacity-in-bytes":524288,
-              "enable-quarantine":true,
-              "leak-on-destruction":false
-            }
-          }
-        })"
-#endif
-};
+        })
+        // clang-format on
+    };
 
 BASE_FEATURE(kPartitionAllocEventuallyZeroFreedMemory,
              FEATURE_DISABLED_BY_DEFAULT);

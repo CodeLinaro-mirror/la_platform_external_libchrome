@@ -51,26 +51,6 @@ MemoryPressureSource::~MemoryPressureSource() {
 }
 
 // static
-void MemoryPressureSource::SetMemoryPressureLevelFromAnyThread(
-    MemoryPressureLevel memory_pressure_level) {
-  auto* main_thread_task_runner =
-      SingleThreadTaskRunner::HasMainThreadDefault()
-          ? SingleThreadTaskRunner::GetMainThreadDefault().get()
-          : nullptr;
-  if (main_thread_task_runner &&
-      !main_thread_task_runner->BelongsToCurrentThread()) {
-    main_thread_task_runner->PostTask(
-        FROM_HERE,
-        BindOnce(&MemoryPressureSource::SetMemoryPressureLevelFromAnyThread,
-                 memory_pressure_level));
-    return;
-  }
-  if (auto* source = MaybeGet()) {
-    source->SetMemoryPressureLevel(memory_pressure_level);
-  }
-}
-
-// static
 bool MemoryPressureSource::AreNotificationsSuppressed() {
   return Get().AreNotificationsSuppressedImpl();
 }
@@ -84,12 +64,6 @@ void MemoryPressureSource::SimulatePressureNotification(
 CallbackListSubscription MemoryPressureSource::AddCallback(Callback callback) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   return callbacks_.Add(std::move(callback));
-}
-
-MemoryPressureLevel MemoryPressureSource::GetLastNotifiedMemoryPressureLevel(
-    PassKey<MemoryPressureListenerRegistry>) const {
-  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  return simulated_memory_pressure_level_.value_or(last_memory_pressure_level_);
 }
 
 // static
@@ -234,6 +208,33 @@ void MemoryPressureSource::SimulatePressureNotificationImpl(
 
   // When notifications are not suppressed, this does the same as
   // `SetMemoryPressureLevel()`.
+  SetMemoryPressureLevel(memory_pressure_level);
+}
+
+// Free functions --------------------------------------------------------------
+
+void SetMemoryPressureLevel(MemoryPressureLevel memory_pressure_level) {
+  CHECK(
+      !SingleThreadTaskRunner::HasMainThreadDefault() ||
+      SingleThreadTaskRunner::GetMainThreadDefault()->BelongsToCurrentThread());
+  if (auto* source = MemoryPressureSource::MaybeGet()) {
+    source->SetMemoryPressureLevel(memory_pressure_level);
+  }
+}
+
+void SetMemoryPressureLevelFromAnyThread(
+    MemoryPressureLevel memory_pressure_level) {
+  auto* main_thread_task_runner =
+      SingleThreadTaskRunner::HasMainThreadDefault()
+          ? SingleThreadTaskRunner::GetMainThreadDefault().get()
+          : nullptr;
+  if (main_thread_task_runner &&
+      !main_thread_task_runner->BelongsToCurrentThread()) {
+    main_thread_task_runner->PostTask(
+        FROM_HERE,
+        BindOnce(&SetMemoryPressureLevelFromAnyThread, memory_pressure_level));
+    return;
+  }
   SetMemoryPressureLevel(memory_pressure_level);
 }
 

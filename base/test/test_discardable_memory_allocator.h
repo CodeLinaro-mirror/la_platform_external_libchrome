@@ -5,8 +5,9 @@
 #ifndef BASE_TEST_TEST_DISCARDABLE_MEMORY_ALLOCATOR_H_
 #define BASE_TEST_TEST_DISCARDABLE_MEMORY_ALLOCATOR_H_
 
-#include <stddef.h>
+#include <memory>
 
+#include "base/byte_size.h"
 #include "base/memory/discardable_memory_allocator.h"
 
 namespace base {
@@ -25,9 +26,9 @@ class TestDiscardableMemoryAllocator : public DiscardableMemoryAllocator {
 
   // Overridden from DiscardableMemoryAllocator:
   std::unique_ptr<DiscardableMemory> AllocateLockedDiscardableMemory(
-      size_t size) override;
+      ByteSize size) override;
 
-  size_t GetBytesAllocated() const override;
+  ByteSize GetAllocatedSize() const override;
 
   void ReleaseFreeMemory() override {
     // Do nothing since it is backed by heap memory.

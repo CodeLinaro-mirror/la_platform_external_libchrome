@@ -1,4 +1,4 @@
-From a34c947c50845c31046f40588cd8fd2cc09df4d5 Mon Sep 17 00:00:00 2001
+From d883c990fa073ef25d5c8b0e5e8a3430b3bff850 Mon Sep 17 00:00:00 2001
 From: Jae Hoon Kim <kimjae@google.com>
 Date: Thu, 19 Nov 2026 05:13:10 +0000
 Subject: [PATCH] Disable boringssl in base
@@ -949,14 +949,14 @@ index d4bd2b98f4..e0fef601a7 100644
  
  }  // namespace base
 diff --git a/base/rand_util.h b/base/rand_util.h
-index ff59e32c84..cb8f86657c 100644
+index f15d708752..cb8f86657c 100644
 --- a/base/rand_util.h
 +++ b/base/rand_util.h
 @@ -23,7 +23,6 @@
  #include "base/numerics/safe_conversions.h"
  #include "base/time/time.h"
  #include "build/build_config.h"
--#include "third_party/boringssl/src/include/openssl/rand.h"
+-#include "third_party/boringssl/src/include/openssl/rand.h"  // nocheck
  
  namespace memory_simulator {
  class MemoryHolder;
@@ -984,14 +984,14 @@ index ff59e32c84..cb8f86657c 100644
  template <typename Itr>
  void RandomShuffle(Itr first, Itr last) {
 diff --git a/base/rand_util_posix.cc b/base/rand_util_posix.cc
-index 71bb35a2ff..697d6817c0 100644
+index 2940b29704..697d6817c0 100644
 --- a/base/rand_util_posix.cc
 +++ b/base/rand_util_posix.cc
 @@ -12,7 +12,6 @@
  #include "base/containers/span.h"
  #include "base/time/time.h"
  #include "build/build_config.h"
--#include "third_party/boringssl/src/include/openssl/rand.h"
+-#include "third_party/boringssl/src/include/openssl/rand.h"  // nocheck
  
  #if BUILDFLAG(IS_MAC)
  #include <sys/random.h>
@@ -1067,5 +1067,5 @@ index e996816597..f7be0d1be8 100644
  
  std::ostream& operator<<(std::ostream& out, const UnguessableToken& token) {
 -- 
-2.56.1.708.g77570a6a1d-goog
+2.56.1.809.ga0b61035b5-goog
 

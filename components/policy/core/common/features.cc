@@ -11,10 +11,6 @@
 #include "build/build_config.h"
 #include "extensions/buildflags/buildflags.h"
 
-#if BUILDFLAG(IS_WIN)
-#include "base/win/windows_version.h"
-#endif
-
 namespace policy::features {
 
 BASE_FEATURE(kPolicyBlocklistProceedUntilResponse,
@@ -30,26 +26,15 @@ BASE_FEATURE(kEnhancedSecurityEventFields,
              base::FEATURE_ENABLED_BY_DEFAULT);
 #endif
 
-bool IsEnhancedSecurityEventFieldsEnabled() {
-  if (!base::FeatureList::IsEnabled(kEnhancedSecurityEventFields)) {
-    return false;
-  }
-#if BUILDFLAG(IS_WIN)
-  // TODO(crbug.com/577109904): Re-enable once network name query is made
-  // asynchronous to avoid UI thread hangs during WLAN queries.
-  if (base::win::GetVersion() >= base::win::Version::WIN11_24H2) {
-    return false;
-  }
-#endif
-  return true;
-}
-
 BASE_FEATURE(kUseCECFlagInPolicyData, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kUserPolicyCacheSizeLimit2MB, base::FEATURE_ENABLED_BY_DEFAULT);
 
 #if BUILDFLAG(IS_ANDROID)
 BASE_FEATURE(kInitializePoliciesForSignedInUserInNewEntryPoints,
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kCbcmRefreshEnrollmentTokenBeforeDeferredInit,
              base::FEATURE_ENABLED_BY_DEFAULT);
 #endif
 
@@ -80,9 +65,6 @@ BASE_FEATURE(kEnableExtensionInstallPolicyFetching,
 // policies. When disabled, falls back to the original ShouldHonorPolicies()
 // behavior.
 BASE_FEATURE(kUseManagementServiceForSensitivePolicies,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kFilterSensitivePoliciesOnWorkplaceJoinedDevices,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Modifies behavior of policies utilizing URLBlocklistManager.

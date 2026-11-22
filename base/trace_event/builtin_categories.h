@@ -233,6 +233,19 @@ PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
     perfetto::Category("print"),
     perfetto::Category("raf_investigation"),
     perfetto::Category("rail"),
+    perfetto::Category("remoting")
+        .SetDescription(
+            "Lifecycle, signaling, and control-plane events for Chrome Remote "
+            "Desktop."),
+    perfetto::Category("remoting.debug")
+        .SetTags("debug")
+        .SetDescription(
+            "Verbose per-strip and debug events for Chrome Remote Desktop."),
+    perfetto::Category("remoting.video")
+        .SetTags("video")
+        .SetDescription(
+            "Desktop frame capture, video encoding, video stream, and renderer "
+            "events for Chrome Remote Desktop."),
     perfetto::Category("renderer"),
     perfetto::Category("renderer_host"),
     perfetto::Category("renderer.scheduler"),
@@ -345,6 +358,9 @@ PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
     perfetto::Category(TRACE_DISABLED_BY_DEFAULT("crypto.dpapi"))
         .SetTags("slow"),
     perfetto::Category(TRACE_DISABLED_BY_DEFAULT("devtools.screenshot"))
+        .SetTags("slow"),
+    perfetto::Category(TRACE_DISABLED_BY_DEFAULT("devtools.video_screenshot"))
+        .SetDescription("AV1-encoded video screenshots captured by DevTools.")
         .SetTags("slow"),
     perfetto::Category(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"))
         .SetTags("slow"),

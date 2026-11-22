@@ -5,12 +5,15 @@
 #include "base/test/test_discardable_memory_allocator.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 
+#include "base/byte_size.h"
 #include "base/check.h"
 #include "base/containers/heap_array.h"
 #include "base/memory/discardable_memory.h"
+#include "base/numerics/safe_conversions.h"
 
 namespace base {
 namespace {
@@ -56,12 +59,13 @@ class DiscardableMemoryImpl : public DiscardableMemory {
 }  // namespace
 
 std::unique_ptr<DiscardableMemory>
-TestDiscardableMemoryAllocator::AllocateLockedDiscardableMemory(size_t size) {
-  return std::make_unique<DiscardableMemoryImpl>(size);
+TestDiscardableMemoryAllocator::AllocateLockedDiscardableMemory(ByteSize size) {
+  return std::make_unique<DiscardableMemoryImpl>(
+      checked_cast<size_t>(size.InBytes()));
 }
 
-size_t TestDiscardableMemoryAllocator::GetBytesAllocated() const {
-  return 0U;
+ByteSize TestDiscardableMemoryAllocator::GetAllocatedSize() const {
+  return ByteSize(0);
 }
 
 }  // namespace base

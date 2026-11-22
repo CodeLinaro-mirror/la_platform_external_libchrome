@@ -127,12 +127,38 @@ extension ObjectGroup {
 ///
 /// Generators
 ///
-/// Names of every ObjectGroup registered by this profile.
+/// Names of the ObjectGroups whose `addListener` method registers a listener
+/// on a CallbackRouter.
+private let mojoCallbackReceiverGroups: Set<String> = [
+]
+
+/// Names of the ObjectGroups registered by this profile that the Mojo
+/// generators operate on. The CallbackReceivers are left out: their
+/// `addListener` calls are left to the router listener generators, which build
+/// proper listeners.
 private let mojoTargetGroups = Set(mojoObjectGroups.map { $0.name })
+    .subtracting(mojoCallbackReceiverGroups)
 
 private func isTargetObject(type: ILType) -> Bool {
     guard type.Is(.object()), let group = type.group else { return false }
     return mojoTargetGroups.contains(group)
+}
+
+/// Picks a Mojo variable whose type satisfies `predicate`. It picks an object
+/// group first, and then a variable of that group, so that each interface in
+/// scope gets the same share of picks, regardless of many variables hold it.
+private func findTargetVariable(
+    _ b: ProgramBuilder, where predicate: (ILType) -> Bool
+) -> Variable? {
+    let groups = Set(b.visibleVariables.compactMap { v -> String? in
+        let type = b.type(of: v)
+        return isTargetObject(type: type) && predicate(type) ? type.group : nil
+    })
+    guard let group = groups.randomElement() else { return nil }
+    return b.findVariable {
+        let type = b.type(of: $0)
+        return type.group == group && predicate(type)
+    }
 }
 
 /// Mojo variant of the builtin `MethodCallGenerator` that operates only on
@@ -141,14 +167,8 @@ private func isTargetObject(type: ILType) -> Bool {
 /// method calls, generating any arguments that are not available.
 private let MojoMethodCallGenerator = CodeGenerator("MojoMethodCallGenerator") {
     b in
-    // Pick a variable among all Mojo variables with methods
-    var targetVar = b.findVariable {
-        let type = b.type(of: $0)
-        return isTargetObject(type: type) && !type.methods.isEmpty
-    }
-
     // If we can't find a Mojo object in scope, create the Primary remote
-    guard let obj = targetVar else {
+    guard let obj = findTargetVariable(b, where: { !$0.methods.isEmpty }) else {
         let getRemoteFunc = b.createNamedVariable(forBuiltin: "getOrCreatePrimaryRemote")
         b.callFunction(getRemoteFunc, withArgs: [])
         return
@@ -168,11 +188,9 @@ private let MojoMethodCallGenerator = CodeGenerator("MojoMethodCallGenerator") {
 private let MojoPropertyRetrievalGenerator = CodeGenerator(
     "MojoPropertyRetrievalGenerator"
 ) { b in
-    let targetVar = b.findVariable { isTargetObject(type: b.type(of: $0)) }
-    guard let obj = targetVar else { return }
+    guard let obj = findTargetVariable(b, where: { !$0.properties.isEmpty }) else { return }
 
-    let propertyName =
-        b.type(of: obj).randomProperty() ?? b.randomCustomPropertyName()
+    let propertyName = b.type(of: obj).randomProperty()!
     b.getProperty(propertyName, of: obj)
 }
 

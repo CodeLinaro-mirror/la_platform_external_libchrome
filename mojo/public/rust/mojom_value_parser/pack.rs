@@ -169,10 +169,7 @@ fn pack_struct(fields: &[MojomType], field_names: &[String]) -> PackedStructured
     // Transform each packed field back into a regular MojomType
     // Also recursively pack each one, to handle nested structs.
     let (packed_field_types, packed_field_names): (Vec<StructuredBodyElementOwned>, Vec<String>) =
-        packed_fields
-            .into_iter()
-            .map(|packed_field| (packed_field.ty, packed_field.name.clone()))
-            .unzip();
+        packed_fields.into_iter().map(|packed_field| (packed_field.ty, packed_field.name)).unzip();
 
     PackedStructuredType::Struct {
         packed_field_types,
@@ -187,7 +184,8 @@ fn pack_union_variants(variants: &BTreeMap<i32, MojomType>) -> BTreeMap<i32, Moj
         .map(|(tag, ty)| {
             let wire_ty = pack_mojom_type(ty);
             let ret_ty = match wire_ty {
-                // Special case: Unions nested in other unions are represented as pointers
+                // Special case: Unions nested in other unions are represented
+                // as pointers
                 MojomWireType::Union { variants, is_nullable } => MojomWireType::Pointer {
                     nested_data_type: PackedStructuredType::Union { variants },
                     is_nullable,
@@ -337,25 +335,13 @@ fn pack_n_bits<'a>(
     n: usize,
     is_tag_bits: bool,
 ) -> impl Iterator<Item = StructuredBodyElementMixed<'a>> {
-    let num_full_bitfields = n / 8; // Round down
-    let remaining_bools = n % 8;
-    let num_partial_bitfields = if remaining_bools == 0 { 0 } else { 1 };
-    let mut bitfields: Vec<BitfieldOrdinals> =
-        Vec::with_capacity(num_full_bitfields + num_partial_bitfields);
-    for i in 0..num_full_bitfields {
-        bitfields.push(std::array::from_fn(|idx| Some((i * 8 + idx, is_tag_bits))))
-    }
-    if remaining_bools != 0 {
-        bitfields.push(std::array::from_fn(|idx| {
-            if idx < remaining_bools {
-                Some((num_full_bitfields * 8 + idx, is_tag_bits))
-            } else {
-                None
-            }
+    let num_bitfields = n.div_ceil(8);
+    (0..num_bitfields).map(move |i| {
+        StructuredBodyElement::Bitfield(std::array::from_fn(|idx| {
+            let ordinal = i * 8 + idx;
+            (ordinal < n).then_some((ordinal, is_tag_bits))
         }))
-    }
-
-    bitfields.into_iter().map(StructuredBodyElement::Bitfield)
+    })
 }
 
 /// Create a structured body out of an array. This can be thought of as part of
@@ -375,8 +361,8 @@ pub fn pack_array_body<'a>(
     };
 
     let packed_body = match element_type {
-        // If the array contains booleans we'll need to convert them to bitfields
-        // with the proper ordinals
+        // If the array contains booleans we'll need to convert them to
+        // bitfields with the proper ordinals
         MojomWireType::Leaf { leaf_type: PackedLeafType::Bool, .. } => {
             itertools::Either::Left(pack_n_bits(num_elements, false))
         }

@@ -23,11 +23,9 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ApkInfo;
 import org.chromium.base.ChildBindingState;
-import org.chromium.base.JavaExceptionReporter;
 import org.chromium.base.Log;
 import org.chromium.base.MemoryPressureListener;
 import org.chromium.base.PackageUtils;
-import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.library_loader.IRelroLibInfo;
 import org.chromium.base.memory.SelfFreezeCallback;
@@ -60,12 +58,6 @@ public class ChildProcessConnection {
          * Called when the child process has successfully started and is ready for connection setup.
          */
         void onChildStarted();
-
-        /**
-         * Called when the child process failed to start. This can happen if the process is already
-         * in use by another client. The client will not receive any other callbacks after this one.
-         */
-        void onChildStartFailed(ChildProcessConnection connection);
 
         /**
          * Called when the service has been disconnected. whether it was stopped by the client or if
@@ -182,15 +174,6 @@ public class ChildProcessConnection {
         }
     }
 
-    /** The string passed to bindToCaller to identify this class loader. */
-    @VisibleForTesting
-    public static String getBindToCallerClazz() {
-        // TODO(crbug.com/40677220): Have embedder explicitly set separate different strings since
-        // this could still collide in theory.
-        ClassLoader cl = ChildProcessConnection.class.getClassLoader();
-        return cl.toString() + cl.hashCode();
-    }
-
     // Only accessed on launcher thread.
     // Set when a launching a service with zygote times out, in which case
     // it's assumed the zygote code path is not functional. Make all future
@@ -209,10 +192,6 @@ public class ChildProcessConnection {
     // If the service gets recreated by the framework the intent will be reused, so these parameters
     // should be common to all processes of that type.
     private final Bundle mServiceBundle;
-
-    // Whether bindToCaller should be called on the service after setup to check that only one
-    // process is bound to the service.
-    private final boolean mBindToCaller;
 
     private static class ConnectionParams {
         final IChildProcessArgs mChildProcessArgs;
@@ -310,22 +289,22 @@ public class ChildProcessConnection {
             Context context,
             ComponentName serviceName,
             @Nullable ComponentName fallbackServiceName,
-            boolean bindToCaller,
             boolean bindAsExternalService,
             Bundle serviceBundle,
             @Nullable String instanceName,
             boolean independentFallback,
+            boolean allowBindFailure,
             boolean isSandboxedForHistograms) {
         this(
                 context,
                 serviceName,
                 fallbackServiceName,
-                bindToCaller,
                 bindAsExternalService,
                 serviceBundle,
                 /* connectionFactory= */ null,
                 instanceName,
                 independentFallback,
+                allowBindFailure,
                 isSandboxedForHistograms);
     }
 
@@ -334,12 +313,12 @@ public class ChildProcessConnection {
             final Context context,
             ComponentName serviceName,
             @Nullable ComponentName fallbackServiceName,
-            boolean bindToCaller,
             boolean bindAsExternalService,
             Bundle serviceBundle,
             @Nullable ChildServiceConnectionFactory connectionFactory,
             @Nullable String instanceName,
             boolean independentFallback,
+            boolean allowBindFailure,
             boolean isSandboxedForHistograms) {
         mLauncherHandler = new Handler();
         mLauncherExecutor =
@@ -352,7 +331,6 @@ public class ChildProcessConnection {
         mServiceBundle = serviceBundle != null ? serviceBundle : new Bundle();
         mServiceBundle.putString(
                 ChildProcessConstants.EXTRA_BROWSER_PACKAGE_NAME, ApkInfo.getPackageName());
-        mBindToCaller = bindToCaller;
         mIndependentFallback = independentFallback;
         mIsSandboxedForHistograms = isSandboxedForHistograms;
 
@@ -376,7 +354,8 @@ public class ChildProcessConnection {
                                     mLauncherHandler,
                                     mLauncherExecutor,
                                     delegate,
-                                    instanceName);
+                                    instanceName,
+                                    allowBindFailure);
                         }
                     };
         }
@@ -480,8 +459,8 @@ public class ChildProcessConnection {
      *
      * @param useStrongBinding whether a strong binding should be bound by default. If false, an
      *     initial moderate binding is used.
-     * @param serviceCallback (optional) callbacks invoked when the child process starts or fails to
-     *     start and when the service stops.
+     * @param serviceCallback (optional) callbacks invoked when the child process starts and when
+     *     the service stops.
      */
     public void start(@ChildBindingState int initialBindingState, ServiceCallback serviceCallback) {
         // TODO(https://crbug.com/446030170): Consider taking ChildProcessImportance as a parameter
@@ -508,9 +487,10 @@ public class ChildProcessConnection {
 
     // This is the same as start, but returns a boolean whether bind succeeded. Also on failure,
     // no method is called on |serviceCallback| so the allocation can be tried again. This is
-    // package private and is meant to be used by Android10WorkaroundAllocatorImpl. See comment
-    // there for details.
+    // package private and is meant to be used by Android10WorkaroundAllocatorImpl and
+    // VariableSizeAllocatorImpl when |allowBindFailure| is true.
     boolean tryStart(@ChildBindingState int initialBindingState, ServiceCallback serviceCallback) {
+        assert initialBindingState != ChildBindingState.UNBOUND;
         try {
             TraceEvent.begin("ChildProcessConnection.tryStart");
             assert isRunningOnLauncherThread();
@@ -563,7 +543,6 @@ public class ChildProcessConnection {
         try (TraceEvent te = TraceEvent.scoped("ChildProcessConnection.setupConnection")) {
             mConnectionCallback = connectionCallback;
             mZygoteInfoCallback = zygoteInfoCallback;
-            childProcessArgs.bindToCaller = mBindToCaller;
             mConnectionParams = new ConnectionParams(childProcessArgs, clientInterfaces);
             // Run the setup if the service is already connected. If not, doConnectionSetup() will
             // be called from onServiceConnected().
@@ -621,23 +600,6 @@ public class ChildProcessConnection {
             TraceEvent.begin("ChildProcessConnection.ChildServiceConnection.onServiceConnected");
             mDidOnServiceConnected = true;
             mService = IChildProcessService.Stub.asInterface(service);
-
-            if (mBindToCaller) {
-                try {
-                    if (!mService.bindToCaller(getBindToCallerClazz())) {
-                        if (mServiceCallback != null) {
-                            mServiceCallback.onChildStartFailed(this);
-                        }
-                        unbind();
-                        return;
-                    }
-                } catch (RemoteException ex) {
-                    // Do not trigger the StartCallback here, since the service is already
-                    // dead and the onChildStopped callback will run from onServiceDisconnected().
-                    Log.e(TAG, "Failed to bind service to connection.", ex);
-                    return;
-                }
-            }
 
             // Validate that the child process is running the same code as the parent process.
             boolean childMatches = true;
@@ -911,11 +873,13 @@ public class ChildProcessConnection {
         }
     }
 
+    // LINT.IfChange
     @IntDef({
         ServiceNames.JAVA_SANDBOXED,
         ServiceNames.NATIVE_ONLY_SANDBOXED,
         ServiceNames.PRIVILEGED,
-        ServiceNames.OTHER
+        ServiceNames.OTHER,
+        ServiceNames.SANDBOXED_GPU
     })
     @Target(ElementType.TYPE_USE)
     @Retention(RetentionPolicy.SOURCE)
@@ -924,8 +888,11 @@ public class ChildProcessConnection {
         int NATIVE_ONLY_SANDBOXED = 1;
         int PRIVILEGED = 2;
         int OTHER = 3;
-        int NUM_ENTRIES = 4;
+        int SANDBOXED_GPU = 4;
+        int NUM_ENTRIES = 5;
     }
+
+    // LINT.ThenChange(//tools/metrics/histograms/metadata/android/enums.xml)
 
     private static final String NATIVE_SANDBOXED_SERVICE =
             "org.chromium.content.app.NativeOnlySandboxedProcessService";
@@ -933,18 +900,13 @@ public class ChildProcessConnection {
             "org.chromium.content.app.SandboxedProcessService";
     private static final String PRIVILEGED_SERVICE =
             "org.chromium.content.app.PrivilegedProcessService";
+    private static final String SANDBOXED_GPU_SERVICE =
+            "org.chromium.content.app.SandboxedGpuProcessService";
 
     private void fallbackService() {
         assert mFallbackServiceName != null;
         @ServiceNames int serviceName;
         String className = mFallbackServiceName.getClassName();
-        if (mServiceName.getClassName().startsWith(NATIVE_SANDBOXED_SERVICE)) {
-            ThreadUtils.postOnUiThread(
-                    () ->
-                            JavaExceptionReporter.reportException(
-                                    new Throwable(
-                                            "Fallback from NativeOnlySandboxedProcessService")));
-        }
         // Don't use the exact match because service names have a number as a suffix.
         if (className.startsWith(SANDBOXED_SERVICE)) {
             serviceName = ServiceNames.JAVA_SANDBOXED;
@@ -952,6 +914,8 @@ public class ChildProcessConnection {
             serviceName = ServiceNames.NATIVE_ONLY_SANDBOXED;
         } else if (className.startsWith(PRIVILEGED_SERVICE)) {
             serviceName = ServiceNames.PRIVILEGED;
+        } else if (className.startsWith(SANDBOXED_GPU_SERVICE)) {
+            serviceName = ServiceNames.SANDBOXED_GPU;
         } else {
             serviceName = ServiceNames.OTHER;
         }

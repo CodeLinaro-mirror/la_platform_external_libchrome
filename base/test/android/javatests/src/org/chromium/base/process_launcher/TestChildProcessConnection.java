@@ -57,15 +57,11 @@ public class TestChildProcessConnection extends ChildProcessConnection {
      * connection is established: with initial binding bound and no strong binding.
      */
     public TestChildProcessConnection(
-            ComponentName serviceName,
-            boolean bindToCaller,
-            boolean bindAsExternalService,
-            Bundle serviceBundle) {
+            ComponentName serviceName, boolean bindAsExternalService, Bundle serviceBundle) {
         super(
                 /* context= */ null,
                 serviceName,
                 null,
-                bindToCaller,
                 bindAsExternalService,
                 serviceBundle,
                 new ChildServiceConnectionFactory() {
@@ -80,6 +76,7 @@ public class TestChildProcessConnection extends ChildProcessConnection {
                 },
                 /* instanceName= */ null,
                 /* independentFallback= */ false,
+                /* allowBindFailure= */ false,
                 /* isSandboxedForHistograms= */ false);
     }
 
