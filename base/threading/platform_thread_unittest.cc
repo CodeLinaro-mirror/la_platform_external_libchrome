@@ -80,6 +80,11 @@ std::ostream& operator<<(std::ostream& os, MessagePumpType type) {
 #include "base/system/sys_info.h"
 #endif
 
+#if BUILDFLAG(IS_FUCHSIA)
+#include <locale.h>
+#include <stdlib.h>
+#endif
+
 using ::testing::_;
 using ::testing::InSequence;
 
@@ -294,6 +299,44 @@ TEST(PlatformThreadTest, FunctionTimesTen) {
   // Make sure that the thread ID is the same across calls.
   EXPECT_EQ(main_thread_id, PlatformThread::CurrentId());
 }
+
+#if BUILDFLAG(IS_FUCHSIA)
+namespace {
+
+class LocaleTestThread : public PlatformThread::Delegate {
+ public:
+  void ThreadMain() override {
+    has_locale_ = uselocale(nullptr) != nullptr;
+    if (has_locale_) {
+      // `MB_CUR_MAX` dereferences the thread's locale.
+      mb_cur_max_ = MB_CUR_MAX;
+    }
+  }
+
+  bool has_locale() const { return has_locale_; }
+  size_t mb_cur_max() const { return mb_cur_max_; }
+
+ private:
+  bool has_locale_ = false;
+  size_t mb_cur_max_ = 0;
+};
+
+}  // namespace
+
+// Threads must start with a locale, since libc functions such as `MB_CUR_MAX`
+// dereference it unconditionally. See the comment in ThreadFunc() in
+// platform_thread_posix.cc.
+TEST(PlatformThreadTest, NewThreadHasLocale) {
+  LocaleTestThread thread;
+  PlatformThreadHandle handle;
+
+  ASSERT_TRUE(PlatformThread::Create(0, &thread, &handle));
+  PlatformThread::Join(handle);
+
+  EXPECT_TRUE(thread.has_locale());
+  EXPECT_GT(thread.mb_cur_max(), 0u);
+}
+#endif  // BUILDFLAG(IS_FUCHSIA)
 
 namespace {
 
@@ -749,8 +792,12 @@ TEST(PlatformThreadCpuAffinity, DefaultToAllCores) {
     GTEST_SKIP();
   }
 
-  test::ScopedFeatureList feature_list{kRestrictBigCoreThreadAffinity};
-  EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
+  {
+    test::ScopedFeatureList feature_list{kRestrictBigCoreThreadAffinity};
+    PlatformThread::InitializeFeatures();
+    EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
+  }
+  PlatformThread::InitializeFeatures();
 }
 
 TEST(PlatformThreadCpuAffinity, RestrictAffinity) {
@@ -774,6 +821,7 @@ TEST(PlatformThreadCpuAffinity, RestrictAffinity) {
 
   {
     test::ScopedFeatureList feature_list{kRestrictBigCoreThreadAffinity};
+    PlatformThread::InitializeFeatures();
 
     EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
     PlatformThread::SetDefaultThreadType(ThreadType::kBackground);
@@ -792,6 +840,7 @@ TEST(PlatformThreadCpuAffinity, RestrictAffinity) {
   {
     test::ScopedFeatureList feature_list;
     feature_list.InitAndDisableFeature(kRestrictBigCoreThreadAffinity);
+    PlatformThread::InitializeFeatures();
 
     PlatformThread::SetDefaultThreadType(ThreadType::kBackground);
     EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
@@ -800,6 +849,7 @@ TEST(PlatformThreadCpuAffinity, RestrictAffinity) {
   }
 
   SetMaxFrequencyPerProcessorOverrideForTesting(nullptr);
+  PlatformThread::InitializeFeatures();
 }
 
 TEST(PlatformThreadCpuAffinity, RestrictAffinityNoopWithTwoCoreTypes) {
@@ -811,13 +861,17 @@ TEST(PlatformThreadCpuAffinity, RestrictAffinityNoopWithTwoCoreTypes) {
   SetMaxFrequencyPerProcessorOverrideForTesting(&fake_frequencies);
   EXPECT_FALSE(IsEligibleForBigCoreAffinityChange());
 
-  test::ScopedFeatureList feature_list{kRestrictBigCoreThreadAffinity};
+  {
+    test::ScopedFeatureList feature_list{kRestrictBigCoreThreadAffinity};
+    PlatformThread::InitializeFeatures();
 
-  EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
-  PlatformThread::SetDefaultThreadType(ThreadType::kBackground);
-  EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
+    EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
+    PlatformThread::SetDefaultThreadType(ThreadType::kBackground);
+    EXPECT_EQ(SysInfo::NumberOfProcessors(), NumberOfAllowedProcessors());
+  }
 
   SetMaxFrequencyPerProcessorOverrideForTesting(nullptr);
+  PlatformThread::InitializeFeatures();
 }
 
 TEST(PlatformThreadCpuAffinity, IsEligibleForBigCoreAffinityChange) {
@@ -838,6 +892,51 @@ TEST(PlatformThreadCpuAffinity, IsEligibleForBigCoreAffinityChange) {
   EXPECT_FALSE(IsEligibleForBigCoreAffinityChange());
 
   SetMaxFrequencyPerProcessorOverrideForTesting(nullptr);
+}
+
+TEST(PlatformThreadTest, AndroidThreadPriorityInitializeFeatures) {
+  auto expect_nice_values = [](int bg, int util, int def, int pres, int audio,
+                               int rt) {
+    EXPECT_EQ(bg, internal::ThreadTypeToNiceValue(ThreadType::kBackground));
+    EXPECT_EQ(util, internal::ThreadTypeToNiceValue(ThreadType::kUtility));
+    EXPECT_EQ(def, internal::ThreadTypeToNiceValue(ThreadType::kDefault));
+    EXPECT_EQ(pres, internal::ThreadTypeToNiceValue(ThreadType::kPresentation));
+    EXPECT_EQ(audio,
+              internal::ThreadTypeToNiceValue(ThreadType::kAudioProcessing));
+    EXPECT_EQ(rt, internal::ThreadTypeToNiceValue(ThreadType::kRealtimeAudio));
+  };
+
+  {
+    test::ScopedFeatureList feature_list;
+    feature_list.InitFromCommandLine(/*enable_features=*/"",
+                                     "AndroidThreadPriority");
+    PlatformThread::InitializeFeatures();
+  }
+
+  {
+    test::ScopedFeatureList feature_list;
+    feature_list.InitFromCommandLine(
+        "AndroidThreadPriority:background/12/utility/2/default/1/"
+        "presentation/-6/interactive/-8/obey_soc_restrictions/false",
+        /*disable_features=*/"");
+
+    // ThreadTypeToNiceValue() reads cached atomics rather than FeatureList
+    // directly, so values do not change until InitializeFeatures() is called.
+    expect_nice_values(10, 1, 0, -4, -4, -16);
+
+    PlatformThread::InitializeFeatures();
+    expect_nice_values(12, 2, 1, -6, -8, -16);
+  }
+
+  // Verify disabling restores defaults.
+  {
+    test::ScopedFeatureList feature_list;
+    feature_list.InitFromCommandLine(/*enable_features=*/"",
+                                     "AndroidThreadPriority");
+    PlatformThread::InitializeFeatures();
+    expect_nice_values(10, 1, 0, -4, -4, -16);
+  }
+  PlatformThread::InitializeFeatures();
 }
 
 #endif  // BUILDFLAG(IS_ANDROID)
