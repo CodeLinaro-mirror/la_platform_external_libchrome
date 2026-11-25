@@ -6,6 +6,7 @@ package org.chromium.base.test.transit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertThrows;
 
 import android.app.Activity;
 
@@ -124,5 +125,38 @@ public class OutcomeUnitTest {
 
         mTransitRule.runTransitionExpectingThrow(
                 AssertionError.class, () -> station.noopTo().reach(outcome));
+    }
+
+    @Test
+    public void testAwait_noTrigger() throws Throwable {
+        hopOn();
+        TestFacility facility = new TestFacility();
+        AtomicReference<TestFacility> result = new AtomicReference<>();
+
+        mTransitRule.runTransition(() -> result.set(Outcome.enter(facility).await()));
+
+        assertSame(facility, result.get());
+        assertEquals(Phase.ACTIVE, facility.getPhase());
+    }
+
+    @Test
+    public void testHopOnAt_entersStationWithoutOrigin() throws Throwable {
+        TestStation station = new TestStation();
+        Activity activity = Robolectric.buildActivity(Activity.class).setup().get();
+
+        mTransitRule.runTransition(() -> Outcome.hopOnAt(activity, station).await());
+
+        assertEquals(Phase.ACTIVE, station.getPhase());
+    }
+
+    @Test
+    public void testInNewTask_withoutStation_asserts() {
+        Outcome<TestFacility> outcome = Outcome.enter(new TestFacility());
+
+        assertThrows(
+                AssertionError.class,
+                () -> {
+                    var _ = outcome.inNewTask();
+                });
     }
 }

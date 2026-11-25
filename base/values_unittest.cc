@@ -21,7 +21,6 @@
 #include <vector>
 
 #include "base/bits.h"
-#include "base/compiler_specific.h"
 #include "base/containers/adapters.h"
 #include "base/containers/span.h"
 #include "base/strings/utf_string_conversions.h"
@@ -32,6 +31,15 @@
 #include "third_party/perfetto/include/perfetto/test/traced_value_test_support.h"
 
 namespace base {
+
+using ::testing::Each;
+using ::testing::ElementsAre;
+using ::testing::ElementsAreArray;
+using ::testing::Eq;
+using ::testing::IsEmpty;
+using ::testing::Optional;
+using ::testing::Pointee;
+using ::testing::ResultOf;
 
 #ifdef NDEBUG
 // `Value` should have a (relatively) small size to avoid creating excess
@@ -80,19 +88,19 @@ TEST(ValuesTest, EmptyValue) {
   EXPECT_EQ(std::nullopt, value.GetIfInt());
   EXPECT_EQ(std::nullopt, value.GetIfDouble());
   EXPECT_EQ(nullptr, value.GetIfString());
-  EXPECT_EQ(nullptr, value.GetIfBlob());
+  EXPECT_EQ(std::nullopt, value.GetIfBlob());
 }
 
 // Group of tests for the value constructors.
 TEST(ValuesTest, ConstructBool) {
   Value true_value(true);
   EXPECT_EQ(Value::Type::BOOLEAN, true_value.type());
-  EXPECT_THAT(true_value.GetIfBool(), testing::Optional(true));
+  EXPECT_THAT(true_value.GetIfBool(), Optional(true));
   EXPECT_TRUE(true_value.GetBool());
 
   Value false_value(false);
   EXPECT_EQ(Value::Type::BOOLEAN, false_value.type());
-  EXPECT_THAT(false_value.GetIfBool(), testing::Optional(false));
+  EXPECT_THAT(false_value.GetIfBool(), Optional(false));
   EXPECT_FALSE(false_value.GetBool());
 }
 
@@ -111,17 +119,17 @@ TEST(ValuesTest, ConstructFromPtrs) {
 TEST(ValuesTest, ConstructInt) {
   Value value(-37);
   EXPECT_EQ(Value::Type::INTEGER, value.type());
-  EXPECT_THAT(value.GetIfInt(), testing::Optional(-37));
+  EXPECT_THAT(value.GetIfInt(), Optional(-37));
   EXPECT_EQ(-37, value.GetInt());
 
-  EXPECT_THAT(value.GetIfDouble(), testing::Optional(-37.0));
+  EXPECT_THAT(value.GetIfDouble(), Optional(-37.0));
   EXPECT_EQ(-37.0, value.GetDouble());
 }
 
 TEST(ValuesTest, ConstructDouble) {
   Value value(-4.655);
   EXPECT_EQ(Value::Type::DOUBLE, value.type());
-  EXPECT_THAT(value.GetIfDouble(), testing::Optional(-4.655));
+  EXPECT_THAT(value.GetIfDouble(), Optional(-4.655));
   EXPECT_EQ(-4.655, value.GetDouble());
 }
 
@@ -129,7 +137,7 @@ TEST(ValuesTest, ConstructStringFromConstCharPtr) {
   const char* str = "foobar";
   Value value(str);
   EXPECT_EQ(Value::Type::STRING, value.type());
-  EXPECT_THAT(value.GetIfString(), testing::Pointee(std::string("foobar")));
+  EXPECT_THAT(value.GetIfString(), Pointee(std::string("foobar")));
   EXPECT_EQ("foobar", value.GetString());
 }
 
@@ -137,7 +145,7 @@ TEST(ValuesTest, ConstructStringFromStringPiece) {
   std::string str = "foobar";
   Value value{std::string_view(str)};
   EXPECT_EQ(Value::Type::STRING, value.type());
-  EXPECT_THAT(value.GetIfString(), testing::Pointee(std::string("foobar")));
+  EXPECT_THAT(value.GetIfString(), Pointee(std::string("foobar")));
   EXPECT_EQ("foobar", value.GetString());
 }
 
@@ -145,7 +153,7 @@ TEST(ValuesTest, ConstructStringFromStdStringRRef) {
   std::string str = "foobar";
   Value value(std::move(str));
   EXPECT_EQ(Value::Type::STRING, value.type());
-  EXPECT_THAT(value.GetIfString(), testing::Pointee(std::string("foobar")));
+  EXPECT_THAT(value.GetIfString(), Pointee(std::string("foobar")));
   EXPECT_EQ("foobar", value.GetString());
 }
 
@@ -153,7 +161,7 @@ TEST(ValuesTest, ConstructStringFromConstChar16Ptr) {
   std::u16string str = u"foobar";
   Value value(str.c_str());
   EXPECT_EQ(Value::Type::STRING, value.type());
-  EXPECT_THAT(value.GetIfString(), testing::Pointee(std::string("foobar")));
+  EXPECT_THAT(value.GetIfString(), Pointee(std::string("foobar")));
   EXPECT_EQ("foobar", value.GetString());
 }
 
@@ -161,7 +169,7 @@ TEST(ValuesTest, ConstructStringFromStringPiece16) {
   std::u16string str = u"foobar";
   Value value{std::u16string_view(str)};
   EXPECT_EQ(Value::Type::STRING, value.type());
-  EXPECT_THAT(value.GetIfString(), testing::Pointee(std::string("foobar")));
+  EXPECT_THAT(value.GetIfString(), Pointee(std::string("foobar")));
   EXPECT_EQ("foobar", value.GetString());
 }
 
@@ -169,7 +177,7 @@ TEST(ValuesTest, ConstructBinary) {
   Value::BlobStorage blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
   Value value(blob);
   EXPECT_EQ(Value::Type::BINARY, value.type());
-  EXPECT_THAT(value.GetIfBlob(), testing::Pointee(blob));
+  EXPECT_THAT(value.GetIfBlob(), Optional(ElementsAreArray(blob)));
   EXPECT_EQ(blob, value.GetBlob());
 }
 
@@ -210,9 +218,9 @@ TEST(ValuesTest, UseTestingEachOnValueList) {
   list.Append(true);
 
   // This will only work if `ListValue::value_type` is defined.
-  EXPECT_THAT(list, testing::Each(testing::ResultOf(
-                        [](const Value& value) { return value.GetBool(); },
-                        testing::Eq(true))));
+  EXPECT_THAT(list,
+              Each(ResultOf([](const Value& value) { return value.GetBool(); },
+                            Eq(true))));
 }
 
 TEST(ValuesTest, ConstructListFromValueList) {
@@ -1065,24 +1073,6 @@ TEST(ValuesTest, MutableFindStringKey) {
   EXPECT_EQ(expected_value, value);
 }
 
-TEST(ValuesTest, MutableFindBlobKey) {
-  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
-  DictValue dict;
-  dict.Set("blob", std::move(original_blob));
-
-  Value::BlobStorage new_blob = {0x0, 0x3, 0x0};
-  *(dict.FindBlob("blob")) = new_blob;
-
-  DictValue expected_dict;
-  expected_dict.Set("blob", std::move(new_blob));
-
-  EXPECT_EQ(expected_dict, dict);
-
-  Value value(std::move(dict));
-  Value expected_value(std::move(expected_dict));
-  EXPECT_EQ(expected_value, value);
-}
-
 TEST(ValuesTest, FindDictKey) {
   DictValue dict;
   dict.Set("null", Value());
@@ -1132,18 +1122,35 @@ TEST(ValuesTest, FindBlob) {
   dict.Set("int", 0);
   dict.Set("double", 0.0);
   dict.Set("string", std::string());
-  dict.Set("blob", Value(Value::BlobStorage()));
+  dict.Set("blob", Value::BlobStorage({0xF, 0x0, 0x0, 0xB, 0xA, 0x2}));
+  dict.Set("empty_blob", Value::BlobStorage());
   dict.Set("list", ListValue());
   dict.Set("dict", DictValue());
 
-  EXPECT_EQ(nullptr, dict.FindBlob("null"));
-  EXPECT_EQ(nullptr, dict.FindBlob("bool"));
-  EXPECT_EQ(nullptr, dict.FindBlob("int"));
-  EXPECT_EQ(nullptr, dict.FindBlob("double"));
-  EXPECT_EQ(nullptr, dict.FindBlob("string"));
-  EXPECT_NE(nullptr, dict.FindBlob("blob"));
-  EXPECT_EQ(nullptr, dict.FindBlob("list"));
-  EXPECT_EQ(nullptr, dict.FindBlob("dict"));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("missing"));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("null"));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("bool"));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("int"));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("double"));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("string"));
+  EXPECT_THAT(dict.FindBlob("blob"),
+              Optional(ElementsAre(0xF, 0x0, 0x0, 0xB, 0xA, 0x2)));
+  EXPECT_THAT(dict.FindBlob("empty_blob"), Optional(IsEmpty()));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("list"));
+  EXPECT_EQ(std::nullopt, dict.FindBlob("dict"));
+}
+
+TEST(ValuesTest, FindBlobByDottedPath) {
+  DictValue dict;
+  dict.SetByDottedPath("foo.blob", Value::BlobStorage({0xF, 0x0, 0x0, 0xB}));
+  dict.SetByDottedPath("foo.int", 0);
+
+  EXPECT_THAT(dict.FindBlobByDottedPath("foo.blob"),
+              Optional(ElementsAre(0xF, 0x0, 0x0, 0xB)));
+  EXPECT_EQ(dict.FindBlobByDottedPath("foo.int"), std::nullopt);
+  EXPECT_EQ(dict.FindBlobByDottedPath("foo.missing"), std::nullopt);
+  EXPECT_EQ(dict.FindBlobByDottedPath("foo"), std::nullopt);
+  EXPECT_EQ(dict.FindBlobByDottedPath("blob"), std::nullopt);
 }
 
 TEST(ValuesTest, SetKey) {
@@ -1640,15 +1647,13 @@ TEST(ValuesTest, BinaryValue) {
   ASSERT_EQ(original_buffer, binary.GetBlob().data());
   ASSERT_EQ(15U, binary.GetBlob().size());
 
-  std::array<char, 42> stack_buffer;
+  std::array<uint8_t, 42> stack_buffer;
   std::fill(stack_buffer.begin(), stack_buffer.end(), '!');
   binary = Value(Value::BlobStorage(stack_buffer.begin(), stack_buffer.end()));
   ASSERT_TRUE(binary.GetBlob().data());
-  ASSERT_NE(stack_buffer.data(),
-            reinterpret_cast<const char*>(binary.GetBlob().data()));
+  ASSERT_NE(stack_buffer.data(), binary.GetBlob().data());
   ASSERT_EQ(42U, binary.GetBlob().size());
-  ASSERT_EQ(0, UNSAFE_TODO(memcmp(stack_buffer.data(), binary.GetBlob().data(),
-                                  binary.GetBlob().size())));
+  ASSERT_EQ(stack_buffer, binary.GetBlob());
 }
 
 TEST(ValuesTest, StringValue) {
@@ -2333,29 +2338,6 @@ TEST(ValuesTest, MutableGetString) {
   Value value("value");
   value.GetString() = "new_value";
   EXPECT_EQ("new_value", value.GetString());
-}
-
-TEST(ValuesTest, MutableFindBlobPath) {
-  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
-  DictValue dict;
-  dict.SetByDottedPath("foo.bar", std::move(original_blob));
-
-  Value::BlobStorage new_blob = {0x0, 0x3, 0x0};
-  *(dict.FindBlobByDottedPath("foo.bar")) = new_blob;
-
-  DictValue expected_dict;
-  expected_dict.SetByDottedPath("foo.bar", std::move(new_blob));
-
-  EXPECT_EQ(expected_dict, dict);
-}
-
-TEST(ValuesTest, MutableGetBlob) {
-  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
-  Value value(std::move(original_blob));
-
-  Value::BlobStorage new_blob = {0x0, 0x3, 0x0};
-  value.GetBlob() = new_blob;
-  EXPECT_EQ(new_blob, value.GetBlob());
 }
 
 TEST(ValuesTest, TracingSupport) {
